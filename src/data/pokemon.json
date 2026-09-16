@@ -1,0 +1,10778 @@
+[
+  {
+    "slug": "bulbasaur",
+    "dexNumber": 1,
+    "name": "Bulbasaur",
+    "types": [
+      "grass",
+      "poison"
+    ],
+    "bst": 318,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "ivysaur",
+    "dexNumber": 2,
+    "name": "Ivysaur",
+    "types": [
+      "grass",
+      "poison"
+    ],
+    "bst": 405,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "venusaur",
+    "dexNumber": 3,
+    "name": "Venusaur",
+    "types": [
+      "grass",
+      "poison"
+    ],
+    "bst": 525,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "charmander",
+    "dexNumber": 4,
+    "name": "Charmander",
+    "types": [
+      "fire"
+    ],
+    "bst": 309,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "charmeleon",
+    "dexNumber": 5,
+    "name": "Charmeleon",
+    "types": [
+      "fire"
+    ],
+    "bst": 405,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "charizard",
+    "dexNumber": 6,
+    "name": "Charizard",
+    "types": [
+      "fire",
+      "flying"
+    ],
+    "bst": 534,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "squirtle",
+    "dexNumber": 7,
+    "name": "Squirtle",
+    "types": [
+      "water"
+    ],
+    "bst": 314,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "wartortle",
+    "dexNumber": 8,
+    "name": "Wartortle",
+    "types": [
+      "water"
+    ],
+    "bst": 405,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "blastoise",
+    "dexNumber": 9,
+    "name": "Blastoise",
+    "types": [
+      "water"
+    ],
+    "bst": 530,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "caterpie",
+    "dexNumber": 10,
+    "name": "Caterpie",
+    "types": [
+      "bug"
+    ],
+    "bst": 195,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "metapod",
+    "dexNumber": 11,
+    "name": "Metapod",
+    "types": [
+      "bug"
+    ],
+    "bst": 205,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "butterfree",
+    "dexNumber": 12,
+    "name": "Butterfree",
+    "types": [
+      "bug",
+      "flying"
+    ],
+    "bst": 395,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "weedle",
+    "dexNumber": 13,
+    "name": "Weedle",
+    "types": [
+      "bug",
+      "poison"
+    ],
+    "bst": 195,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "kakuna",
+    "dexNumber": 14,
+    "name": "Kakuna",
+    "types": [
+      "bug",
+      "poison"
+    ],
+    "bst": 205,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "beedrill",
+    "dexNumber": 15,
+    "name": "Beedrill",
+    "types": [
+      "bug",
+      "poison"
+    ],
+    "bst": 395,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "pidgey",
+    "dexNumber": 16,
+    "name": "Pidgey",
+    "types": [
+      "normal",
+      "flying"
+    ],
+    "bst": 251,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "pidgeotto",
+    "dexNumber": 17,
+    "name": "Pidgeotto",
+    "types": [
+      "normal",
+      "flying"
+    ],
+    "bst": 349,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "pidgeot",
+    "dexNumber": 18,
+    "name": "Pidgeot",
+    "types": [
+      "normal",
+      "flying"
+    ],
+    "bst": 479,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "rattata",
+    "dexNumber": 19,
+    "name": "Rattata",
+    "types": [
+      "normal"
+    ],
+    "bst": 253,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "raticate",
+    "dexNumber": 20,
+    "name": "Raticate",
+    "types": [
+      "normal"
+    ],
+    "bst": 413,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "spearow",
+    "dexNumber": 21,
+    "name": "Spearow",
+    "types": [
+      "normal",
+      "flying"
+    ],
+    "bst": 262,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "fearow",
+    "dexNumber": 22,
+    "name": "Fearow",
+    "types": [
+      "normal",
+      "flying"
+    ],
+    "bst": 442,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "ekans",
+    "dexNumber": 23,
+    "name": "Ekans",
+    "types": [
+      "poison"
+    ],
+    "bst": 288,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "arbok",
+    "dexNumber": 24,
+    "name": "Arbok",
+    "types": [
+      "poison"
+    ],
+    "bst": 448,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "pikachu",
+    "dexNumber": 25,
+    "name": "Pikachu",
+    "types": [
+      "electric"
+    ],
+    "bst": 320,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "raichu",
+    "dexNumber": 26,
+    "name": "Raichu",
+    "types": [
+      "electric"
+    ],
+    "bst": 485,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "sandshrew",
+    "dexNumber": 27,
+    "name": "Sandshrew",
+    "types": [
+      "ground"
+    ],
+    "bst": 300,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "sandslash",
+    "dexNumber": 28,
+    "name": "Sandslash",
+    "types": [
+      "ground"
+    ],
+    "bst": 450,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "nidoran-f",
+    "dexNumber": 29,
+    "name": "Nidoran♀",
+    "types": [
+      "poison"
+    ],
+    "bst": 275,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "nidorina",
+    "dexNumber": 30,
+    "name": "Nidorina",
+    "types": [
+      "poison"
+    ],
+    "bst": 365,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "nidoqueen",
+    "dexNumber": 31,
+    "name": "Nidoqueen",
+    "types": [
+      "poison",
+      "ground"
+    ],
+    "bst": 505,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "nidoran-m",
+    "dexNumber": 32,
+    "name": "Nidoran♂",
+    "types": [
+      "poison"
+    ],
+    "bst": 273,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "nidorino",
+    "dexNumber": 33,
+    "name": "Nidorino",
+    "types": [
+      "poison"
+    ],
+    "bst": 365,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "nidoking",
+    "dexNumber": 34,
+    "name": "Nidoking",
+    "types": [
+      "poison",
+      "ground"
+    ],
+    "bst": 505,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "clefairy",
+    "dexNumber": 35,
+    "name": "Clefairy",
+    "types": [
+      "fairy"
+    ],
+    "bst": 323,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "clefable",
+    "dexNumber": 36,
+    "name": "Clefable",
+    "types": [
+      "fairy"
+    ],
+    "bst": 483,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "vulpix",
+    "dexNumber": 37,
+    "name": "Vulpix",
+    "types": [
+      "fire"
+    ],
+    "bst": 299,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "ninetales",
+    "dexNumber": 38,
+    "name": "Ninetales",
+    "types": [
+      "fire"
+    ],
+    "bst": 505,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "jigglypuff",
+    "dexNumber": 39,
+    "name": "Jigglypuff",
+    "types": [
+      "normal",
+      "fairy"
+    ],
+    "bst": 270,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "wigglytuff",
+    "dexNumber": 40,
+    "name": "Wigglytuff",
+    "types": [
+      "normal",
+      "fairy"
+    ],
+    "bst": 435,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "zubat",
+    "dexNumber": 41,
+    "name": "Zubat",
+    "types": [
+      "poison",
+      "flying"
+    ],
+    "bst": 245,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "golbat",
+    "dexNumber": 42,
+    "name": "Golbat",
+    "types": [
+      "poison",
+      "flying"
+    ],
+    "bst": 455,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "oddish",
+    "dexNumber": 43,
+    "name": "Oddish",
+    "types": [
+      "grass",
+      "poison"
+    ],
+    "bst": 320,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "gloom",
+    "dexNumber": 44,
+    "name": "Gloom",
+    "types": [
+      "grass",
+      "poison"
+    ],
+    "bst": 395,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "vileplume",
+    "dexNumber": 45,
+    "name": "Vileplume",
+    "types": [
+      "grass",
+      "poison"
+    ],
+    "bst": 490,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "paras",
+    "dexNumber": 46,
+    "name": "Paras",
+    "types": [
+      "bug",
+      "grass"
+    ],
+    "bst": 285,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "parasect",
+    "dexNumber": 47,
+    "name": "Parasect",
+    "types": [
+      "bug",
+      "grass"
+    ],
+    "bst": 405,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "venonat",
+    "dexNumber": 48,
+    "name": "Venonat",
+    "types": [
+      "bug",
+      "poison"
+    ],
+    "bst": 305,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "venomoth",
+    "dexNumber": 49,
+    "name": "Venomoth",
+    "types": [
+      "bug",
+      "poison"
+    ],
+    "bst": 450,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "diglett",
+    "dexNumber": 50,
+    "name": "Diglett",
+    "types": [
+      "ground"
+    ],
+    "bst": 265,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "dugtrio",
+    "dexNumber": 51,
+    "name": "Dugtrio",
+    "types": [
+      "ground"
+    ],
+    "bst": 425,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "meowth",
+    "dexNumber": 52,
+    "name": "Meowth",
+    "types": [
+      "normal"
+    ],
+    "bst": 290,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "persian",
+    "dexNumber": 53,
+    "name": "Persian",
+    "types": [
+      "normal"
+    ],
+    "bst": 440,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "psyduck",
+    "dexNumber": 54,
+    "name": "Psyduck",
+    "types": [
+      "water"
+    ],
+    "bst": 320,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "golduck",
+    "dexNumber": 55,
+    "name": "Golduck",
+    "types": [
+      "water"
+    ],
+    "bst": 500,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "mankey",
+    "dexNumber": 56,
+    "name": "Mankey",
+    "types": [
+      "fighting"
+    ],
+    "bst": 305,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "primeape",
+    "dexNumber": 57,
+    "name": "Primeape",
+    "types": [
+      "fighting"
+    ],
+    "bst": 455,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "growlithe",
+    "dexNumber": 58,
+    "name": "Growlithe",
+    "types": [
+      "fire"
+    ],
+    "bst": 350,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "arcanine",
+    "dexNumber": 59,
+    "name": "Arcanine",
+    "types": [
+      "fire"
+    ],
+    "bst": 555,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "poliwag",
+    "dexNumber": 60,
+    "name": "Poliwag",
+    "types": [
+      "water"
+    ],
+    "bst": 300,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "poliwhirl",
+    "dexNumber": 61,
+    "name": "Poliwhirl",
+    "types": [
+      "water"
+    ],
+    "bst": 385,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "poliwrath",
+    "dexNumber": 62,
+    "name": "Poliwrath",
+    "types": [
+      "water",
+      "fighting"
+    ],
+    "bst": 510,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "abra",
+    "dexNumber": 63,
+    "name": "Abra",
+    "types": [
+      "psychic"
+    ],
+    "bst": 310,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "kadabra",
+    "dexNumber": 64,
+    "name": "Kadabra",
+    "types": [
+      "psychic"
+    ],
+    "bst": 400,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "alakazam",
+    "dexNumber": 65,
+    "name": "Alakazam",
+    "types": [
+      "psychic"
+    ],
+    "bst": 500,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "machop",
+    "dexNumber": 66,
+    "name": "Machop",
+    "types": [
+      "fighting"
+    ],
+    "bst": 305,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "machoke",
+    "dexNumber": 67,
+    "name": "Machoke",
+    "types": [
+      "fighting"
+    ],
+    "bst": 405,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "machamp",
+    "dexNumber": 68,
+    "name": "Machamp",
+    "types": [
+      "fighting"
+    ],
+    "bst": 505,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "bellsprout",
+    "dexNumber": 69,
+    "name": "Bellsprout",
+    "types": [
+      "grass",
+      "poison"
+    ],
+    "bst": 300,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "weepinbell",
+    "dexNumber": 70,
+    "name": "Weepinbell",
+    "types": [
+      "grass",
+      "poison"
+    ],
+    "bst": 390,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "victreebel",
+    "dexNumber": 71,
+    "name": "Victreebel",
+    "types": [
+      "grass",
+      "poison"
+    ],
+    "bst": 490,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "tentacool",
+    "dexNumber": 72,
+    "name": "Tentacool",
+    "types": [
+      "water",
+      "poison"
+    ],
+    "bst": 335,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "tentacruel",
+    "dexNumber": 73,
+    "name": "Tentacruel",
+    "types": [
+      "water",
+      "poison"
+    ],
+    "bst": 515,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "geodude",
+    "dexNumber": 74,
+    "name": "Geodude",
+    "types": [
+      "rock",
+      "ground"
+    ],
+    "bst": 300,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "graveler",
+    "dexNumber": 75,
+    "name": "Graveler",
+    "types": [
+      "rock",
+      "ground"
+    ],
+    "bst": 390,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "golem",
+    "dexNumber": 76,
+    "name": "Golem",
+    "types": [
+      "rock",
+      "ground"
+    ],
+    "bst": 495,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "ponyta",
+    "dexNumber": 77,
+    "name": "Ponyta",
+    "types": [
+      "fire"
+    ],
+    "bst": 410,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "rapidash",
+    "dexNumber": 78,
+    "name": "Rapidash",
+    "types": [
+      "fire"
+    ],
+    "bst": 500,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "slowpoke",
+    "dexNumber": 79,
+    "name": "Slowpoke",
+    "types": [
+      "water",
+      "psychic"
+    ],
+    "bst": 315,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "slowbro",
+    "dexNumber": 80,
+    "name": "Slowbro",
+    "types": [
+      "water",
+      "psychic"
+    ],
+    "bst": 490,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "magnemite",
+    "dexNumber": 81,
+    "name": "Magnemite",
+    "types": [
+      "electric",
+      "steel"
+    ],
+    "bst": 325,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "magneton",
+    "dexNumber": 82,
+    "name": "Magneton",
+    "types": [
+      "electric",
+      "steel"
+    ],
+    "bst": 465,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "farfetchd",
+    "dexNumber": 83,
+    "name": "Farfetch’d",
+    "types": [
+      "normal",
+      "flying"
+    ],
+    "bst": 377,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "doduo",
+    "dexNumber": 84,
+    "name": "Doduo",
+    "types": [
+      "normal",
+      "flying"
+    ],
+    "bst": 310,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "dodrio",
+    "dexNumber": 85,
+    "name": "Dodrio",
+    "types": [
+      "normal",
+      "flying"
+    ],
+    "bst": 470,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "seel",
+    "dexNumber": 86,
+    "name": "Seel",
+    "types": [
+      "water"
+    ],
+    "bst": 325,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "dewgong",
+    "dexNumber": 87,
+    "name": "Dewgong",
+    "types": [
+      "water",
+      "ice"
+    ],
+    "bst": 475,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "grimer",
+    "dexNumber": 88,
+    "name": "Grimer",
+    "types": [
+      "poison"
+    ],
+    "bst": 325,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "muk",
+    "dexNumber": 89,
+    "name": "Muk",
+    "types": [
+      "poison"
+    ],
+    "bst": 500,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "shellder",
+    "dexNumber": 90,
+    "name": "Shellder",
+    "types": [
+      "water"
+    ],
+    "bst": 305,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "cloyster",
+    "dexNumber": 91,
+    "name": "Cloyster",
+    "types": [
+      "water",
+      "ice"
+    ],
+    "bst": 525,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "gastly",
+    "dexNumber": 92,
+    "name": "Gastly",
+    "types": [
+      "ghost",
+      "poison"
+    ],
+    "bst": 310,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "haunter",
+    "dexNumber": 93,
+    "name": "Haunter",
+    "types": [
+      "ghost",
+      "poison"
+    ],
+    "bst": 405,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "gengar",
+    "dexNumber": 94,
+    "name": "Gengar",
+    "types": [
+      "ghost",
+      "poison"
+    ],
+    "bst": 500,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "onix",
+    "dexNumber": 95,
+    "name": "Onix",
+    "types": [
+      "rock",
+      "ground"
+    ],
+    "bst": 385,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "drowzee",
+    "dexNumber": 96,
+    "name": "Drowzee",
+    "types": [
+      "psychic"
+    ],
+    "bst": 328,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "hypno",
+    "dexNumber": 97,
+    "name": "Hypno",
+    "types": [
+      "psychic"
+    ],
+    "bst": 483,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "krabby",
+    "dexNumber": 98,
+    "name": "Krabby",
+    "types": [
+      "water"
+    ],
+    "bst": 325,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "kingler",
+    "dexNumber": 99,
+    "name": "Kingler",
+    "types": [
+      "water"
+    ],
+    "bst": 475,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "voltorb",
+    "dexNumber": 100,
+    "name": "Voltorb",
+    "types": [
+      "electric"
+    ],
+    "bst": 330,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "electrode",
+    "dexNumber": 101,
+    "name": "Electrode",
+    "types": [
+      "electric"
+    ],
+    "bst": 490,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "exeggcute",
+    "dexNumber": 102,
+    "name": "Exeggcute",
+    "types": [
+      "grass",
+      "psychic"
+    ],
+    "bst": 325,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "exeggutor",
+    "dexNumber": 103,
+    "name": "Exeggutor",
+    "types": [
+      "grass",
+      "psychic"
+    ],
+    "bst": 530,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "cubone",
+    "dexNumber": 104,
+    "name": "Cubone",
+    "types": [
+      "ground"
+    ],
+    "bst": 320,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "marowak",
+    "dexNumber": 105,
+    "name": "Marowak",
+    "types": [
+      "ground"
+    ],
+    "bst": 425,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "hitmonlee",
+    "dexNumber": 106,
+    "name": "Hitmonlee",
+    "types": [
+      "fighting"
+    ],
+    "bst": 455,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "hitmonchan",
+    "dexNumber": 107,
+    "name": "Hitmonchan",
+    "types": [
+      "fighting"
+    ],
+    "bst": 455,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "lickitung",
+    "dexNumber": 108,
+    "name": "Lickitung",
+    "types": [
+      "normal"
+    ],
+    "bst": 385,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "koffing",
+    "dexNumber": 109,
+    "name": "Koffing",
+    "types": [
+      "poison"
+    ],
+    "bst": 340,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "weezing",
+    "dexNumber": 110,
+    "name": "Weezing",
+    "types": [
+      "poison"
+    ],
+    "bst": 490,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "rhyhorn",
+    "dexNumber": 111,
+    "name": "Rhyhorn",
+    "types": [
+      "ground",
+      "rock"
+    ],
+    "bst": 345,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "rhydon",
+    "dexNumber": 112,
+    "name": "Rhydon",
+    "types": [
+      "ground",
+      "rock"
+    ],
+    "bst": 485,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "chansey",
+    "dexNumber": 113,
+    "name": "Chansey",
+    "types": [
+      "normal"
+    ],
+    "bst": 450,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "tangela",
+    "dexNumber": 114,
+    "name": "Tangela",
+    "types": [
+      "grass"
+    ],
+    "bst": 435,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "kangaskhan",
+    "dexNumber": 115,
+    "name": "Kangaskhan",
+    "types": [
+      "normal"
+    ],
+    "bst": 490,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "horsea",
+    "dexNumber": 116,
+    "name": "Horsea",
+    "types": [
+      "water"
+    ],
+    "bst": 295,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "seadra",
+    "dexNumber": 117,
+    "name": "Seadra",
+    "types": [
+      "water"
+    ],
+    "bst": 440,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "goldeen",
+    "dexNumber": 118,
+    "name": "Goldeen",
+    "types": [
+      "water"
+    ],
+    "bst": 320,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "seaking",
+    "dexNumber": 119,
+    "name": "Seaking",
+    "types": [
+      "water"
+    ],
+    "bst": 450,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "staryu",
+    "dexNumber": 120,
+    "name": "Staryu",
+    "types": [
+      "water"
+    ],
+    "bst": 340,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "starmie",
+    "dexNumber": 121,
+    "name": "Starmie",
+    "types": [
+      "water",
+      "psychic"
+    ],
+    "bst": 520,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "mr-mime",
+    "dexNumber": 122,
+    "name": "Mr. Mime",
+    "types": [
+      "psychic",
+      "fairy"
+    ],
+    "bst": 460,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "scyther",
+    "dexNumber": 123,
+    "name": "Scyther",
+    "types": [
+      "bug",
+      "flying"
+    ],
+    "bst": 500,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "jynx",
+    "dexNumber": 124,
+    "name": "Jynx",
+    "types": [
+      "ice",
+      "psychic"
+    ],
+    "bst": 455,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "electabuzz",
+    "dexNumber": 125,
+    "name": "Electabuzz",
+    "types": [
+      "electric"
+    ],
+    "bst": 490,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "magmar",
+    "dexNumber": 126,
+    "name": "Magmar",
+    "types": [
+      "fire"
+    ],
+    "bst": 495,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "pinsir",
+    "dexNumber": 127,
+    "name": "Pinsir",
+    "types": [
+      "bug"
+    ],
+    "bst": 500,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "tauros",
+    "dexNumber": 128,
+    "name": "Tauros",
+    "types": [
+      "normal"
+    ],
+    "bst": 490,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "magikarp",
+    "dexNumber": 129,
+    "name": "Magikarp",
+    "types": [
+      "water"
+    ],
+    "bst": 200,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "gyarados",
+    "dexNumber": 130,
+    "name": "Gyarados",
+    "types": [
+      "water",
+      "flying"
+    ],
+    "bst": 540,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "lapras",
+    "dexNumber": 131,
+    "name": "Lapras",
+    "types": [
+      "water",
+      "ice"
+    ],
+    "bst": 535,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "ditto",
+    "dexNumber": 132,
+    "name": "Ditto",
+    "types": [
+      "normal"
+    ],
+    "bst": 288,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "eevee",
+    "dexNumber": 133,
+    "name": "Eevee",
+    "types": [
+      "normal"
+    ],
+    "bst": 325,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "vaporeon",
+    "dexNumber": 134,
+    "name": "Vaporeon",
+    "types": [
+      "water"
+    ],
+    "bst": 525,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "jolteon",
+    "dexNumber": 135,
+    "name": "Jolteon",
+    "types": [
+      "electric"
+    ],
+    "bst": 525,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "flareon",
+    "dexNumber": 136,
+    "name": "Flareon",
+    "types": [
+      "fire"
+    ],
+    "bst": 525,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "porygon",
+    "dexNumber": 137,
+    "name": "Porygon",
+    "types": [
+      "normal"
+    ],
+    "bst": 395,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "omanyte",
+    "dexNumber": 138,
+    "name": "Omanyte",
+    "types": [
+      "rock",
+      "water"
+    ],
+    "bst": 355,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "omastar",
+    "dexNumber": 139,
+    "name": "Omastar",
+    "types": [
+      "rock",
+      "water"
+    ],
+    "bst": 495,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "kabuto",
+    "dexNumber": 140,
+    "name": "Kabuto",
+    "types": [
+      "rock",
+      "water"
+    ],
+    "bst": 355,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "kabutops",
+    "dexNumber": 141,
+    "name": "Kabutops",
+    "types": [
+      "rock",
+      "water"
+    ],
+    "bst": 495,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "aerodactyl",
+    "dexNumber": 142,
+    "name": "Aerodactyl",
+    "types": [
+      "rock",
+      "flying"
+    ],
+    "bst": 515,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "snorlax",
+    "dexNumber": 143,
+    "name": "Snorlax",
+    "types": [
+      "normal"
+    ],
+    "bst": 540,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "articuno",
+    "dexNumber": 144,
+    "name": "Articuno",
+    "types": [
+      "ice",
+      "flying"
+    ],
+    "bst": 580,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "zapdos",
+    "dexNumber": 145,
+    "name": "Zapdos",
+    "types": [
+      "electric",
+      "flying"
+    ],
+    "bst": 580,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "moltres",
+    "dexNumber": 146,
+    "name": "Moltres",
+    "types": [
+      "fire",
+      "flying"
+    ],
+    "bst": 580,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "dratini",
+    "dexNumber": 147,
+    "name": "Dratini",
+    "types": [
+      "dragon"
+    ],
+    "bst": 300,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "dragonair",
+    "dexNumber": 148,
+    "name": "Dragonair",
+    "types": [
+      "dragon"
+    ],
+    "bst": 420,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "dragonite",
+    "dexNumber": 149,
+    "name": "Dragonite",
+    "types": [
+      "dragon",
+      "flying"
+    ],
+    "bst": 600,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "mewtwo",
+    "dexNumber": 150,
+    "name": "Mewtwo",
+    "types": [
+      "psychic"
+    ],
+    "bst": 680,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "mew",
+    "dexNumber": 151,
+    "name": "Mew",
+    "types": [
+      "psychic"
+    ],
+    "bst": 600,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "chikorita",
+    "dexNumber": 152,
+    "name": "Chikorita",
+    "types": [
+      "grass"
+    ],
+    "bst": 318,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "bayleef",
+    "dexNumber": 153,
+    "name": "Bayleef",
+    "types": [
+      "grass"
+    ],
+    "bst": 405,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "meganium",
+    "dexNumber": 154,
+    "name": "Meganium",
+    "types": [
+      "grass"
+    ],
+    "bst": 525,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "cyndaquil",
+    "dexNumber": 155,
+    "name": "Cyndaquil",
+    "types": [
+      "fire"
+    ],
+    "bst": 309,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "quilava",
+    "dexNumber": 156,
+    "name": "Quilava",
+    "types": [
+      "fire"
+    ],
+    "bst": 405,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "typhlosion",
+    "dexNumber": 157,
+    "name": "Typhlosion",
+    "types": [
+      "fire"
+    ],
+    "bst": 534,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "totodile",
+    "dexNumber": 158,
+    "name": "Totodile",
+    "types": [
+      "water"
+    ],
+    "bst": 314,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "croconaw",
+    "dexNumber": 159,
+    "name": "Croconaw",
+    "types": [
+      "water"
+    ],
+    "bst": 405,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "feraligatr",
+    "dexNumber": 160,
+    "name": "Feraligatr",
+    "types": [
+      "water"
+    ],
+    "bst": 530,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "sentret",
+    "dexNumber": 161,
+    "name": "Sentret",
+    "types": [
+      "normal"
+    ],
+    "bst": 215,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "furret",
+    "dexNumber": 162,
+    "name": "Furret",
+    "types": [
+      "normal"
+    ],
+    "bst": 415,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "hoothoot",
+    "dexNumber": 163,
+    "name": "Hoothoot",
+    "types": [
+      "normal",
+      "flying"
+    ],
+    "bst": 262,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "noctowl",
+    "dexNumber": 164,
+    "name": "Noctowl",
+    "types": [
+      "normal",
+      "flying"
+    ],
+    "bst": 452,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "ledyba",
+    "dexNumber": 165,
+    "name": "Ledyba",
+    "types": [
+      "bug",
+      "flying"
+    ],
+    "bst": 265,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "ledian",
+    "dexNumber": 166,
+    "name": "Ledian",
+    "types": [
+      "bug",
+      "flying"
+    ],
+    "bst": 390,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "spinarak",
+    "dexNumber": 167,
+    "name": "Spinarak",
+    "types": [
+      "bug",
+      "poison"
+    ],
+    "bst": 250,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "ariados",
+    "dexNumber": 168,
+    "name": "Ariados",
+    "types": [
+      "bug",
+      "poison"
+    ],
+    "bst": 400,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "crobat",
+    "dexNumber": 169,
+    "name": "Crobat",
+    "types": [
+      "poison",
+      "flying"
+    ],
+    "bst": 535,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "chinchou",
+    "dexNumber": 170,
+    "name": "Chinchou",
+    "types": [
+      "water",
+      "electric"
+    ],
+    "bst": 330,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "lanturn",
+    "dexNumber": 171,
+    "name": "Lanturn",
+    "types": [
+      "water",
+      "electric"
+    ],
+    "bst": 460,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "pichu",
+    "dexNumber": 172,
+    "name": "Pichu",
+    "types": [
+      "electric"
+    ],
+    "bst": 205,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "cleffa",
+    "dexNumber": 173,
+    "name": "Cleffa",
+    "types": [
+      "fairy"
+    ],
+    "bst": 218,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "igglybuff",
+    "dexNumber": 174,
+    "name": "Igglybuff",
+    "types": [
+      "normal",
+      "fairy"
+    ],
+    "bst": 210,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "togepi",
+    "dexNumber": 175,
+    "name": "Togepi",
+    "types": [
+      "fairy"
+    ],
+    "bst": 245,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "togetic",
+    "dexNumber": 176,
+    "name": "Togetic",
+    "types": [
+      "fairy",
+      "flying"
+    ],
+    "bst": 405,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "natu",
+    "dexNumber": 177,
+    "name": "Natu",
+    "types": [
+      "psychic",
+      "flying"
+    ],
+    "bst": 320,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "xatu",
+    "dexNumber": 178,
+    "name": "Xatu",
+    "types": [
+      "psychic",
+      "flying"
+    ],
+    "bst": 470,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "mareep",
+    "dexNumber": 179,
+    "name": "Mareep",
+    "types": [
+      "electric"
+    ],
+    "bst": 280,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "flaaffy",
+    "dexNumber": 180,
+    "name": "Flaaffy",
+    "types": [
+      "electric"
+    ],
+    "bst": 365,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "ampharos",
+    "dexNumber": 181,
+    "name": "Ampharos",
+    "types": [
+      "electric"
+    ],
+    "bst": 510,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "bellossom",
+    "dexNumber": 182,
+    "name": "Bellossom",
+    "types": [
+      "grass"
+    ],
+    "bst": 490,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "marill",
+    "dexNumber": 183,
+    "name": "Marill",
+    "types": [
+      "water",
+      "fairy"
+    ],
+    "bst": 250,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "azumarill",
+    "dexNumber": 184,
+    "name": "Azumarill",
+    "types": [
+      "water",
+      "fairy"
+    ],
+    "bst": 420,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "sudowoodo",
+    "dexNumber": 185,
+    "name": "Sudowoodo",
+    "types": [
+      "rock"
+    ],
+    "bst": 410,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "politoed",
+    "dexNumber": 186,
+    "name": "Politoed",
+    "types": [
+      "water"
+    ],
+    "bst": 500,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "hoppip",
+    "dexNumber": 187,
+    "name": "Hoppip",
+    "types": [
+      "grass",
+      "flying"
+    ],
+    "bst": 250,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "skiploom",
+    "dexNumber": 188,
+    "name": "Skiploom",
+    "types": [
+      "grass",
+      "flying"
+    ],
+    "bst": 340,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "jumpluff",
+    "dexNumber": 189,
+    "name": "Jumpluff",
+    "types": [
+      "grass",
+      "flying"
+    ],
+    "bst": 460,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "aipom",
+    "dexNumber": 190,
+    "name": "Aipom",
+    "types": [
+      "normal"
+    ],
+    "bst": 360,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "sunkern",
+    "dexNumber": 191,
+    "name": "Sunkern",
+    "types": [
+      "grass"
+    ],
+    "bst": 180,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "sunflora",
+    "dexNumber": 192,
+    "name": "Sunflora",
+    "types": [
+      "grass"
+    ],
+    "bst": 425,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "yanma",
+    "dexNumber": 193,
+    "name": "Yanma",
+    "types": [
+      "bug",
+      "flying"
+    ],
+    "bst": 390,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "wooper",
+    "dexNumber": 194,
+    "name": "Wooper",
+    "types": [
+      "water",
+      "ground"
+    ],
+    "bst": 210,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "quagsire",
+    "dexNumber": 195,
+    "name": "Quagsire",
+    "types": [
+      "water",
+      "ground"
+    ],
+    "bst": 430,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "espeon",
+    "dexNumber": 196,
+    "name": "Espeon",
+    "types": [
+      "psychic"
+    ],
+    "bst": 525,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "umbreon",
+    "dexNumber": 197,
+    "name": "Umbreon",
+    "types": [
+      "dark"
+    ],
+    "bst": 525,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "murkrow",
+    "dexNumber": 198,
+    "name": "Murkrow",
+    "types": [
+      "dark",
+      "flying"
+    ],
+    "bst": 405,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "slowking",
+    "dexNumber": 199,
+    "name": "Slowking",
+    "types": [
+      "water",
+      "psychic"
+    ],
+    "bst": 490,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "misdreavus",
+    "dexNumber": 200,
+    "name": "Misdreavus",
+    "types": [
+      "ghost"
+    ],
+    "bst": 435,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "unown",
+    "dexNumber": 201,
+    "name": "Unown",
+    "types": [
+      "psychic"
+    ],
+    "bst": 336,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "wobbuffet",
+    "dexNumber": 202,
+    "name": "Wobbuffet",
+    "types": [
+      "psychic"
+    ],
+    "bst": 405,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "girafarig",
+    "dexNumber": 203,
+    "name": "Girafarig",
+    "types": [
+      "normal",
+      "psychic"
+    ],
+    "bst": 455,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "pineco",
+    "dexNumber": 204,
+    "name": "Pineco",
+    "types": [
+      "bug"
+    ],
+    "bst": 290,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "forretress",
+    "dexNumber": 205,
+    "name": "Forretress",
+    "types": [
+      "bug",
+      "steel"
+    ],
+    "bst": 465,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "dunsparce",
+    "dexNumber": 206,
+    "name": "Dunsparce",
+    "types": [
+      "normal"
+    ],
+    "bst": 415,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "gligar",
+    "dexNumber": 207,
+    "name": "Gligar",
+    "types": [
+      "ground",
+      "flying"
+    ],
+    "bst": 430,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "steelix",
+    "dexNumber": 208,
+    "name": "Steelix",
+    "types": [
+      "steel",
+      "ground"
+    ],
+    "bst": 510,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "snubbull",
+    "dexNumber": 209,
+    "name": "Snubbull",
+    "types": [
+      "fairy"
+    ],
+    "bst": 300,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "granbull",
+    "dexNumber": 210,
+    "name": "Granbull",
+    "types": [
+      "fairy"
+    ],
+    "bst": 450,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "qwilfish",
+    "dexNumber": 211,
+    "name": "Qwilfish",
+    "types": [
+      "water",
+      "poison"
+    ],
+    "bst": 440,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "scizor",
+    "dexNumber": 212,
+    "name": "Scizor",
+    "types": [
+      "bug",
+      "steel"
+    ],
+    "bst": 500,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "shuckle",
+    "dexNumber": 213,
+    "name": "Shuckle",
+    "types": [
+      "bug",
+      "rock"
+    ],
+    "bst": 505,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "heracross",
+    "dexNumber": 214,
+    "name": "Heracross",
+    "types": [
+      "bug",
+      "fighting"
+    ],
+    "bst": 500,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "sneasel",
+    "dexNumber": 215,
+    "name": "Sneasel",
+    "types": [
+      "dark",
+      "ice"
+    ],
+    "bst": 430,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "teddiursa",
+    "dexNumber": 216,
+    "name": "Teddiursa",
+    "types": [
+      "normal"
+    ],
+    "bst": 330,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "ursaring",
+    "dexNumber": 217,
+    "name": "Ursaring",
+    "types": [
+      "normal"
+    ],
+    "bst": 500,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "slugma",
+    "dexNumber": 218,
+    "name": "Slugma",
+    "types": [
+      "fire"
+    ],
+    "bst": 250,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "magcargo",
+    "dexNumber": 219,
+    "name": "Magcargo",
+    "types": [
+      "fire",
+      "rock"
+    ],
+    "bst": 430,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "swinub",
+    "dexNumber": 220,
+    "name": "Swinub",
+    "types": [
+      "ice",
+      "ground"
+    ],
+    "bst": 250,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "piloswine",
+    "dexNumber": 221,
+    "name": "Piloswine",
+    "types": [
+      "ice",
+      "ground"
+    ],
+    "bst": 450,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "corsola",
+    "dexNumber": 222,
+    "name": "Corsola",
+    "types": [
+      "water",
+      "rock"
+    ],
+    "bst": 410,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "remoraid",
+    "dexNumber": 223,
+    "name": "Remoraid",
+    "types": [
+      "water"
+    ],
+    "bst": 300,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "octillery",
+    "dexNumber": 224,
+    "name": "Octillery",
+    "types": [
+      "water"
+    ],
+    "bst": 480,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "delibird",
+    "dexNumber": 225,
+    "name": "Delibird",
+    "types": [
+      "ice",
+      "flying"
+    ],
+    "bst": 330,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "mantine",
+    "dexNumber": 226,
+    "name": "Mantine",
+    "types": [
+      "water",
+      "flying"
+    ],
+    "bst": 485,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "skarmory",
+    "dexNumber": 227,
+    "name": "Skarmory",
+    "types": [
+      "steel",
+      "flying"
+    ],
+    "bst": 465,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "houndour",
+    "dexNumber": 228,
+    "name": "Houndour",
+    "types": [
+      "dark",
+      "fire"
+    ],
+    "bst": 330,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "houndoom",
+    "dexNumber": 229,
+    "name": "Houndoom",
+    "types": [
+      "dark",
+      "fire"
+    ],
+    "bst": 500,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "kingdra",
+    "dexNumber": 230,
+    "name": "Kingdra",
+    "types": [
+      "water",
+      "dragon"
+    ],
+    "bst": 540,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "phanpy",
+    "dexNumber": 231,
+    "name": "Phanpy",
+    "types": [
+      "ground"
+    ],
+    "bst": 330,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "donphan",
+    "dexNumber": 232,
+    "name": "Donphan",
+    "types": [
+      "ground"
+    ],
+    "bst": 500,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "porygon2",
+    "dexNumber": 233,
+    "name": "Porygon2",
+    "types": [
+      "normal"
+    ],
+    "bst": 515,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "stantler",
+    "dexNumber": 234,
+    "name": "Stantler",
+    "types": [
+      "normal"
+    ],
+    "bst": 465,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "smeargle",
+    "dexNumber": 235,
+    "name": "Smeargle",
+    "types": [
+      "normal"
+    ],
+    "bst": 250,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "tyrogue",
+    "dexNumber": 236,
+    "name": "Tyrogue",
+    "types": [
+      "fighting"
+    ],
+    "bst": 210,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "hitmontop",
+    "dexNumber": 237,
+    "name": "Hitmontop",
+    "types": [
+      "fighting"
+    ],
+    "bst": 455,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "smoochum",
+    "dexNumber": 238,
+    "name": "Smoochum",
+    "types": [
+      "ice",
+      "psychic"
+    ],
+    "bst": 305,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "elekid",
+    "dexNumber": 239,
+    "name": "Elekid",
+    "types": [
+      "electric"
+    ],
+    "bst": 360,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "magby",
+    "dexNumber": 240,
+    "name": "Magby",
+    "types": [
+      "fire"
+    ],
+    "bst": 365,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "miltank",
+    "dexNumber": 241,
+    "name": "Miltank",
+    "types": [
+      "normal"
+    ],
+    "bst": 490,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "blissey",
+    "dexNumber": 242,
+    "name": "Blissey",
+    "types": [
+      "normal"
+    ],
+    "bst": 540,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "raikou",
+    "dexNumber": 243,
+    "name": "Raikou",
+    "types": [
+      "electric"
+    ],
+    "bst": 580,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "entei",
+    "dexNumber": 244,
+    "name": "Entei",
+    "types": [
+      "fire"
+    ],
+    "bst": 580,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "suicune",
+    "dexNumber": 245,
+    "name": "Suicune",
+    "types": [
+      "water"
+    ],
+    "bst": 580,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "larvitar",
+    "dexNumber": 246,
+    "name": "Larvitar",
+    "types": [
+      "rock",
+      "ground"
+    ],
+    "bst": 300,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "pupitar",
+    "dexNumber": 247,
+    "name": "Pupitar",
+    "types": [
+      "rock",
+      "ground"
+    ],
+    "bst": 410,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "tyranitar",
+    "dexNumber": 248,
+    "name": "Tyranitar",
+    "types": [
+      "rock",
+      "dark"
+    ],
+    "bst": 600,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "lugia",
+    "dexNumber": 249,
+    "name": "Lugia",
+    "types": [
+      "psychic",
+      "flying"
+    ],
+    "bst": 680,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "ho-oh",
+    "dexNumber": 250,
+    "name": "Ho-Oh",
+    "types": [
+      "fire",
+      "flying"
+    ],
+    "bst": 680,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "celebi",
+    "dexNumber": 251,
+    "name": "Celebi",
+    "types": [
+      "psychic",
+      "grass"
+    ],
+    "bst": 600,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "treecko",
+    "dexNumber": 252,
+    "name": "Treecko",
+    "types": [
+      "grass"
+    ],
+    "bst": 310,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "grovyle",
+    "dexNumber": 253,
+    "name": "Grovyle",
+    "types": [
+      "grass"
+    ],
+    "bst": 405,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "sceptile",
+    "dexNumber": 254,
+    "name": "Sceptile",
+    "types": [
+      "grass"
+    ],
+    "bst": 530,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "torchic",
+    "dexNumber": 255,
+    "name": "Torchic",
+    "types": [
+      "fire"
+    ],
+    "bst": 310,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "combusken",
+    "dexNumber": 256,
+    "name": "Combusken",
+    "types": [
+      "fire",
+      "fighting"
+    ],
+    "bst": 405,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "blaziken",
+    "dexNumber": 257,
+    "name": "Blaziken",
+    "types": [
+      "fire",
+      "fighting"
+    ],
+    "bst": 530,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "mudkip",
+    "dexNumber": 258,
+    "name": "Mudkip",
+    "types": [
+      "water"
+    ],
+    "bst": 310,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "marshtomp",
+    "dexNumber": 259,
+    "name": "Marshtomp",
+    "types": [
+      "water",
+      "ground"
+    ],
+    "bst": 405,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "swampert",
+    "dexNumber": 260,
+    "name": "Swampert",
+    "types": [
+      "water",
+      "ground"
+    ],
+    "bst": 535,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "poochyena",
+    "dexNumber": 261,
+    "name": "Poochyena",
+    "types": [
+      "dark"
+    ],
+    "bst": 220,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "mightyena",
+    "dexNumber": 262,
+    "name": "Mightyena",
+    "types": [
+      "dark"
+    ],
+    "bst": 420,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "zigzagoon",
+    "dexNumber": 263,
+    "name": "Zigzagoon",
+    "types": [
+      "normal"
+    ],
+    "bst": 240,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "linoone",
+    "dexNumber": 264,
+    "name": "Linoone",
+    "types": [
+      "normal"
+    ],
+    "bst": 420,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "wurmple",
+    "dexNumber": 265,
+    "name": "Wurmple",
+    "types": [
+      "bug"
+    ],
+    "bst": 195,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "silcoon",
+    "dexNumber": 266,
+    "name": "Silcoon",
+    "types": [
+      "bug"
+    ],
+    "bst": 205,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "beautifly",
+    "dexNumber": 267,
+    "name": "Beautifly",
+    "types": [
+      "bug",
+      "flying"
+    ],
+    "bst": 395,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "cascoon",
+    "dexNumber": 268,
+    "name": "Cascoon",
+    "types": [
+      "bug"
+    ],
+    "bst": 205,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "dustox",
+    "dexNumber": 269,
+    "name": "Dustox",
+    "types": [
+      "bug",
+      "poison"
+    ],
+    "bst": 385,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "lotad",
+    "dexNumber": 270,
+    "name": "Lotad",
+    "types": [
+      "water",
+      "grass"
+    ],
+    "bst": 220,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "lombre",
+    "dexNumber": 271,
+    "name": "Lombre",
+    "types": [
+      "water",
+      "grass"
+    ],
+    "bst": 340,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "ludicolo",
+    "dexNumber": 272,
+    "name": "Ludicolo",
+    "types": [
+      "water",
+      "grass"
+    ],
+    "bst": 480,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "seedot",
+    "dexNumber": 273,
+    "name": "Seedot",
+    "types": [
+      "grass"
+    ],
+    "bst": 220,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "nuzleaf",
+    "dexNumber": 274,
+    "name": "Nuzleaf",
+    "types": [
+      "grass",
+      "dark"
+    ],
+    "bst": 340,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "shiftry",
+    "dexNumber": 275,
+    "name": "Shiftry",
+    "types": [
+      "grass",
+      "dark"
+    ],
+    "bst": 480,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "taillow",
+    "dexNumber": 276,
+    "name": "Taillow",
+    "types": [
+      "normal",
+      "flying"
+    ],
+    "bst": 270,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "swellow",
+    "dexNumber": 277,
+    "name": "Swellow",
+    "types": [
+      "normal",
+      "flying"
+    ],
+    "bst": 455,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "wingull",
+    "dexNumber": 278,
+    "name": "Wingull",
+    "types": [
+      "water",
+      "flying"
+    ],
+    "bst": 270,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "pelipper",
+    "dexNumber": 279,
+    "name": "Pelipper",
+    "types": [
+      "water",
+      "flying"
+    ],
+    "bst": 440,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "ralts",
+    "dexNumber": 280,
+    "name": "Ralts",
+    "types": [
+      "psychic",
+      "fairy"
+    ],
+    "bst": 198,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "kirlia",
+    "dexNumber": 281,
+    "name": "Kirlia",
+    "types": [
+      "psychic",
+      "fairy"
+    ],
+    "bst": 278,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "gardevoir",
+    "dexNumber": 282,
+    "name": "Gardevoir",
+    "types": [
+      "psychic",
+      "fairy"
+    ],
+    "bst": 518,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "surskit",
+    "dexNumber": 283,
+    "name": "Surskit",
+    "types": [
+      "bug",
+      "water"
+    ],
+    "bst": 269,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "masquerain",
+    "dexNumber": 284,
+    "name": "Masquerain",
+    "types": [
+      "bug",
+      "flying"
+    ],
+    "bst": 454,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "shroomish",
+    "dexNumber": 285,
+    "name": "Shroomish",
+    "types": [
+      "grass"
+    ],
+    "bst": 295,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "breloom",
+    "dexNumber": 286,
+    "name": "Breloom",
+    "types": [
+      "grass",
+      "fighting"
+    ],
+    "bst": 460,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "slakoth",
+    "dexNumber": 287,
+    "name": "Slakoth",
+    "types": [
+      "normal"
+    ],
+    "bst": 280,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "vigoroth",
+    "dexNumber": 288,
+    "name": "Vigoroth",
+    "types": [
+      "normal"
+    ],
+    "bst": 440,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "slaking",
+    "dexNumber": 289,
+    "name": "Slaking",
+    "types": [
+      "normal"
+    ],
+    "bst": 670,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "nincada",
+    "dexNumber": 290,
+    "name": "Nincada",
+    "types": [
+      "bug",
+      "ground"
+    ],
+    "bst": 266,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "ninjask",
+    "dexNumber": 291,
+    "name": "Ninjask",
+    "types": [
+      "bug",
+      "flying"
+    ],
+    "bst": 456,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "shedinja",
+    "dexNumber": 292,
+    "name": "Shedinja",
+    "types": [
+      "bug",
+      "ghost"
+    ],
+    "bst": 236,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "whismur",
+    "dexNumber": 293,
+    "name": "Whismur",
+    "types": [
+      "normal"
+    ],
+    "bst": 240,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "loudred",
+    "dexNumber": 294,
+    "name": "Loudred",
+    "types": [
+      "normal"
+    ],
+    "bst": 360,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "exploud",
+    "dexNumber": 295,
+    "name": "Exploud",
+    "types": [
+      "normal"
+    ],
+    "bst": 490,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "makuhita",
+    "dexNumber": 296,
+    "name": "Makuhita",
+    "types": [
+      "fighting"
+    ],
+    "bst": 237,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "hariyama",
+    "dexNumber": 297,
+    "name": "Hariyama",
+    "types": [
+      "fighting"
+    ],
+    "bst": 474,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "azurill",
+    "dexNumber": 298,
+    "name": "Azurill",
+    "types": [
+      "normal",
+      "fairy"
+    ],
+    "bst": 190,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "nosepass",
+    "dexNumber": 299,
+    "name": "Nosepass",
+    "types": [
+      "rock"
+    ],
+    "bst": 375,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "skitty",
+    "dexNumber": 300,
+    "name": "Skitty",
+    "types": [
+      "normal"
+    ],
+    "bst": 260,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "delcatty",
+    "dexNumber": 301,
+    "name": "Delcatty",
+    "types": [
+      "normal"
+    ],
+    "bst": 400,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "sableye",
+    "dexNumber": 302,
+    "name": "Sableye",
+    "types": [
+      "dark",
+      "ghost"
+    ],
+    "bst": 380,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "mawile",
+    "dexNumber": 303,
+    "name": "Mawile",
+    "types": [
+      "steel",
+      "fairy"
+    ],
+    "bst": 380,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "aron",
+    "dexNumber": 304,
+    "name": "Aron",
+    "types": [
+      "steel",
+      "rock"
+    ],
+    "bst": 330,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "lairon",
+    "dexNumber": 305,
+    "name": "Lairon",
+    "types": [
+      "steel",
+      "rock"
+    ],
+    "bst": 430,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "aggron",
+    "dexNumber": 306,
+    "name": "Aggron",
+    "types": [
+      "steel",
+      "rock"
+    ],
+    "bst": 530,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "meditite",
+    "dexNumber": 307,
+    "name": "Meditite",
+    "types": [
+      "fighting",
+      "psychic"
+    ],
+    "bst": 280,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "medicham",
+    "dexNumber": 308,
+    "name": "Medicham",
+    "types": [
+      "fighting",
+      "psychic"
+    ],
+    "bst": 410,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "electrike",
+    "dexNumber": 309,
+    "name": "Electrike",
+    "types": [
+      "electric"
+    ],
+    "bst": 295,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "manectric",
+    "dexNumber": 310,
+    "name": "Manectric",
+    "types": [
+      "electric"
+    ],
+    "bst": 475,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "plusle",
+    "dexNumber": 311,
+    "name": "Plusle",
+    "types": [
+      "electric"
+    ],
+    "bst": 405,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "minun",
+    "dexNumber": 312,
+    "name": "Minun",
+    "types": [
+      "electric"
+    ],
+    "bst": 405,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "volbeat",
+    "dexNumber": 313,
+    "name": "Volbeat",
+    "types": [
+      "bug"
+    ],
+    "bst": 430,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "illumise",
+    "dexNumber": 314,
+    "name": "Illumise",
+    "types": [
+      "bug"
+    ],
+    "bst": 430,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "roselia",
+    "dexNumber": 315,
+    "name": "Roselia",
+    "types": [
+      "grass",
+      "poison"
+    ],
+    "bst": 400,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "gulpin",
+    "dexNumber": 316,
+    "name": "Gulpin",
+    "types": [
+      "poison"
+    ],
+    "bst": 302,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "swalot",
+    "dexNumber": 317,
+    "name": "Swalot",
+    "types": [
+      "poison"
+    ],
+    "bst": 467,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "carvanha",
+    "dexNumber": 318,
+    "name": "Carvanha",
+    "types": [
+      "water",
+      "dark"
+    ],
+    "bst": 305,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "sharpedo",
+    "dexNumber": 319,
+    "name": "Sharpedo",
+    "types": [
+      "water",
+      "dark"
+    ],
+    "bst": 460,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "wailmer",
+    "dexNumber": 320,
+    "name": "Wailmer",
+    "types": [
+      "water"
+    ],
+    "bst": 400,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "wailord",
+    "dexNumber": 321,
+    "name": "Wailord",
+    "types": [
+      "water"
+    ],
+    "bst": 500,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "numel",
+    "dexNumber": 322,
+    "name": "Numel",
+    "types": [
+      "fire",
+      "ground"
+    ],
+    "bst": 305,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "camerupt",
+    "dexNumber": 323,
+    "name": "Camerupt",
+    "types": [
+      "fire",
+      "ground"
+    ],
+    "bst": 460,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "torkoal",
+    "dexNumber": 324,
+    "name": "Torkoal",
+    "types": [
+      "fire"
+    ],
+    "bst": 470,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "spoink",
+    "dexNumber": 325,
+    "name": "Spoink",
+    "types": [
+      "psychic"
+    ],
+    "bst": 330,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "grumpig",
+    "dexNumber": 326,
+    "name": "Grumpig",
+    "types": [
+      "psychic"
+    ],
+    "bst": 470,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "spinda",
+    "dexNumber": 327,
+    "name": "Spinda",
+    "types": [
+      "normal"
+    ],
+    "bst": 360,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "trapinch",
+    "dexNumber": 328,
+    "name": "Trapinch",
+    "types": [
+      "ground"
+    ],
+    "bst": 290,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "vibrava",
+    "dexNumber": 329,
+    "name": "Vibrava",
+    "types": [
+      "ground",
+      "dragon"
+    ],
+    "bst": 340,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "flygon",
+    "dexNumber": 330,
+    "name": "Flygon",
+    "types": [
+      "ground",
+      "dragon"
+    ],
+    "bst": 520,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "cacnea",
+    "dexNumber": 331,
+    "name": "Cacnea",
+    "types": [
+      "grass"
+    ],
+    "bst": 335,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "cacturne",
+    "dexNumber": 332,
+    "name": "Cacturne",
+    "types": [
+      "grass",
+      "dark"
+    ],
+    "bst": 475,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "swablu",
+    "dexNumber": 333,
+    "name": "Swablu",
+    "types": [
+      "normal",
+      "flying"
+    ],
+    "bst": 310,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "altaria",
+    "dexNumber": 334,
+    "name": "Altaria",
+    "types": [
+      "dragon",
+      "flying"
+    ],
+    "bst": 490,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "zangoose",
+    "dexNumber": 335,
+    "name": "Zangoose",
+    "types": [
+      "normal"
+    ],
+    "bst": 458,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "seviper",
+    "dexNumber": 336,
+    "name": "Seviper",
+    "types": [
+      "poison"
+    ],
+    "bst": 458,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "lunatone",
+    "dexNumber": 337,
+    "name": "Lunatone",
+    "types": [
+      "rock",
+      "psychic"
+    ],
+    "bst": 460,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "solrock",
+    "dexNumber": 338,
+    "name": "Solrock",
+    "types": [
+      "rock",
+      "psychic"
+    ],
+    "bst": 460,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "barboach",
+    "dexNumber": 339,
+    "name": "Barboach",
+    "types": [
+      "water",
+      "ground"
+    ],
+    "bst": 288,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "whiscash",
+    "dexNumber": 340,
+    "name": "Whiscash",
+    "types": [
+      "water",
+      "ground"
+    ],
+    "bst": 468,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "corphish",
+    "dexNumber": 341,
+    "name": "Corphish",
+    "types": [
+      "water"
+    ],
+    "bst": 308,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "crawdaunt",
+    "dexNumber": 342,
+    "name": "Crawdaunt",
+    "types": [
+      "water",
+      "dark"
+    ],
+    "bst": 468,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "baltoy",
+    "dexNumber": 343,
+    "name": "Baltoy",
+    "types": [
+      "ground",
+      "psychic"
+    ],
+    "bst": 300,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "claydol",
+    "dexNumber": 344,
+    "name": "Claydol",
+    "types": [
+      "ground",
+      "psychic"
+    ],
+    "bst": 500,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "lileep",
+    "dexNumber": 345,
+    "name": "Lileep",
+    "types": [
+      "rock",
+      "grass"
+    ],
+    "bst": 355,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "cradily",
+    "dexNumber": 346,
+    "name": "Cradily",
+    "types": [
+      "rock",
+      "grass"
+    ],
+    "bst": 495,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "anorith",
+    "dexNumber": 347,
+    "name": "Anorith",
+    "types": [
+      "rock",
+      "bug"
+    ],
+    "bst": 355,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "armaldo",
+    "dexNumber": 348,
+    "name": "Armaldo",
+    "types": [
+      "rock",
+      "bug"
+    ],
+    "bst": 495,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "feebas",
+    "dexNumber": 349,
+    "name": "Feebas",
+    "types": [
+      "water"
+    ],
+    "bst": 200,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "milotic",
+    "dexNumber": 350,
+    "name": "Milotic",
+    "types": [
+      "water"
+    ],
+    "bst": 540,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "castform",
+    "dexNumber": 351,
+    "name": "Castform",
+    "types": [
+      "normal"
+    ],
+    "bst": 420,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "kecleon",
+    "dexNumber": 352,
+    "name": "Kecleon",
+    "types": [
+      "normal"
+    ],
+    "bst": 440,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "shuppet",
+    "dexNumber": 353,
+    "name": "Shuppet",
+    "types": [
+      "ghost"
+    ],
+    "bst": 295,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "banette",
+    "dexNumber": 354,
+    "name": "Banette",
+    "types": [
+      "ghost"
+    ],
+    "bst": 455,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "duskull",
+    "dexNumber": 355,
+    "name": "Duskull",
+    "types": [
+      "ghost"
+    ],
+    "bst": 295,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "dusclops",
+    "dexNumber": 356,
+    "name": "Dusclops",
+    "types": [
+      "ghost"
+    ],
+    "bst": 455,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "tropius",
+    "dexNumber": 357,
+    "name": "Tropius",
+    "types": [
+      "grass",
+      "flying"
+    ],
+    "bst": 460,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "chimecho",
+    "dexNumber": 358,
+    "name": "Chimecho",
+    "types": [
+      "psychic"
+    ],
+    "bst": 455,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "absol",
+    "dexNumber": 359,
+    "name": "Absol",
+    "types": [
+      "dark"
+    ],
+    "bst": 465,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "wynaut",
+    "dexNumber": 360,
+    "name": "Wynaut",
+    "types": [
+      "psychic"
+    ],
+    "bst": 260,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "snorunt",
+    "dexNumber": 361,
+    "name": "Snorunt",
+    "types": [
+      "ice"
+    ],
+    "bst": 300,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "glalie",
+    "dexNumber": 362,
+    "name": "Glalie",
+    "types": [
+      "ice"
+    ],
+    "bst": 480,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "spheal",
+    "dexNumber": 363,
+    "name": "Spheal",
+    "types": [
+      "ice",
+      "water"
+    ],
+    "bst": 290,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "sealeo",
+    "dexNumber": 364,
+    "name": "Sealeo",
+    "types": [
+      "ice",
+      "water"
+    ],
+    "bst": 410,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "walrein",
+    "dexNumber": 365,
+    "name": "Walrein",
+    "types": [
+      "ice",
+      "water"
+    ],
+    "bst": 530,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "clamperl",
+    "dexNumber": 366,
+    "name": "Clamperl",
+    "types": [
+      "water"
+    ],
+    "bst": 345,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "huntail",
+    "dexNumber": 367,
+    "name": "Huntail",
+    "types": [
+      "water"
+    ],
+    "bst": 485,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "gorebyss",
+    "dexNumber": 368,
+    "name": "Gorebyss",
+    "types": [
+      "water"
+    ],
+    "bst": 485,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "relicanth",
+    "dexNumber": 369,
+    "name": "Relicanth",
+    "types": [
+      "water",
+      "rock"
+    ],
+    "bst": 485,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "luvdisc",
+    "dexNumber": 370,
+    "name": "Luvdisc",
+    "types": [
+      "water"
+    ],
+    "bst": 330,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "bagon",
+    "dexNumber": 371,
+    "name": "Bagon",
+    "types": [
+      "dragon"
+    ],
+    "bst": 300,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "shelgon",
+    "dexNumber": 372,
+    "name": "Shelgon",
+    "types": [
+      "dragon"
+    ],
+    "bst": 420,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "salamence",
+    "dexNumber": 373,
+    "name": "Salamence",
+    "types": [
+      "dragon",
+      "flying"
+    ],
+    "bst": 600,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "beldum",
+    "dexNumber": 374,
+    "name": "Beldum",
+    "types": [
+      "steel",
+      "psychic"
+    ],
+    "bst": 300,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "metang",
+    "dexNumber": 375,
+    "name": "Metang",
+    "types": [
+      "steel",
+      "psychic"
+    ],
+    "bst": 420,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "metagross",
+    "dexNumber": 376,
+    "name": "Metagross",
+    "types": [
+      "steel",
+      "psychic"
+    ],
+    "bst": 600,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "regirock",
+    "dexNumber": 377,
+    "name": "Regirock",
+    "types": [
+      "rock"
+    ],
+    "bst": 580,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "regice",
+    "dexNumber": 378,
+    "name": "Regice",
+    "types": [
+      "ice"
+    ],
+    "bst": 580,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "registeel",
+    "dexNumber": 379,
+    "name": "Registeel",
+    "types": [
+      "steel"
+    ],
+    "bst": 580,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "latias",
+    "dexNumber": 380,
+    "name": "Latias",
+    "types": [
+      "dragon",
+      "psychic"
+    ],
+    "bst": 600,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "latios",
+    "dexNumber": 381,
+    "name": "Latios",
+    "types": [
+      "dragon",
+      "psychic"
+    ],
+    "bst": 600,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "kyogre",
+    "dexNumber": 382,
+    "name": "Kyogre",
+    "types": [
+      "water"
+    ],
+    "bst": 670,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "groudon",
+    "dexNumber": 383,
+    "name": "Groudon",
+    "types": [
+      "ground"
+    ],
+    "bst": 670,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "rayquaza",
+    "dexNumber": 384,
+    "name": "Rayquaza",
+    "types": [
+      "dragon",
+      "flying"
+    ],
+    "bst": 680,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "jirachi",
+    "dexNumber": 385,
+    "name": "Jirachi",
+    "types": [
+      "steel",
+      "psychic"
+    ],
+    "bst": 600,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "deoxys",
+    "dexNumber": 386,
+    "name": "Deoxys",
+    "types": [
+      "psychic"
+    ],
+    "bst": 600,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "turtwig",
+    "dexNumber": 387,
+    "name": "Turtwig",
+    "types": [
+      "grass"
+    ],
+    "bst": 318,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "grotle",
+    "dexNumber": 388,
+    "name": "Grotle",
+    "types": [
+      "grass"
+    ],
+    "bst": 405,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "torterra",
+    "dexNumber": 389,
+    "name": "Torterra",
+    "types": [
+      "grass",
+      "ground"
+    ],
+    "bst": 525,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "chimchar",
+    "dexNumber": 390,
+    "name": "Chimchar",
+    "types": [
+      "fire"
+    ],
+    "bst": 309,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "monferno",
+    "dexNumber": 391,
+    "name": "Monferno",
+    "types": [
+      "fire",
+      "fighting"
+    ],
+    "bst": 405,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "infernape",
+    "dexNumber": 392,
+    "name": "Infernape",
+    "types": [
+      "fire",
+      "fighting"
+    ],
+    "bst": 534,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "piplup",
+    "dexNumber": 393,
+    "name": "Piplup",
+    "types": [
+      "water"
+    ],
+    "bst": 314,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "prinplup",
+    "dexNumber": 394,
+    "name": "Prinplup",
+    "types": [
+      "water"
+    ],
+    "bst": 405,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "empoleon",
+    "dexNumber": 395,
+    "name": "Empoleon",
+    "types": [
+      "water",
+      "steel"
+    ],
+    "bst": 530,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "starly",
+    "dexNumber": 396,
+    "name": "Starly",
+    "types": [
+      "normal",
+      "flying"
+    ],
+    "bst": 245,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "staravia",
+    "dexNumber": 397,
+    "name": "Staravia",
+    "types": [
+      "normal",
+      "flying"
+    ],
+    "bst": 340,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "staraptor",
+    "dexNumber": 398,
+    "name": "Staraptor",
+    "types": [
+      "normal",
+      "flying"
+    ],
+    "bst": 485,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "bidoof",
+    "dexNumber": 399,
+    "name": "Bidoof",
+    "types": [
+      "normal"
+    ],
+    "bst": 250,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "bibarel",
+    "dexNumber": 400,
+    "name": "Bibarel",
+    "types": [
+      "normal",
+      "water"
+    ],
+    "bst": 410,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "kricketot",
+    "dexNumber": 401,
+    "name": "Kricketot",
+    "types": [
+      "bug"
+    ],
+    "bst": 194,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "kricketune",
+    "dexNumber": 402,
+    "name": "Kricketune",
+    "types": [
+      "bug"
+    ],
+    "bst": 384,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "shinx",
+    "dexNumber": 403,
+    "name": "Shinx",
+    "types": [
+      "electric"
+    ],
+    "bst": 263,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "luxio",
+    "dexNumber": 404,
+    "name": "Luxio",
+    "types": [
+      "electric"
+    ],
+    "bst": 363,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "luxray",
+    "dexNumber": 405,
+    "name": "Luxray",
+    "types": [
+      "electric"
+    ],
+    "bst": 523,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "budew",
+    "dexNumber": 406,
+    "name": "Budew",
+    "types": [
+      "grass",
+      "poison"
+    ],
+    "bst": 280,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "roserade",
+    "dexNumber": 407,
+    "name": "Roserade",
+    "types": [
+      "grass",
+      "poison"
+    ],
+    "bst": 515,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "cranidos",
+    "dexNumber": 408,
+    "name": "Cranidos",
+    "types": [
+      "rock"
+    ],
+    "bst": 350,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "rampardos",
+    "dexNumber": 409,
+    "name": "Rampardos",
+    "types": [
+      "rock"
+    ],
+    "bst": 495,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "shieldon",
+    "dexNumber": 410,
+    "name": "Shieldon",
+    "types": [
+      "rock",
+      "steel"
+    ],
+    "bst": 350,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "bastiodon",
+    "dexNumber": 411,
+    "name": "Bastiodon",
+    "types": [
+      "rock",
+      "steel"
+    ],
+    "bst": 495,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "burmy",
+    "dexNumber": 412,
+    "name": "Burmy",
+    "types": [
+      "bug"
+    ],
+    "bst": 224,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "wormadam",
+    "dexNumber": 413,
+    "name": "Wormadam",
+    "types": [
+      "bug",
+      "grass"
+    ],
+    "bst": 424,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "mothim",
+    "dexNumber": 414,
+    "name": "Mothim",
+    "types": [
+      "bug",
+      "flying"
+    ],
+    "bst": 424,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "combee",
+    "dexNumber": 415,
+    "name": "Combee",
+    "types": [
+      "bug",
+      "flying"
+    ],
+    "bst": 244,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "vespiquen",
+    "dexNumber": 416,
+    "name": "Vespiquen",
+    "types": [
+      "bug",
+      "flying"
+    ],
+    "bst": 474,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "pachirisu",
+    "dexNumber": 417,
+    "name": "Pachirisu",
+    "types": [
+      "electric"
+    ],
+    "bst": 405,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "buizel",
+    "dexNumber": 418,
+    "name": "Buizel",
+    "types": [
+      "water"
+    ],
+    "bst": 330,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "floatzel",
+    "dexNumber": 419,
+    "name": "Floatzel",
+    "types": [
+      "water"
+    ],
+    "bst": 495,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "cherubi",
+    "dexNumber": 420,
+    "name": "Cherubi",
+    "types": [
+      "grass"
+    ],
+    "bst": 275,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "cherrim",
+    "dexNumber": 421,
+    "name": "Cherrim",
+    "types": [
+      "grass"
+    ],
+    "bst": 450,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "shellos",
+    "dexNumber": 422,
+    "name": "Shellos",
+    "types": [
+      "water"
+    ],
+    "bst": 325,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "gastrodon",
+    "dexNumber": 423,
+    "name": "Gastrodon",
+    "types": [
+      "water",
+      "ground"
+    ],
+    "bst": 475,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "ambipom",
+    "dexNumber": 424,
+    "name": "Ambipom",
+    "types": [
+      "normal"
+    ],
+    "bst": 482,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "drifloon",
+    "dexNumber": 425,
+    "name": "Drifloon",
+    "types": [
+      "ghost",
+      "flying"
+    ],
+    "bst": 348,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "drifblim",
+    "dexNumber": 426,
+    "name": "Drifblim",
+    "types": [
+      "ghost",
+      "flying"
+    ],
+    "bst": 498,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "buneary",
+    "dexNumber": 427,
+    "name": "Buneary",
+    "types": [
+      "normal"
+    ],
+    "bst": 350,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "lopunny",
+    "dexNumber": 428,
+    "name": "Lopunny",
+    "types": [
+      "normal"
+    ],
+    "bst": 480,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "mismagius",
+    "dexNumber": 429,
+    "name": "Mismagius",
+    "types": [
+      "ghost"
+    ],
+    "bst": 495,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "honchkrow",
+    "dexNumber": 430,
+    "name": "Honchkrow",
+    "types": [
+      "dark",
+      "flying"
+    ],
+    "bst": 505,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "glameow",
+    "dexNumber": 431,
+    "name": "Glameow",
+    "types": [
+      "normal"
+    ],
+    "bst": 310,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "purugly",
+    "dexNumber": 432,
+    "name": "Purugly",
+    "types": [
+      "normal"
+    ],
+    "bst": 452,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "chingling",
+    "dexNumber": 433,
+    "name": "Chingling",
+    "types": [
+      "psychic"
+    ],
+    "bst": 285,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "stunky",
+    "dexNumber": 434,
+    "name": "Stunky",
+    "types": [
+      "poison",
+      "dark"
+    ],
+    "bst": 329,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "skuntank",
+    "dexNumber": 435,
+    "name": "Skuntank",
+    "types": [
+      "poison",
+      "dark"
+    ],
+    "bst": 479,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "bronzor",
+    "dexNumber": 436,
+    "name": "Bronzor",
+    "types": [
+      "steel",
+      "psychic"
+    ],
+    "bst": 300,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "bronzong",
+    "dexNumber": 437,
+    "name": "Bronzong",
+    "types": [
+      "steel",
+      "psychic"
+    ],
+    "bst": 500,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "bonsly",
+    "dexNumber": 438,
+    "name": "Bonsly",
+    "types": [
+      "rock"
+    ],
+    "bst": 290,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "mime-jr",
+    "dexNumber": 439,
+    "name": "Mime Jr.",
+    "types": [
+      "psychic",
+      "fairy"
+    ],
+    "bst": 310,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "happiny",
+    "dexNumber": 440,
+    "name": "Happiny",
+    "types": [
+      "normal"
+    ],
+    "bst": 220,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "chatot",
+    "dexNumber": 441,
+    "name": "Chatot",
+    "types": [
+      "normal",
+      "flying"
+    ],
+    "bst": 411,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "spiritomb",
+    "dexNumber": 442,
+    "name": "Spiritomb",
+    "types": [
+      "ghost",
+      "dark"
+    ],
+    "bst": 485,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "gible",
+    "dexNumber": 443,
+    "name": "Gible",
+    "types": [
+      "dragon",
+      "ground"
+    ],
+    "bst": 300,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "gabite",
+    "dexNumber": 444,
+    "name": "Gabite",
+    "types": [
+      "dragon",
+      "ground"
+    ],
+    "bst": 410,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "garchomp",
+    "dexNumber": 445,
+    "name": "Garchomp",
+    "types": [
+      "dragon",
+      "ground"
+    ],
+    "bst": 600,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "munchlax",
+    "dexNumber": 446,
+    "name": "Munchlax",
+    "types": [
+      "normal"
+    ],
+    "bst": 390,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "riolu",
+    "dexNumber": 447,
+    "name": "Riolu",
+    "types": [
+      "fighting"
+    ],
+    "bst": 285,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "lucario",
+    "dexNumber": 448,
+    "name": "Lucario",
+    "types": [
+      "fighting",
+      "steel"
+    ],
+    "bst": 525,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "hippopotas",
+    "dexNumber": 449,
+    "name": "Hippopotas",
+    "types": [
+      "ground"
+    ],
+    "bst": 330,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "hippowdon",
+    "dexNumber": 450,
+    "name": "Hippowdon",
+    "types": [
+      "ground"
+    ],
+    "bst": 525,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "skorupi",
+    "dexNumber": 451,
+    "name": "Skorupi",
+    "types": [
+      "poison",
+      "bug"
+    ],
+    "bst": 330,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "drapion",
+    "dexNumber": 452,
+    "name": "Drapion",
+    "types": [
+      "poison",
+      "dark"
+    ],
+    "bst": 500,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "croagunk",
+    "dexNumber": 453,
+    "name": "Croagunk",
+    "types": [
+      "poison",
+      "fighting"
+    ],
+    "bst": 300,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "toxicroak",
+    "dexNumber": 454,
+    "name": "Toxicroak",
+    "types": [
+      "poison",
+      "fighting"
+    ],
+    "bst": 490,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "carnivine",
+    "dexNumber": 455,
+    "name": "Carnivine",
+    "types": [
+      "grass"
+    ],
+    "bst": 454,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "finneon",
+    "dexNumber": 456,
+    "name": "Finneon",
+    "types": [
+      "water"
+    ],
+    "bst": 330,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "lumineon",
+    "dexNumber": 457,
+    "name": "Lumineon",
+    "types": [
+      "water"
+    ],
+    "bst": 460,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "mantyke",
+    "dexNumber": 458,
+    "name": "Mantyke",
+    "types": [
+      "water",
+      "flying"
+    ],
+    "bst": 345,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "snover",
+    "dexNumber": 459,
+    "name": "Snover",
+    "types": [
+      "grass",
+      "ice"
+    ],
+    "bst": 334,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "abomasnow",
+    "dexNumber": 460,
+    "name": "Abomasnow",
+    "types": [
+      "grass",
+      "ice"
+    ],
+    "bst": 494,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "weavile",
+    "dexNumber": 461,
+    "name": "Weavile",
+    "types": [
+      "dark",
+      "ice"
+    ],
+    "bst": 510,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "magnezone",
+    "dexNumber": 462,
+    "name": "Magnezone",
+    "types": [
+      "electric",
+      "steel"
+    ],
+    "bst": 535,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "lickilicky",
+    "dexNumber": 463,
+    "name": "Lickilicky",
+    "types": [
+      "normal"
+    ],
+    "bst": 515,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "rhyperior",
+    "dexNumber": 464,
+    "name": "Rhyperior",
+    "types": [
+      "ground",
+      "rock"
+    ],
+    "bst": 535,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "tangrowth",
+    "dexNumber": 465,
+    "name": "Tangrowth",
+    "types": [
+      "grass"
+    ],
+    "bst": 535,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "electivire",
+    "dexNumber": 466,
+    "name": "Electivire",
+    "types": [
+      "electric"
+    ],
+    "bst": 540,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "magmortar",
+    "dexNumber": 467,
+    "name": "Magmortar",
+    "types": [
+      "fire"
+    ],
+    "bst": 540,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "togekiss",
+    "dexNumber": 468,
+    "name": "Togekiss",
+    "types": [
+      "fairy",
+      "flying"
+    ],
+    "bst": 545,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "yanmega",
+    "dexNumber": 469,
+    "name": "Yanmega",
+    "types": [
+      "bug",
+      "flying"
+    ],
+    "bst": 515,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "leafeon",
+    "dexNumber": 470,
+    "name": "Leafeon",
+    "types": [
+      "grass"
+    ],
+    "bst": 525,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "glaceon",
+    "dexNumber": 471,
+    "name": "Glaceon",
+    "types": [
+      "ice"
+    ],
+    "bst": 525,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "gliscor",
+    "dexNumber": 472,
+    "name": "Gliscor",
+    "types": [
+      "ground",
+      "flying"
+    ],
+    "bst": 510,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "mamoswine",
+    "dexNumber": 473,
+    "name": "Mamoswine",
+    "types": [
+      "ice",
+      "ground"
+    ],
+    "bst": 530,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "porygon-z",
+    "dexNumber": 474,
+    "name": "Porygon-Z",
+    "types": [
+      "normal"
+    ],
+    "bst": 535,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "gallade",
+    "dexNumber": 475,
+    "name": "Gallade",
+    "types": [
+      "psychic",
+      "fighting"
+    ],
+    "bst": 518,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "probopass",
+    "dexNumber": 476,
+    "name": "Probopass",
+    "types": [
+      "rock",
+      "steel"
+    ],
+    "bst": 525,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "dusknoir",
+    "dexNumber": 477,
+    "name": "Dusknoir",
+    "types": [
+      "ghost"
+    ],
+    "bst": 525,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "froslass",
+    "dexNumber": 478,
+    "name": "Froslass",
+    "types": [
+      "ice",
+      "ghost"
+    ],
+    "bst": 480,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "rotom",
+    "dexNumber": 479,
+    "name": "Rotom",
+    "types": [
+      "electric",
+      "ghost"
+    ],
+    "bst": 440,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "uxie",
+    "dexNumber": 480,
+    "name": "Uxie",
+    "types": [
+      "psychic"
+    ],
+    "bst": 580,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "mesprit",
+    "dexNumber": 481,
+    "name": "Mesprit",
+    "types": [
+      "psychic"
+    ],
+    "bst": 580,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "azelf",
+    "dexNumber": 482,
+    "name": "Azelf",
+    "types": [
+      "psychic"
+    ],
+    "bst": 580,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "dialga",
+    "dexNumber": 483,
+    "name": "Dialga",
+    "types": [
+      "steel",
+      "dragon"
+    ],
+    "bst": 680,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "palkia",
+    "dexNumber": 484,
+    "name": "Palkia",
+    "types": [
+      "water",
+      "dragon"
+    ],
+    "bst": 680,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "heatran",
+    "dexNumber": 485,
+    "name": "Heatran",
+    "types": [
+      "fire",
+      "steel"
+    ],
+    "bst": 600,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "regigigas",
+    "dexNumber": 486,
+    "name": "Regigigas",
+    "types": [
+      "normal"
+    ],
+    "bst": 670,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "giratina",
+    "dexNumber": 487,
+    "name": "Giratina",
+    "types": [
+      "ghost",
+      "dragon"
+    ],
+    "bst": 680,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "cresselia",
+    "dexNumber": 488,
+    "name": "Cresselia",
+    "types": [
+      "psychic"
+    ],
+    "bst": 580,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "phione",
+    "dexNumber": 489,
+    "name": "Phione",
+    "types": [
+      "water"
+    ],
+    "bst": 480,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "manaphy",
+    "dexNumber": 490,
+    "name": "Manaphy",
+    "types": [
+      "water"
+    ],
+    "bst": 600,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "darkrai",
+    "dexNumber": 491,
+    "name": "Darkrai",
+    "types": [
+      "dark"
+    ],
+    "bst": 600,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "shaymin",
+    "dexNumber": 492,
+    "name": "Shaymin",
+    "types": [
+      "grass"
+    ],
+    "bst": 600,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "arceus",
+    "dexNumber": 493,
+    "name": "Arceus",
+    "types": [
+      "normal"
+    ],
+    "bst": 720,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "victini",
+    "dexNumber": 494,
+    "name": "Victini",
+    "types": [
+      "psychic",
+      "fire"
+    ],
+    "bst": 600,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "snivy",
+    "dexNumber": 495,
+    "name": "Snivy",
+    "types": [
+      "grass"
+    ],
+    "bst": 308,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "servine",
+    "dexNumber": 496,
+    "name": "Servine",
+    "types": [
+      "grass"
+    ],
+    "bst": 413,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "serperior",
+    "dexNumber": 497,
+    "name": "Serperior",
+    "types": [
+      "grass"
+    ],
+    "bst": 528,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "tepig",
+    "dexNumber": 498,
+    "name": "Tepig",
+    "types": [
+      "fire"
+    ],
+    "bst": 308,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "pignite",
+    "dexNumber": 499,
+    "name": "Pignite",
+    "types": [
+      "fire",
+      "fighting"
+    ],
+    "bst": 418,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "emboar",
+    "dexNumber": 500,
+    "name": "Emboar",
+    "types": [
+      "fire",
+      "fighting"
+    ],
+    "bst": 528,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "oshawott",
+    "dexNumber": 501,
+    "name": "Oshawott",
+    "types": [
+      "water"
+    ],
+    "bst": 308,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "dewott",
+    "dexNumber": 502,
+    "name": "Dewott",
+    "types": [
+      "water"
+    ],
+    "bst": 413,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "samurott",
+    "dexNumber": 503,
+    "name": "Samurott",
+    "types": [
+      "water"
+    ],
+    "bst": 528,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "patrat",
+    "dexNumber": 504,
+    "name": "Patrat",
+    "types": [
+      "normal"
+    ],
+    "bst": 255,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "watchog",
+    "dexNumber": 505,
+    "name": "Watchog",
+    "types": [
+      "normal"
+    ],
+    "bst": 420,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "lillipup",
+    "dexNumber": 506,
+    "name": "Lillipup",
+    "types": [
+      "normal"
+    ],
+    "bst": 275,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "herdier",
+    "dexNumber": 507,
+    "name": "Herdier",
+    "types": [
+      "normal"
+    ],
+    "bst": 370,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "stoutland",
+    "dexNumber": 508,
+    "name": "Stoutland",
+    "types": [
+      "normal"
+    ],
+    "bst": 500,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "purrloin",
+    "dexNumber": 509,
+    "name": "Purrloin",
+    "types": [
+      "dark"
+    ],
+    "bst": 281,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "liepard",
+    "dexNumber": 510,
+    "name": "Liepard",
+    "types": [
+      "dark"
+    ],
+    "bst": 446,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "pansage",
+    "dexNumber": 511,
+    "name": "Pansage",
+    "types": [
+      "grass"
+    ],
+    "bst": 316,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "simisage",
+    "dexNumber": 512,
+    "name": "Simisage",
+    "types": [
+      "grass"
+    ],
+    "bst": 498,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "pansear",
+    "dexNumber": 513,
+    "name": "Pansear",
+    "types": [
+      "fire"
+    ],
+    "bst": 316,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "simisear",
+    "dexNumber": 514,
+    "name": "Simisear",
+    "types": [
+      "fire"
+    ],
+    "bst": 498,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "panpour",
+    "dexNumber": 515,
+    "name": "Panpour",
+    "types": [
+      "water"
+    ],
+    "bst": 316,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "simipour",
+    "dexNumber": 516,
+    "name": "Simipour",
+    "types": [
+      "water"
+    ],
+    "bst": 498,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "munna",
+    "dexNumber": 517,
+    "name": "Munna",
+    "types": [
+      "psychic"
+    ],
+    "bst": 292,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "musharna",
+    "dexNumber": 518,
+    "name": "Musharna",
+    "types": [
+      "psychic"
+    ],
+    "bst": 487,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "pidove",
+    "dexNumber": 519,
+    "name": "Pidove",
+    "types": [
+      "normal",
+      "flying"
+    ],
+    "bst": 264,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "tranquill",
+    "dexNumber": 520,
+    "name": "Tranquill",
+    "types": [
+      "normal",
+      "flying"
+    ],
+    "bst": 358,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "unfezant",
+    "dexNumber": 521,
+    "name": "Unfezant",
+    "types": [
+      "normal",
+      "flying"
+    ],
+    "bst": 488,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "blitzle",
+    "dexNumber": 522,
+    "name": "Blitzle",
+    "types": [
+      "electric"
+    ],
+    "bst": 295,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "zebstrika",
+    "dexNumber": 523,
+    "name": "Zebstrika",
+    "types": [
+      "electric"
+    ],
+    "bst": 497,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "roggenrola",
+    "dexNumber": 524,
+    "name": "Roggenrola",
+    "types": [
+      "rock"
+    ],
+    "bst": 280,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "boldore",
+    "dexNumber": 525,
+    "name": "Boldore",
+    "types": [
+      "rock"
+    ],
+    "bst": 390,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "gigalith",
+    "dexNumber": 526,
+    "name": "Gigalith",
+    "types": [
+      "rock"
+    ],
+    "bst": 515,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "woobat",
+    "dexNumber": 527,
+    "name": "Woobat",
+    "types": [
+      "psychic",
+      "flying"
+    ],
+    "bst": 323,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "swoobat",
+    "dexNumber": 528,
+    "name": "Swoobat",
+    "types": [
+      "psychic",
+      "flying"
+    ],
+    "bst": 425,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "drilbur",
+    "dexNumber": 529,
+    "name": "Drilbur",
+    "types": [
+      "ground"
+    ],
+    "bst": 328,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "excadrill",
+    "dexNumber": 530,
+    "name": "Excadrill",
+    "types": [
+      "ground",
+      "steel"
+    ],
+    "bst": 508,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "audino",
+    "dexNumber": 531,
+    "name": "Audino",
+    "types": [
+      "normal"
+    ],
+    "bst": 445,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "timburr",
+    "dexNumber": 532,
+    "name": "Timburr",
+    "types": [
+      "fighting"
+    ],
+    "bst": 305,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "gurdurr",
+    "dexNumber": 533,
+    "name": "Gurdurr",
+    "types": [
+      "fighting"
+    ],
+    "bst": 405,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "conkeldurr",
+    "dexNumber": 534,
+    "name": "Conkeldurr",
+    "types": [
+      "fighting"
+    ],
+    "bst": 505,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "tympole",
+    "dexNumber": 535,
+    "name": "Tympole",
+    "types": [
+      "water"
+    ],
+    "bst": 294,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "palpitoad",
+    "dexNumber": 536,
+    "name": "Palpitoad",
+    "types": [
+      "water",
+      "ground"
+    ],
+    "bst": 384,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "seismitoad",
+    "dexNumber": 537,
+    "name": "Seismitoad",
+    "types": [
+      "water",
+      "ground"
+    ],
+    "bst": 509,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "throh",
+    "dexNumber": 538,
+    "name": "Throh",
+    "types": [
+      "fighting"
+    ],
+    "bst": 465,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "sawk",
+    "dexNumber": 539,
+    "name": "Sawk",
+    "types": [
+      "fighting"
+    ],
+    "bst": 465,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "sewaddle",
+    "dexNumber": 540,
+    "name": "Sewaddle",
+    "types": [
+      "bug",
+      "grass"
+    ],
+    "bst": 310,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "swadloon",
+    "dexNumber": 541,
+    "name": "Swadloon",
+    "types": [
+      "bug",
+      "grass"
+    ],
+    "bst": 380,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "leavanny",
+    "dexNumber": 542,
+    "name": "Leavanny",
+    "types": [
+      "bug",
+      "grass"
+    ],
+    "bst": 500,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "venipede",
+    "dexNumber": 543,
+    "name": "Venipede",
+    "types": [
+      "bug",
+      "poison"
+    ],
+    "bst": 260,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "whirlipede",
+    "dexNumber": 544,
+    "name": "Whirlipede",
+    "types": [
+      "bug",
+      "poison"
+    ],
+    "bst": 360,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "scolipede",
+    "dexNumber": 545,
+    "name": "Scolipede",
+    "types": [
+      "bug",
+      "poison"
+    ],
+    "bst": 485,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "cottonee",
+    "dexNumber": 546,
+    "name": "Cottonee",
+    "types": [
+      "grass",
+      "fairy"
+    ],
+    "bst": 280,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "whimsicott",
+    "dexNumber": 547,
+    "name": "Whimsicott",
+    "types": [
+      "grass",
+      "fairy"
+    ],
+    "bst": 480,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "petilil",
+    "dexNumber": 548,
+    "name": "Petilil",
+    "types": [
+      "grass"
+    ],
+    "bst": 280,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "lilligant",
+    "dexNumber": 549,
+    "name": "Lilligant",
+    "types": [
+      "grass"
+    ],
+    "bst": 480,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "basculin",
+    "dexNumber": 550,
+    "name": "Basculin",
+    "types": [
+      "water"
+    ],
+    "bst": 460,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "sandile",
+    "dexNumber": 551,
+    "name": "Sandile",
+    "types": [
+      "ground",
+      "dark"
+    ],
+    "bst": 292,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "krokorok",
+    "dexNumber": 552,
+    "name": "Krokorok",
+    "types": [
+      "ground",
+      "dark"
+    ],
+    "bst": 351,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "krookodile",
+    "dexNumber": 553,
+    "name": "Krookodile",
+    "types": [
+      "ground",
+      "dark"
+    ],
+    "bst": 519,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "darumaka",
+    "dexNumber": 554,
+    "name": "Darumaka",
+    "types": [
+      "fire"
+    ],
+    "bst": 315,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "darmanitan",
+    "dexNumber": 555,
+    "name": "Darmanitan",
+    "types": [
+      "fire"
+    ],
+    "bst": 480,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "maractus",
+    "dexNumber": 556,
+    "name": "Maractus",
+    "types": [
+      "grass"
+    ],
+    "bst": 461,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "dwebble",
+    "dexNumber": 557,
+    "name": "Dwebble",
+    "types": [
+      "bug",
+      "rock"
+    ],
+    "bst": 325,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "crustle",
+    "dexNumber": 558,
+    "name": "Crustle",
+    "types": [
+      "bug",
+      "rock"
+    ],
+    "bst": 485,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "scraggy",
+    "dexNumber": 559,
+    "name": "Scraggy",
+    "types": [
+      "dark",
+      "fighting"
+    ],
+    "bst": 348,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "scrafty",
+    "dexNumber": 560,
+    "name": "Scrafty",
+    "types": [
+      "dark",
+      "fighting"
+    ],
+    "bst": 488,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "sigilyph",
+    "dexNumber": 561,
+    "name": "Sigilyph",
+    "types": [
+      "psychic",
+      "flying"
+    ],
+    "bst": 490,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "yamask",
+    "dexNumber": 562,
+    "name": "Yamask",
+    "types": [
+      "ghost"
+    ],
+    "bst": 303,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "cofagrigus",
+    "dexNumber": 563,
+    "name": "Cofagrigus",
+    "types": [
+      "ghost"
+    ],
+    "bst": 483,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "tirtouga",
+    "dexNumber": 564,
+    "name": "Tirtouga",
+    "types": [
+      "water",
+      "rock"
+    ],
+    "bst": 355,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "carracosta",
+    "dexNumber": 565,
+    "name": "Carracosta",
+    "types": [
+      "water",
+      "rock"
+    ],
+    "bst": 495,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "archen",
+    "dexNumber": 566,
+    "name": "Archen",
+    "types": [
+      "rock",
+      "flying"
+    ],
+    "bst": 401,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "archeops",
+    "dexNumber": 567,
+    "name": "Archeops",
+    "types": [
+      "rock",
+      "flying"
+    ],
+    "bst": 567,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "trubbish",
+    "dexNumber": 568,
+    "name": "Trubbish",
+    "types": [
+      "poison"
+    ],
+    "bst": 329,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "garbodor",
+    "dexNumber": 569,
+    "name": "Garbodor",
+    "types": [
+      "poison"
+    ],
+    "bst": 474,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "zorua",
+    "dexNumber": 570,
+    "name": "Zorua",
+    "types": [
+      "dark"
+    ],
+    "bst": 330,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "zoroark",
+    "dexNumber": 571,
+    "name": "Zoroark",
+    "types": [
+      "dark"
+    ],
+    "bst": 510,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "minccino",
+    "dexNumber": 572,
+    "name": "Minccino",
+    "types": [
+      "normal"
+    ],
+    "bst": 300,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "cinccino",
+    "dexNumber": 573,
+    "name": "Cinccino",
+    "types": [
+      "normal"
+    ],
+    "bst": 470,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "gothita",
+    "dexNumber": 574,
+    "name": "Gothita",
+    "types": [
+      "psychic"
+    ],
+    "bst": 290,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "gothorita",
+    "dexNumber": 575,
+    "name": "Gothorita",
+    "types": [
+      "psychic"
+    ],
+    "bst": 390,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "gothitelle",
+    "dexNumber": 576,
+    "name": "Gothitelle",
+    "types": [
+      "psychic"
+    ],
+    "bst": 490,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "solosis",
+    "dexNumber": 577,
+    "name": "Solosis",
+    "types": [
+      "psychic"
+    ],
+    "bst": 290,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "duosion",
+    "dexNumber": 578,
+    "name": "Duosion",
+    "types": [
+      "psychic"
+    ],
+    "bst": 370,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "reuniclus",
+    "dexNumber": 579,
+    "name": "Reuniclus",
+    "types": [
+      "psychic"
+    ],
+    "bst": 490,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "ducklett",
+    "dexNumber": 580,
+    "name": "Ducklett",
+    "types": [
+      "water",
+      "flying"
+    ],
+    "bst": 305,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "swanna",
+    "dexNumber": 581,
+    "name": "Swanna",
+    "types": [
+      "water",
+      "flying"
+    ],
+    "bst": 473,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "vanillite",
+    "dexNumber": 582,
+    "name": "Vanillite",
+    "types": [
+      "ice"
+    ],
+    "bst": 305,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "vanillish",
+    "dexNumber": 583,
+    "name": "Vanillish",
+    "types": [
+      "ice"
+    ],
+    "bst": 395,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "vanilluxe",
+    "dexNumber": 584,
+    "name": "Vanilluxe",
+    "types": [
+      "ice"
+    ],
+    "bst": 535,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "deerling",
+    "dexNumber": 585,
+    "name": "Deerling",
+    "types": [
+      "normal",
+      "grass"
+    ],
+    "bst": 335,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "sawsbuck",
+    "dexNumber": 586,
+    "name": "Sawsbuck",
+    "types": [
+      "normal",
+      "grass"
+    ],
+    "bst": 475,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "emolga",
+    "dexNumber": 587,
+    "name": "Emolga",
+    "types": [
+      "electric",
+      "flying"
+    ],
+    "bst": 428,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "karrablast",
+    "dexNumber": 588,
+    "name": "Karrablast",
+    "types": [
+      "bug"
+    ],
+    "bst": 315,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "escavalier",
+    "dexNumber": 589,
+    "name": "Escavalier",
+    "types": [
+      "bug",
+      "steel"
+    ],
+    "bst": 495,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "foongus",
+    "dexNumber": 590,
+    "name": "Foongus",
+    "types": [
+      "grass",
+      "poison"
+    ],
+    "bst": 294,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "amoonguss",
+    "dexNumber": 591,
+    "name": "Amoonguss",
+    "types": [
+      "grass",
+      "poison"
+    ],
+    "bst": 464,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "frillish",
+    "dexNumber": 592,
+    "name": "Frillish",
+    "types": [
+      "water",
+      "ghost"
+    ],
+    "bst": 335,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "jellicent",
+    "dexNumber": 593,
+    "name": "Jellicent",
+    "types": [
+      "water",
+      "ghost"
+    ],
+    "bst": 480,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "alomomola",
+    "dexNumber": 594,
+    "name": "Alomomola",
+    "types": [
+      "water"
+    ],
+    "bst": 470,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "joltik",
+    "dexNumber": 595,
+    "name": "Joltik",
+    "types": [
+      "bug",
+      "electric"
+    ],
+    "bst": 319,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "galvantula",
+    "dexNumber": 596,
+    "name": "Galvantula",
+    "types": [
+      "bug",
+      "electric"
+    ],
+    "bst": 472,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "ferroseed",
+    "dexNumber": 597,
+    "name": "Ferroseed",
+    "types": [
+      "grass",
+      "steel"
+    ],
+    "bst": 305,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "ferrothorn",
+    "dexNumber": 598,
+    "name": "Ferrothorn",
+    "types": [
+      "grass",
+      "steel"
+    ],
+    "bst": 489,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "klink",
+    "dexNumber": 599,
+    "name": "Klink",
+    "types": [
+      "steel"
+    ],
+    "bst": 300,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "klang",
+    "dexNumber": 600,
+    "name": "Klang",
+    "types": [
+      "steel"
+    ],
+    "bst": 440,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "klinklang",
+    "dexNumber": 601,
+    "name": "Klinklang",
+    "types": [
+      "steel"
+    ],
+    "bst": 520,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "tynamo",
+    "dexNumber": 602,
+    "name": "Tynamo",
+    "types": [
+      "electric"
+    ],
+    "bst": 275,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "eelektrik",
+    "dexNumber": 603,
+    "name": "Eelektrik",
+    "types": [
+      "electric"
+    ],
+    "bst": 405,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "eelektross",
+    "dexNumber": 604,
+    "name": "Eelektross",
+    "types": [
+      "electric"
+    ],
+    "bst": 515,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "elgyem",
+    "dexNumber": 605,
+    "name": "Elgyem",
+    "types": [
+      "psychic"
+    ],
+    "bst": 335,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "beheeyem",
+    "dexNumber": 606,
+    "name": "Beheeyem",
+    "types": [
+      "psychic"
+    ],
+    "bst": 485,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "litwick",
+    "dexNumber": 607,
+    "name": "Litwick",
+    "types": [
+      "ghost",
+      "fire"
+    ],
+    "bst": 275,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "lampent",
+    "dexNumber": 608,
+    "name": "Lampent",
+    "types": [
+      "ghost",
+      "fire"
+    ],
+    "bst": 370,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "chandelure",
+    "dexNumber": 609,
+    "name": "Chandelure",
+    "types": [
+      "ghost",
+      "fire"
+    ],
+    "bst": 520,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "axew",
+    "dexNumber": 610,
+    "name": "Axew",
+    "types": [
+      "dragon"
+    ],
+    "bst": 320,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "fraxure",
+    "dexNumber": 611,
+    "name": "Fraxure",
+    "types": [
+      "dragon"
+    ],
+    "bst": 410,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "haxorus",
+    "dexNumber": 612,
+    "name": "Haxorus",
+    "types": [
+      "dragon"
+    ],
+    "bst": 540,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "cubchoo",
+    "dexNumber": 613,
+    "name": "Cubchoo",
+    "types": [
+      "ice"
+    ],
+    "bst": 305,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "beartic",
+    "dexNumber": 614,
+    "name": "Beartic",
+    "types": [
+      "ice"
+    ],
+    "bst": 505,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "cryogonal",
+    "dexNumber": 615,
+    "name": "Cryogonal",
+    "types": [
+      "ice"
+    ],
+    "bst": 515,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "shelmet",
+    "dexNumber": 616,
+    "name": "Shelmet",
+    "types": [
+      "bug"
+    ],
+    "bst": 305,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "accelgor",
+    "dexNumber": 617,
+    "name": "Accelgor",
+    "types": [
+      "bug"
+    ],
+    "bst": 495,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "stunfisk",
+    "dexNumber": 618,
+    "name": "Stunfisk",
+    "types": [
+      "ground",
+      "electric"
+    ],
+    "bst": 471,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "mienfoo",
+    "dexNumber": 619,
+    "name": "Mienfoo",
+    "types": [
+      "fighting"
+    ],
+    "bst": 350,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "mienshao",
+    "dexNumber": 620,
+    "name": "Mienshao",
+    "types": [
+      "fighting"
+    ],
+    "bst": 510,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "druddigon",
+    "dexNumber": 621,
+    "name": "Druddigon",
+    "types": [
+      "dragon"
+    ],
+    "bst": 485,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "golett",
+    "dexNumber": 622,
+    "name": "Golett",
+    "types": [
+      "ground",
+      "ghost"
+    ],
+    "bst": 303,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "golurk",
+    "dexNumber": 623,
+    "name": "Golurk",
+    "types": [
+      "ground",
+      "ghost"
+    ],
+    "bst": 483,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "pawniard",
+    "dexNumber": 624,
+    "name": "Pawniard",
+    "types": [
+      "dark",
+      "steel"
+    ],
+    "bst": 340,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "bisharp",
+    "dexNumber": 625,
+    "name": "Bisharp",
+    "types": [
+      "dark",
+      "steel"
+    ],
+    "bst": 490,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "bouffalant",
+    "dexNumber": 626,
+    "name": "Bouffalant",
+    "types": [
+      "normal"
+    ],
+    "bst": 490,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "rufflet",
+    "dexNumber": 627,
+    "name": "Rufflet",
+    "types": [
+      "normal",
+      "flying"
+    ],
+    "bst": 350,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "braviary",
+    "dexNumber": 628,
+    "name": "Braviary",
+    "types": [
+      "normal",
+      "flying"
+    ],
+    "bst": 510,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "vullaby",
+    "dexNumber": 629,
+    "name": "Vullaby",
+    "types": [
+      "dark",
+      "flying"
+    ],
+    "bst": 370,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "mandibuzz",
+    "dexNumber": 630,
+    "name": "Mandibuzz",
+    "types": [
+      "dark",
+      "flying"
+    ],
+    "bst": 510,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "heatmor",
+    "dexNumber": 631,
+    "name": "Heatmor",
+    "types": [
+      "fire"
+    ],
+    "bst": 484,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "durant",
+    "dexNumber": 632,
+    "name": "Durant",
+    "types": [
+      "bug",
+      "steel"
+    ],
+    "bst": 484,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "deino",
+    "dexNumber": 633,
+    "name": "Deino",
+    "types": [
+      "dark",
+      "dragon"
+    ],
+    "bst": 300,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "zweilous",
+    "dexNumber": 634,
+    "name": "Zweilous",
+    "types": [
+      "dark",
+      "dragon"
+    ],
+    "bst": 420,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "hydreigon",
+    "dexNumber": 635,
+    "name": "Hydreigon",
+    "types": [
+      "dark",
+      "dragon"
+    ],
+    "bst": 600,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "larvesta",
+    "dexNumber": 636,
+    "name": "Larvesta",
+    "types": [
+      "bug",
+      "fire"
+    ],
+    "bst": 360,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "volcarona",
+    "dexNumber": 637,
+    "name": "Volcarona",
+    "types": [
+      "bug",
+      "fire"
+    ],
+    "bst": 550,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "cobalion",
+    "dexNumber": 638,
+    "name": "Cobalion",
+    "types": [
+      "steel",
+      "fighting"
+    ],
+    "bst": 580,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "terrakion",
+    "dexNumber": 639,
+    "name": "Terrakion",
+    "types": [
+      "rock",
+      "fighting"
+    ],
+    "bst": 580,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "virizion",
+    "dexNumber": 640,
+    "name": "Virizion",
+    "types": [
+      "grass",
+      "fighting"
+    ],
+    "bst": 580,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "tornadus",
+    "dexNumber": 641,
+    "name": "Tornadus",
+    "types": [
+      "flying"
+    ],
+    "bst": 580,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "thundurus",
+    "dexNumber": 642,
+    "name": "Thundurus",
+    "types": [
+      "electric",
+      "flying"
+    ],
+    "bst": 580,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "reshiram",
+    "dexNumber": 643,
+    "name": "Reshiram",
+    "types": [
+      "dragon",
+      "fire"
+    ],
+    "bst": 680,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "zekrom",
+    "dexNumber": 644,
+    "name": "Zekrom",
+    "types": [
+      "dragon",
+      "electric"
+    ],
+    "bst": 680,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "landorus",
+    "dexNumber": 645,
+    "name": "Landorus",
+    "types": [
+      "ground",
+      "flying"
+    ],
+    "bst": 600,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "kyurem",
+    "dexNumber": 646,
+    "name": "Kyurem",
+    "types": [
+      "dragon",
+      "ice"
+    ],
+    "bst": 660,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "keldeo",
+    "dexNumber": 647,
+    "name": "Keldeo",
+    "types": [
+      "water",
+      "fighting"
+    ],
+    "bst": 580,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "meloetta",
+    "dexNumber": 648,
+    "name": "Meloetta",
+    "types": [
+      "normal",
+      "psychic"
+    ],
+    "bst": 600,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "genesect",
+    "dexNumber": 649,
+    "name": "Genesect",
+    "types": [
+      "bug",
+      "steel"
+    ],
+    "bst": 600,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "chespin",
+    "dexNumber": 650,
+    "name": "Chespin",
+    "types": [
+      "grass"
+    ],
+    "bst": 313,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "quilladin",
+    "dexNumber": 651,
+    "name": "Quilladin",
+    "types": [
+      "grass"
+    ],
+    "bst": 405,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "chesnaught",
+    "dexNumber": 652,
+    "name": "Chesnaught",
+    "types": [
+      "grass",
+      "fighting"
+    ],
+    "bst": 530,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "fennekin",
+    "dexNumber": 653,
+    "name": "Fennekin",
+    "types": [
+      "fire"
+    ],
+    "bst": 307,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "braixen",
+    "dexNumber": 654,
+    "name": "Braixen",
+    "types": [
+      "fire"
+    ],
+    "bst": 409,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "delphox",
+    "dexNumber": 655,
+    "name": "Delphox",
+    "types": [
+      "fire",
+      "psychic"
+    ],
+    "bst": 534,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "froakie",
+    "dexNumber": 656,
+    "name": "Froakie",
+    "types": [
+      "water"
+    ],
+    "bst": 314,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "frogadier",
+    "dexNumber": 657,
+    "name": "Frogadier",
+    "types": [
+      "water"
+    ],
+    "bst": 405,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "greninja",
+    "dexNumber": 658,
+    "name": "Greninja",
+    "types": [
+      "water",
+      "dark"
+    ],
+    "bst": 530,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "bunnelby",
+    "dexNumber": 659,
+    "name": "Bunnelby",
+    "types": [
+      "normal"
+    ],
+    "bst": 237,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "diggersby",
+    "dexNumber": 660,
+    "name": "Diggersby",
+    "types": [
+      "normal",
+      "ground"
+    ],
+    "bst": 423,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "fletchling",
+    "dexNumber": 661,
+    "name": "Fletchling",
+    "types": [
+      "normal",
+      "flying"
+    ],
+    "bst": 278,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "fletchinder",
+    "dexNumber": 662,
+    "name": "Fletchinder",
+    "types": [
+      "fire",
+      "flying"
+    ],
+    "bst": 382,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "talonflame",
+    "dexNumber": 663,
+    "name": "Talonflame",
+    "types": [
+      "fire",
+      "flying"
+    ],
+    "bst": 499,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "scatterbug",
+    "dexNumber": 664,
+    "name": "Scatterbug",
+    "types": [
+      "bug"
+    ],
+    "bst": 200,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "spewpa",
+    "dexNumber": 665,
+    "name": "Spewpa",
+    "types": [
+      "bug"
+    ],
+    "bst": 213,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "vivillon",
+    "dexNumber": 666,
+    "name": "Vivillon",
+    "types": [
+      "bug",
+      "flying"
+    ],
+    "bst": 411,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "litleo",
+    "dexNumber": 667,
+    "name": "Litleo",
+    "types": [
+      "fire",
+      "normal"
+    ],
+    "bst": 369,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "pyroar",
+    "dexNumber": 668,
+    "name": "Pyroar",
+    "types": [
+      "fire",
+      "normal"
+    ],
+    "bst": 507,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "flabebe",
+    "dexNumber": 669,
+    "name": "Flabébé",
+    "types": [
+      "fairy"
+    ],
+    "bst": 303,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "floette",
+    "dexNumber": 670,
+    "name": "Floette",
+    "types": [
+      "fairy"
+    ],
+    "bst": 371,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "florges",
+    "dexNumber": 671,
+    "name": "Florges",
+    "types": [
+      "fairy"
+    ],
+    "bst": 552,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "skiddo",
+    "dexNumber": 672,
+    "name": "Skiddo",
+    "types": [
+      "grass"
+    ],
+    "bst": 350,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "gogoat",
+    "dexNumber": 673,
+    "name": "Gogoat",
+    "types": [
+      "grass"
+    ],
+    "bst": 531,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "pancham",
+    "dexNumber": 674,
+    "name": "Pancham",
+    "types": [
+      "fighting"
+    ],
+    "bst": 348,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "pangoro",
+    "dexNumber": 675,
+    "name": "Pangoro",
+    "types": [
+      "fighting",
+      "dark"
+    ],
+    "bst": 495,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "furfrou",
+    "dexNumber": 676,
+    "name": "Furfrou",
+    "types": [
+      "normal"
+    ],
+    "bst": 472,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "espurr",
+    "dexNumber": 677,
+    "name": "Espurr",
+    "types": [
+      "psychic"
+    ],
+    "bst": 355,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "meowstic",
+    "dexNumber": 678,
+    "name": "Meowstic",
+    "types": [
+      "psychic"
+    ],
+    "bst": 466,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "honedge",
+    "dexNumber": 679,
+    "name": "Honedge",
+    "types": [
+      "steel",
+      "ghost"
+    ],
+    "bst": 325,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "doublade",
+    "dexNumber": 680,
+    "name": "Doublade",
+    "types": [
+      "steel",
+      "ghost"
+    ],
+    "bst": 448,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "aegislash",
+    "dexNumber": 681,
+    "name": "Aegislash",
+    "types": [
+      "steel",
+      "ghost"
+    ],
+    "bst": 500,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "spritzee",
+    "dexNumber": 682,
+    "name": "Spritzee",
+    "types": [
+      "fairy"
+    ],
+    "bst": 341,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "aromatisse",
+    "dexNumber": 683,
+    "name": "Aromatisse",
+    "types": [
+      "fairy"
+    ],
+    "bst": 462,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "swirlix",
+    "dexNumber": 684,
+    "name": "Swirlix",
+    "types": [
+      "fairy"
+    ],
+    "bst": 341,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "slurpuff",
+    "dexNumber": 685,
+    "name": "Slurpuff",
+    "types": [
+      "fairy"
+    ],
+    "bst": 480,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "inkay",
+    "dexNumber": 686,
+    "name": "Inkay",
+    "types": [
+      "dark",
+      "psychic"
+    ],
+    "bst": 288,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "malamar",
+    "dexNumber": 687,
+    "name": "Malamar",
+    "types": [
+      "dark",
+      "psychic"
+    ],
+    "bst": 482,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "binacle",
+    "dexNumber": 688,
+    "name": "Binacle",
+    "types": [
+      "rock",
+      "water"
+    ],
+    "bst": 306,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "barbaracle",
+    "dexNumber": 689,
+    "name": "Barbaracle",
+    "types": [
+      "rock",
+      "water"
+    ],
+    "bst": 500,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "skrelp",
+    "dexNumber": 690,
+    "name": "Skrelp",
+    "types": [
+      "poison",
+      "water"
+    ],
+    "bst": 320,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "dragalge",
+    "dexNumber": 691,
+    "name": "Dragalge",
+    "types": [
+      "poison",
+      "dragon"
+    ],
+    "bst": 494,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "clauncher",
+    "dexNumber": 692,
+    "name": "Clauncher",
+    "types": [
+      "water"
+    ],
+    "bst": 330,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "clawitzer",
+    "dexNumber": 693,
+    "name": "Clawitzer",
+    "types": [
+      "water"
+    ],
+    "bst": 500,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "helioptile",
+    "dexNumber": 694,
+    "name": "Helioptile",
+    "types": [
+      "electric",
+      "normal"
+    ],
+    "bst": 289,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "heliolisk",
+    "dexNumber": 695,
+    "name": "Heliolisk",
+    "types": [
+      "electric",
+      "normal"
+    ],
+    "bst": 481,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "tyrunt",
+    "dexNumber": 696,
+    "name": "Tyrunt",
+    "types": [
+      "rock",
+      "dragon"
+    ],
+    "bst": 362,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "tyrantrum",
+    "dexNumber": 697,
+    "name": "Tyrantrum",
+    "types": [
+      "rock",
+      "dragon"
+    ],
+    "bst": 521,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "amaura",
+    "dexNumber": 698,
+    "name": "Amaura",
+    "types": [
+      "rock",
+      "ice"
+    ],
+    "bst": 362,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "aurorus",
+    "dexNumber": 699,
+    "name": "Aurorus",
+    "types": [
+      "rock",
+      "ice"
+    ],
+    "bst": 521,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "sylveon",
+    "dexNumber": 700,
+    "name": "Sylveon",
+    "types": [
+      "fairy"
+    ],
+    "bst": 525,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "hawlucha",
+    "dexNumber": 701,
+    "name": "Hawlucha",
+    "types": [
+      "fighting",
+      "flying"
+    ],
+    "bst": 500,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "dedenne",
+    "dexNumber": 702,
+    "name": "Dedenne",
+    "types": [
+      "electric",
+      "fairy"
+    ],
+    "bst": 431,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "carbink",
+    "dexNumber": 703,
+    "name": "Carbink",
+    "types": [
+      "rock",
+      "fairy"
+    ],
+    "bst": 500,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "goomy",
+    "dexNumber": 704,
+    "name": "Goomy",
+    "types": [
+      "dragon"
+    ],
+    "bst": 300,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "sliggoo",
+    "dexNumber": 705,
+    "name": "Sliggoo",
+    "types": [
+      "dragon"
+    ],
+    "bst": 452,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "goodra",
+    "dexNumber": 706,
+    "name": "Goodra",
+    "types": [
+      "dragon"
+    ],
+    "bst": 600,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "klefki",
+    "dexNumber": 707,
+    "name": "Klefki",
+    "types": [
+      "steel",
+      "fairy"
+    ],
+    "bst": 470,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "phantump",
+    "dexNumber": 708,
+    "name": "Phantump",
+    "types": [
+      "ghost",
+      "grass"
+    ],
+    "bst": 309,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "trevenant",
+    "dexNumber": 709,
+    "name": "Trevenant",
+    "types": [
+      "ghost",
+      "grass"
+    ],
+    "bst": 474,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "pumpkaboo",
+    "dexNumber": 710,
+    "name": "Pumpkaboo",
+    "types": [
+      "ghost",
+      "grass"
+    ],
+    "bst": 335,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "gourgeist",
+    "dexNumber": 711,
+    "name": "Gourgeist",
+    "types": [
+      "ghost",
+      "grass"
+    ],
+    "bst": 494,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "bergmite",
+    "dexNumber": 712,
+    "name": "Bergmite",
+    "types": [
+      "ice"
+    ],
+    "bst": 304,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "avalugg",
+    "dexNumber": 713,
+    "name": "Avalugg",
+    "types": [
+      "ice"
+    ],
+    "bst": 514,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "noibat",
+    "dexNumber": 714,
+    "name": "Noibat",
+    "types": [
+      "flying",
+      "dragon"
+    ],
+    "bst": 245,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "noivern",
+    "dexNumber": 715,
+    "name": "Noivern",
+    "types": [
+      "flying",
+      "dragon"
+    ],
+    "bst": 535,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "xerneas",
+    "dexNumber": 716,
+    "name": "Xerneas",
+    "types": [
+      "fairy"
+    ],
+    "bst": 680,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "yveltal",
+    "dexNumber": 717,
+    "name": "Yveltal",
+    "types": [
+      "dark",
+      "flying"
+    ],
+    "bst": 680,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "zygarde",
+    "dexNumber": 718,
+    "name": "Zygarde",
+    "types": [
+      "dragon",
+      "ground"
+    ],
+    "bst": 600,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "diancie",
+    "dexNumber": 719,
+    "name": "Diancie",
+    "types": [
+      "rock",
+      "fairy"
+    ],
+    "bst": 600,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "hoopa",
+    "dexNumber": 720,
+    "name": "Hoopa",
+    "types": [
+      "psychic",
+      "ghost"
+    ],
+    "bst": 600,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "volcanion",
+    "dexNumber": 721,
+    "name": "Volcanion",
+    "types": [
+      "fire",
+      "water"
+    ],
+    "bst": 600,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "rowlet",
+    "dexNumber": 722,
+    "name": "Rowlet",
+    "types": [
+      "grass",
+      "flying"
+    ],
+    "bst": 320,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "dartrix",
+    "dexNumber": 723,
+    "name": "Dartrix",
+    "types": [
+      "grass",
+      "flying"
+    ],
+    "bst": 420,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "decidueye",
+    "dexNumber": 724,
+    "name": "Decidueye",
+    "types": [
+      "grass",
+      "ghost"
+    ],
+    "bst": 530,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "litten",
+    "dexNumber": 725,
+    "name": "Litten",
+    "types": [
+      "fire"
+    ],
+    "bst": 320,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "torracat",
+    "dexNumber": 726,
+    "name": "Torracat",
+    "types": [
+      "fire"
+    ],
+    "bst": 420,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "incineroar",
+    "dexNumber": 727,
+    "name": "Incineroar",
+    "types": [
+      "fire",
+      "dark"
+    ],
+    "bst": 530,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "popplio",
+    "dexNumber": 728,
+    "name": "Popplio",
+    "types": [
+      "water"
+    ],
+    "bst": 320,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "brionne",
+    "dexNumber": 729,
+    "name": "Brionne",
+    "types": [
+      "water"
+    ],
+    "bst": 420,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "primarina",
+    "dexNumber": 730,
+    "name": "Primarina",
+    "types": [
+      "water",
+      "fairy"
+    ],
+    "bst": 530,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "pikipek",
+    "dexNumber": 731,
+    "name": "Pikipek",
+    "types": [
+      "normal",
+      "flying"
+    ],
+    "bst": 265,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "trumbeak",
+    "dexNumber": 732,
+    "name": "Trumbeak",
+    "types": [
+      "normal",
+      "flying"
+    ],
+    "bst": 355,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "toucannon",
+    "dexNumber": 733,
+    "name": "Toucannon",
+    "types": [
+      "normal",
+      "flying"
+    ],
+    "bst": 485,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "yungoos",
+    "dexNumber": 734,
+    "name": "Yungoos",
+    "types": [
+      "normal"
+    ],
+    "bst": 253,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "gumshoos",
+    "dexNumber": 735,
+    "name": "Gumshoos",
+    "types": [
+      "normal"
+    ],
+    "bst": 418,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "grubbin",
+    "dexNumber": 736,
+    "name": "Grubbin",
+    "types": [
+      "bug"
+    ],
+    "bst": 300,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "charjabug",
+    "dexNumber": 737,
+    "name": "Charjabug",
+    "types": [
+      "bug",
+      "electric"
+    ],
+    "bst": 400,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "vikavolt",
+    "dexNumber": 738,
+    "name": "Vikavolt",
+    "types": [
+      "bug",
+      "electric"
+    ],
+    "bst": 500,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "crabrawler",
+    "dexNumber": 739,
+    "name": "Crabrawler",
+    "types": [
+      "fighting"
+    ],
+    "bst": 338,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "crabominable",
+    "dexNumber": 740,
+    "name": "Crabominable",
+    "types": [
+      "fighting",
+      "ice"
+    ],
+    "bst": 478,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "oricorio",
+    "dexNumber": 741,
+    "name": "Oricorio",
+    "types": [
+      "fire",
+      "flying"
+    ],
+    "bst": 476,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "cutiefly",
+    "dexNumber": 742,
+    "name": "Cutiefly",
+    "types": [
+      "bug",
+      "fairy"
+    ],
+    "bst": 304,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "ribombee",
+    "dexNumber": 743,
+    "name": "Ribombee",
+    "types": [
+      "bug",
+      "fairy"
+    ],
+    "bst": 464,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "rockruff",
+    "dexNumber": 744,
+    "name": "Rockruff",
+    "types": [
+      "rock"
+    ],
+    "bst": 280,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "lycanroc",
+    "dexNumber": 745,
+    "name": "Lycanroc",
+    "types": [
+      "rock"
+    ],
+    "bst": 487,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "wishiwashi",
+    "dexNumber": 746,
+    "name": "Wishiwashi",
+    "types": [
+      "water"
+    ],
+    "bst": 175,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "mareanie",
+    "dexNumber": 747,
+    "name": "Mareanie",
+    "types": [
+      "poison",
+      "water"
+    ],
+    "bst": 305,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "toxapex",
+    "dexNumber": 748,
+    "name": "Toxapex",
+    "types": [
+      "poison",
+      "water"
+    ],
+    "bst": 495,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "mudbray",
+    "dexNumber": 749,
+    "name": "Mudbray",
+    "types": [
+      "ground"
+    ],
+    "bst": 385,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "mudsdale",
+    "dexNumber": 750,
+    "name": "Mudsdale",
+    "types": [
+      "ground"
+    ],
+    "bst": 500,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "dewpider",
+    "dexNumber": 751,
+    "name": "Dewpider",
+    "types": [
+      "water",
+      "bug"
+    ],
+    "bst": 269,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "araquanid",
+    "dexNumber": 752,
+    "name": "Araquanid",
+    "types": [
+      "water",
+      "bug"
+    ],
+    "bst": 454,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "fomantis",
+    "dexNumber": 753,
+    "name": "Fomantis",
+    "types": [
+      "grass"
+    ],
+    "bst": 250,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "lurantis",
+    "dexNumber": 754,
+    "name": "Lurantis",
+    "types": [
+      "grass"
+    ],
+    "bst": 480,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "morelull",
+    "dexNumber": 755,
+    "name": "Morelull",
+    "types": [
+      "grass",
+      "fairy"
+    ],
+    "bst": 285,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "shiinotic",
+    "dexNumber": 756,
+    "name": "Shiinotic",
+    "types": [
+      "grass",
+      "fairy"
+    ],
+    "bst": 405,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "salandit",
+    "dexNumber": 757,
+    "name": "Salandit",
+    "types": [
+      "poison",
+      "fire"
+    ],
+    "bst": 320,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "salazzle",
+    "dexNumber": 758,
+    "name": "Salazzle",
+    "types": [
+      "poison",
+      "fire"
+    ],
+    "bst": 480,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "stufful",
+    "dexNumber": 759,
+    "name": "Stufful",
+    "types": [
+      "normal",
+      "fighting"
+    ],
+    "bst": 340,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "bewear",
+    "dexNumber": 760,
+    "name": "Bewear",
+    "types": [
+      "normal",
+      "fighting"
+    ],
+    "bst": 500,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "bounsweet",
+    "dexNumber": 761,
+    "name": "Bounsweet",
+    "types": [
+      "grass"
+    ],
+    "bst": 210,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "steenee",
+    "dexNumber": 762,
+    "name": "Steenee",
+    "types": [
+      "grass"
+    ],
+    "bst": 290,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "tsareena",
+    "dexNumber": 763,
+    "name": "Tsareena",
+    "types": [
+      "grass"
+    ],
+    "bst": 510,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "comfey",
+    "dexNumber": 764,
+    "name": "Comfey",
+    "types": [
+      "fairy"
+    ],
+    "bst": 485,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "oranguru",
+    "dexNumber": 765,
+    "name": "Oranguru",
+    "types": [
+      "normal",
+      "psychic"
+    ],
+    "bst": 490,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "passimian",
+    "dexNumber": 766,
+    "name": "Passimian",
+    "types": [
+      "fighting"
+    ],
+    "bst": 490,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "wimpod",
+    "dexNumber": 767,
+    "name": "Wimpod",
+    "types": [
+      "bug",
+      "water"
+    ],
+    "bst": 230,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "golisopod",
+    "dexNumber": 768,
+    "name": "Golisopod",
+    "types": [
+      "bug",
+      "water"
+    ],
+    "bst": 530,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "sandygast",
+    "dexNumber": 769,
+    "name": "Sandygast",
+    "types": [
+      "ghost",
+      "ground"
+    ],
+    "bst": 320,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "palossand",
+    "dexNumber": 770,
+    "name": "Palossand",
+    "types": [
+      "ghost",
+      "ground"
+    ],
+    "bst": 480,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "pyukumuku",
+    "dexNumber": 771,
+    "name": "Pyukumuku",
+    "types": [
+      "water"
+    ],
+    "bst": 410,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "type-null",
+    "dexNumber": 772,
+    "name": "Type: Null",
+    "types": [
+      "normal"
+    ],
+    "bst": 534,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "silvally",
+    "dexNumber": 773,
+    "name": "Silvally",
+    "types": [
+      "normal"
+    ],
+    "bst": 570,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "minior",
+    "dexNumber": 774,
+    "name": "Minior",
+    "types": [
+      "rock",
+      "flying"
+    ],
+    "bst": 440,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "komala",
+    "dexNumber": 775,
+    "name": "Komala",
+    "types": [
+      "normal"
+    ],
+    "bst": 480,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "turtonator",
+    "dexNumber": 776,
+    "name": "Turtonator",
+    "types": [
+      "fire",
+      "dragon"
+    ],
+    "bst": 485,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "togedemaru",
+    "dexNumber": 777,
+    "name": "Togedemaru",
+    "types": [
+      "electric",
+      "steel"
+    ],
+    "bst": 435,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "mimikyu",
+    "dexNumber": 778,
+    "name": "Mimikyu",
+    "types": [
+      "ghost",
+      "fairy"
+    ],
+    "bst": 476,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "bruxish",
+    "dexNumber": 779,
+    "name": "Bruxish",
+    "types": [
+      "water",
+      "psychic"
+    ],
+    "bst": 475,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "drampa",
+    "dexNumber": 780,
+    "name": "Drampa",
+    "types": [
+      "normal",
+      "dragon"
+    ],
+    "bst": 485,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "dhelmise",
+    "dexNumber": 781,
+    "name": "Dhelmise",
+    "types": [
+      "ghost",
+      "grass"
+    ],
+    "bst": 517,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "jangmo-o",
+    "dexNumber": 782,
+    "name": "Jangmo-o",
+    "types": [
+      "dragon"
+    ],
+    "bst": 300,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "hakamo-o",
+    "dexNumber": 783,
+    "name": "Hakamo-o",
+    "types": [
+      "dragon",
+      "fighting"
+    ],
+    "bst": 420,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "kommo-o",
+    "dexNumber": 784,
+    "name": "Kommo-o",
+    "types": [
+      "dragon",
+      "fighting"
+    ],
+    "bst": 600,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "tapu-koko",
+    "dexNumber": 785,
+    "name": "Tapu Koko",
+    "types": [
+      "electric",
+      "fairy"
+    ],
+    "bst": 570,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "tapu-lele",
+    "dexNumber": 786,
+    "name": "Tapu Lele",
+    "types": [
+      "psychic",
+      "fairy"
+    ],
+    "bst": 570,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "tapu-bulu",
+    "dexNumber": 787,
+    "name": "Tapu Bulu",
+    "types": [
+      "grass",
+      "fairy"
+    ],
+    "bst": 570,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "tapu-fini",
+    "dexNumber": 788,
+    "name": "Tapu Fini",
+    "types": [
+      "water",
+      "fairy"
+    ],
+    "bst": 570,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "cosmog",
+    "dexNumber": 789,
+    "name": "Cosmog",
+    "types": [
+      "psychic"
+    ],
+    "bst": 200,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "cosmoem",
+    "dexNumber": 790,
+    "name": "Cosmoem",
+    "types": [
+      "psychic"
+    ],
+    "bst": 400,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "solgaleo",
+    "dexNumber": 791,
+    "name": "Solgaleo",
+    "types": [
+      "psychic",
+      "steel"
+    ],
+    "bst": 680,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "lunala",
+    "dexNumber": 792,
+    "name": "Lunala",
+    "types": [
+      "psychic",
+      "ghost"
+    ],
+    "bst": 680,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "nihilego",
+    "dexNumber": 793,
+    "name": "Nihilego",
+    "types": [
+      "rock",
+      "poison"
+    ],
+    "bst": 570,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "buzzwole",
+    "dexNumber": 794,
+    "name": "Buzzwole",
+    "types": [
+      "bug",
+      "fighting"
+    ],
+    "bst": 570,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "pheromosa",
+    "dexNumber": 795,
+    "name": "Pheromosa",
+    "types": [
+      "bug",
+      "fighting"
+    ],
+    "bst": 570,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "xurkitree",
+    "dexNumber": 796,
+    "name": "Xurkitree",
+    "types": [
+      "electric"
+    ],
+    "bst": 570,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "celesteela",
+    "dexNumber": 797,
+    "name": "Celesteela",
+    "types": [
+      "steel",
+      "flying"
+    ],
+    "bst": 570,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "kartana",
+    "dexNumber": 798,
+    "name": "Kartana",
+    "types": [
+      "grass",
+      "steel"
+    ],
+    "bst": 570,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "guzzlord",
+    "dexNumber": 799,
+    "name": "Guzzlord",
+    "types": [
+      "dark",
+      "dragon"
+    ],
+    "bst": 570,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "necrozma",
+    "dexNumber": 800,
+    "name": "Necrozma",
+    "types": [
+      "psychic"
+    ],
+    "bst": 600,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "magearna",
+    "dexNumber": 801,
+    "name": "Magearna",
+    "types": [
+      "steel",
+      "fairy"
+    ],
+    "bst": 600,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "marshadow",
+    "dexNumber": 802,
+    "name": "Marshadow",
+    "types": [
+      "fighting",
+      "ghost"
+    ],
+    "bst": 600,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "poipole",
+    "dexNumber": 803,
+    "name": "Poipole",
+    "types": [
+      "poison"
+    ],
+    "bst": 420,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "naganadel",
+    "dexNumber": 804,
+    "name": "Naganadel",
+    "types": [
+      "poison",
+      "dragon"
+    ],
+    "bst": 540,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "stakataka",
+    "dexNumber": 805,
+    "name": "Stakataka",
+    "types": [
+      "rock",
+      "steel"
+    ],
+    "bst": 570,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "blacephalon",
+    "dexNumber": 806,
+    "name": "Blacephalon",
+    "types": [
+      "fire",
+      "ghost"
+    ],
+    "bst": 570,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "zeraora",
+    "dexNumber": 807,
+    "name": "Zeraora",
+    "types": [
+      "electric"
+    ],
+    "bst": 600,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "meltan",
+    "dexNumber": 808,
+    "name": "Meltan",
+    "types": [
+      "steel"
+    ],
+    "bst": 300,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "melmetal",
+    "dexNumber": 809,
+    "name": "Melmetal",
+    "types": [
+      "steel"
+    ],
+    "bst": 600,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "grookey",
+    "dexNumber": 810,
+    "name": "Grookey",
+    "types": [
+      "grass"
+    ],
+    "bst": 310,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "thwackey",
+    "dexNumber": 811,
+    "name": "Thwackey",
+    "types": [
+      "grass"
+    ],
+    "bst": 420,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "rillaboom",
+    "dexNumber": 812,
+    "name": "Rillaboom",
+    "types": [
+      "grass"
+    ],
+    "bst": 530,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "scorbunny",
+    "dexNumber": 813,
+    "name": "Scorbunny",
+    "types": [
+      "fire"
+    ],
+    "bst": 310,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "raboot",
+    "dexNumber": 814,
+    "name": "Raboot",
+    "types": [
+      "fire"
+    ],
+    "bst": 420,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "cinderace",
+    "dexNumber": 815,
+    "name": "Cinderace",
+    "types": [
+      "fire"
+    ],
+    "bst": 530,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "sobble",
+    "dexNumber": 816,
+    "name": "Sobble",
+    "types": [
+      "water"
+    ],
+    "bst": 310,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "drizzile",
+    "dexNumber": 817,
+    "name": "Drizzile",
+    "types": [
+      "water"
+    ],
+    "bst": 420,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "inteleon",
+    "dexNumber": 818,
+    "name": "Inteleon",
+    "types": [
+      "water"
+    ],
+    "bst": 530,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "skwovet",
+    "dexNumber": 819,
+    "name": "Skwovet",
+    "types": [
+      "normal"
+    ],
+    "bst": 275,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "greedent",
+    "dexNumber": 820,
+    "name": "Greedent",
+    "types": [
+      "normal"
+    ],
+    "bst": 460,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "rookidee",
+    "dexNumber": 821,
+    "name": "Rookidee",
+    "types": [
+      "flying"
+    ],
+    "bst": 245,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "corvisquire",
+    "dexNumber": 822,
+    "name": "Corvisquire",
+    "types": [
+      "flying"
+    ],
+    "bst": 365,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "corviknight",
+    "dexNumber": 823,
+    "name": "Corviknight",
+    "types": [
+      "flying",
+      "steel"
+    ],
+    "bst": 495,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "blipbug",
+    "dexNumber": 824,
+    "name": "Blipbug",
+    "types": [
+      "bug"
+    ],
+    "bst": 180,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "dottler",
+    "dexNumber": 825,
+    "name": "Dottler",
+    "types": [
+      "bug",
+      "psychic"
+    ],
+    "bst": 335,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "orbeetle",
+    "dexNumber": 826,
+    "name": "Orbeetle",
+    "types": [
+      "bug",
+      "psychic"
+    ],
+    "bst": 505,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "nickit",
+    "dexNumber": 827,
+    "name": "Nickit",
+    "types": [
+      "dark"
+    ],
+    "bst": 245,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "thievul",
+    "dexNumber": 828,
+    "name": "Thievul",
+    "types": [
+      "dark"
+    ],
+    "bst": 455,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "gossifleur",
+    "dexNumber": 829,
+    "name": "Gossifleur",
+    "types": [
+      "grass"
+    ],
+    "bst": 250,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "eldegoss",
+    "dexNumber": 830,
+    "name": "Eldegoss",
+    "types": [
+      "grass"
+    ],
+    "bst": 460,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "wooloo",
+    "dexNumber": 831,
+    "name": "Wooloo",
+    "types": [
+      "normal"
+    ],
+    "bst": 270,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "dubwool",
+    "dexNumber": 832,
+    "name": "Dubwool",
+    "types": [
+      "normal"
+    ],
+    "bst": 490,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "chewtle",
+    "dexNumber": 833,
+    "name": "Chewtle",
+    "types": [
+      "water"
+    ],
+    "bst": 284,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "drednaw",
+    "dexNumber": 834,
+    "name": "Drednaw",
+    "types": [
+      "water",
+      "rock"
+    ],
+    "bst": 485,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "yamper",
+    "dexNumber": 835,
+    "name": "Yamper",
+    "types": [
+      "electric"
+    ],
+    "bst": 270,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "boltund",
+    "dexNumber": 836,
+    "name": "Boltund",
+    "types": [
+      "electric"
+    ],
+    "bst": 490,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "rolycoly",
+    "dexNumber": 837,
+    "name": "Rolycoly",
+    "types": [
+      "rock"
+    ],
+    "bst": 240,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "carkol",
+    "dexNumber": 838,
+    "name": "Carkol",
+    "types": [
+      "rock",
+      "fire"
+    ],
+    "bst": 410,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "coalossal",
+    "dexNumber": 839,
+    "name": "Coalossal",
+    "types": [
+      "rock",
+      "fire"
+    ],
+    "bst": 510,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "applin",
+    "dexNumber": 840,
+    "name": "Applin",
+    "types": [
+      "grass",
+      "dragon"
+    ],
+    "bst": 260,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "flapple",
+    "dexNumber": 841,
+    "name": "Flapple",
+    "types": [
+      "grass",
+      "dragon"
+    ],
+    "bst": 485,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "appletun",
+    "dexNumber": 842,
+    "name": "Appletun",
+    "types": [
+      "grass",
+      "dragon"
+    ],
+    "bst": 485,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "silicobra",
+    "dexNumber": 843,
+    "name": "Silicobra",
+    "types": [
+      "ground"
+    ],
+    "bst": 315,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "sandaconda",
+    "dexNumber": 844,
+    "name": "Sandaconda",
+    "types": [
+      "ground"
+    ],
+    "bst": 510,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "cramorant",
+    "dexNumber": 845,
+    "name": "Cramorant",
+    "types": [
+      "flying",
+      "water"
+    ],
+    "bst": 475,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "arrokuda",
+    "dexNumber": 846,
+    "name": "Arrokuda",
+    "types": [
+      "water"
+    ],
+    "bst": 280,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "barraskewda",
+    "dexNumber": 847,
+    "name": "Barraskewda",
+    "types": [
+      "water"
+    ],
+    "bst": 490,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "toxel",
+    "dexNumber": 848,
+    "name": "Toxel",
+    "types": [
+      "electric",
+      "poison"
+    ],
+    "bst": 242,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "toxtricity",
+    "dexNumber": 849,
+    "name": "Toxtricity",
+    "types": [
+      "electric",
+      "poison"
+    ],
+    "bst": 502,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "sizzlipede",
+    "dexNumber": 850,
+    "name": "Sizzlipede",
+    "types": [
+      "fire",
+      "bug"
+    ],
+    "bst": 305,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "centiskorch",
+    "dexNumber": 851,
+    "name": "Centiskorch",
+    "types": [
+      "fire",
+      "bug"
+    ],
+    "bst": 525,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "clobbopus",
+    "dexNumber": 852,
+    "name": "Clobbopus",
+    "types": [
+      "fighting"
+    ],
+    "bst": 310,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "grapploct",
+    "dexNumber": 853,
+    "name": "Grapploct",
+    "types": [
+      "fighting"
+    ],
+    "bst": 480,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "sinistea",
+    "dexNumber": 854,
+    "name": "Sinistea",
+    "types": [
+      "ghost"
+    ],
+    "bst": 308,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "polteageist",
+    "dexNumber": 855,
+    "name": "Polteageist",
+    "types": [
+      "ghost"
+    ],
+    "bst": 508,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "hatenna",
+    "dexNumber": 856,
+    "name": "Hatenna",
+    "types": [
+      "psychic"
+    ],
+    "bst": 265,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "hattrem",
+    "dexNumber": 857,
+    "name": "Hattrem",
+    "types": [
+      "psychic"
+    ],
+    "bst": 370,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "hatterene",
+    "dexNumber": 858,
+    "name": "Hatterene",
+    "types": [
+      "psychic",
+      "fairy"
+    ],
+    "bst": 510,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "impidimp",
+    "dexNumber": 859,
+    "name": "Impidimp",
+    "types": [
+      "dark",
+      "fairy"
+    ],
+    "bst": 265,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "morgrem",
+    "dexNumber": 860,
+    "name": "Morgrem",
+    "types": [
+      "dark",
+      "fairy"
+    ],
+    "bst": 370,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "grimmsnarl",
+    "dexNumber": 861,
+    "name": "Grimmsnarl",
+    "types": [
+      "dark",
+      "fairy"
+    ],
+    "bst": 510,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "obstagoon",
+    "dexNumber": 862,
+    "name": "Obstagoon",
+    "types": [
+      "dark",
+      "normal"
+    ],
+    "bst": 520,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "perrserker",
+    "dexNumber": 863,
+    "name": "Perrserker",
+    "types": [
+      "steel"
+    ],
+    "bst": 440,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "cursola",
+    "dexNumber": 864,
+    "name": "Cursola",
+    "types": [
+      "ghost"
+    ],
+    "bst": 510,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "sirfetchd",
+    "dexNumber": 865,
+    "name": "Sirfetch’d",
+    "types": [
+      "fighting"
+    ],
+    "bst": 507,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "mr-rime",
+    "dexNumber": 866,
+    "name": "Mr. Rime",
+    "types": [
+      "ice",
+      "psychic"
+    ],
+    "bst": 520,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "runerigus",
+    "dexNumber": 867,
+    "name": "Runerigus",
+    "types": [
+      "ground",
+      "ghost"
+    ],
+    "bst": 483,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "milcery",
+    "dexNumber": 868,
+    "name": "Milcery",
+    "types": [
+      "fairy"
+    ],
+    "bst": 270,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "alcremie",
+    "dexNumber": 869,
+    "name": "Alcremie",
+    "types": [
+      "fairy"
+    ],
+    "bst": 495,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "falinks",
+    "dexNumber": 870,
+    "name": "Falinks",
+    "types": [
+      "fighting"
+    ],
+    "bst": 470,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "pincurchin",
+    "dexNumber": 871,
+    "name": "Pincurchin",
+    "types": [
+      "electric"
+    ],
+    "bst": 435,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "snom",
+    "dexNumber": 872,
+    "name": "Snom",
+    "types": [
+      "ice",
+      "bug"
+    ],
+    "bst": 185,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "frosmoth",
+    "dexNumber": 873,
+    "name": "Frosmoth",
+    "types": [
+      "ice",
+      "bug"
+    ],
+    "bst": 475,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "stonjourner",
+    "dexNumber": 874,
+    "name": "Stonjourner",
+    "types": [
+      "rock"
+    ],
+    "bst": 470,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "eiscue",
+    "dexNumber": 875,
+    "name": "Eiscue",
+    "types": [
+      "ice"
+    ],
+    "bst": 470,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "indeedee",
+    "dexNumber": 876,
+    "name": "Indeedee",
+    "types": [
+      "psychic",
+      "normal"
+    ],
+    "bst": 475,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "morpeko",
+    "dexNumber": 877,
+    "name": "Morpeko",
+    "types": [
+      "electric",
+      "dark"
+    ],
+    "bst": 436,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "cufant",
+    "dexNumber": 878,
+    "name": "Cufant",
+    "types": [
+      "steel"
+    ],
+    "bst": 330,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "copperajah",
+    "dexNumber": 879,
+    "name": "Copperajah",
+    "types": [
+      "steel"
+    ],
+    "bst": 500,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "dracozolt",
+    "dexNumber": 880,
+    "name": "Dracozolt",
+    "types": [
+      "electric",
+      "dragon"
+    ],
+    "bst": 505,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "arctozolt",
+    "dexNumber": 881,
+    "name": "Arctozolt",
+    "types": [
+      "electric",
+      "ice"
+    ],
+    "bst": 505,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "dracovish",
+    "dexNumber": 882,
+    "name": "Dracovish",
+    "types": [
+      "water",
+      "dragon"
+    ],
+    "bst": 505,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "arctovish",
+    "dexNumber": 883,
+    "name": "Arctovish",
+    "types": [
+      "water",
+      "ice"
+    ],
+    "bst": 505,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "duraludon",
+    "dexNumber": 884,
+    "name": "Duraludon",
+    "types": [
+      "steel",
+      "dragon"
+    ],
+    "bst": 535,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "dreepy",
+    "dexNumber": 885,
+    "name": "Dreepy",
+    "types": [
+      "dragon",
+      "ghost"
+    ],
+    "bst": 270,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "drakloak",
+    "dexNumber": 886,
+    "name": "Drakloak",
+    "types": [
+      "dragon",
+      "ghost"
+    ],
+    "bst": 410,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "dragapult",
+    "dexNumber": 887,
+    "name": "Dragapult",
+    "types": [
+      "dragon",
+      "ghost"
+    ],
+    "bst": 600,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "zacian",
+    "dexNumber": 888,
+    "name": "Zacian",
+    "types": [
+      "fairy"
+    ],
+    "bst": 660,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "zamazenta",
+    "dexNumber": 889,
+    "name": "Zamazenta",
+    "types": [
+      "fighting"
+    ],
+    "bst": 660,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "eternatus",
+    "dexNumber": 890,
+    "name": "Eternatus",
+    "types": [
+      "poison",
+      "dragon"
+    ],
+    "bst": 690,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "kubfu",
+    "dexNumber": 891,
+    "name": "Kubfu",
+    "types": [
+      "fighting"
+    ],
+    "bst": 385,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "urshifu",
+    "dexNumber": 892,
+    "name": "Urshifu",
+    "types": [
+      "fighting",
+      "dark"
+    ],
+    "bst": 550,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "zarude",
+    "dexNumber": 893,
+    "name": "Zarude",
+    "types": [
+      "dark",
+      "grass"
+    ],
+    "bst": 600,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "regieleki",
+    "dexNumber": 894,
+    "name": "Regieleki",
+    "types": [
+      "electric"
+    ],
+    "bst": 580,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "regidrago",
+    "dexNumber": 895,
+    "name": "Regidrago",
+    "types": [
+      "dragon"
+    ],
+    "bst": 580,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "glastrier",
+    "dexNumber": 896,
+    "name": "Glastrier",
+    "types": [
+      "ice"
+    ],
+    "bst": 580,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "spectrier",
+    "dexNumber": 897,
+    "name": "Spectrier",
+    "types": [
+      "ghost"
+    ],
+    "bst": 580,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "calyrex",
+    "dexNumber": 898,
+    "name": "Calyrex",
+    "types": [
+      "psychic",
+      "grass"
+    ],
+    "bst": 500,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "wyrdeer",
+    "dexNumber": 899,
+    "name": "Wyrdeer",
+    "types": [
+      "normal",
+      "psychic"
+    ],
+    "bst": 525,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "kleavor",
+    "dexNumber": 900,
+    "name": "Kleavor",
+    "types": [
+      "bug",
+      "rock"
+    ],
+    "bst": 500,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "ursaluna",
+    "dexNumber": 901,
+    "name": "Ursaluna",
+    "types": [
+      "ground",
+      "normal"
+    ],
+    "bst": 550,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "basculegion",
+    "dexNumber": 902,
+    "name": "Basculegion",
+    "types": [
+      "water",
+      "ghost"
+    ],
+    "bst": 530,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "sneasler",
+    "dexNumber": 903,
+    "name": "Sneasler",
+    "types": [
+      "fighting",
+      "poison"
+    ],
+    "bst": 510,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "overqwil",
+    "dexNumber": 904,
+    "name": "Overqwil",
+    "types": [
+      "dark",
+      "poison"
+    ],
+    "bst": 510,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "enamorus",
+    "dexNumber": 905,
+    "name": "Enamorus",
+    "types": [
+      "fairy",
+      "flying"
+    ],
+    "bst": 580,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "sprigatito",
+    "dexNumber": 906,
+    "name": "Sprigatito",
+    "types": [
+      "grass"
+    ],
+    "bst": 310,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "floragato",
+    "dexNumber": 907,
+    "name": "Floragato",
+    "types": [
+      "grass"
+    ],
+    "bst": 410,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "meowscarada",
+    "dexNumber": 908,
+    "name": "Meowscarada",
+    "types": [
+      "grass",
+      "dark"
+    ],
+    "bst": 530,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "fuecoco",
+    "dexNumber": 909,
+    "name": "Fuecoco",
+    "types": [
+      "fire"
+    ],
+    "bst": 310,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "crocalor",
+    "dexNumber": 910,
+    "name": "Crocalor",
+    "types": [
+      "fire"
+    ],
+    "bst": 411,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "skeledirge",
+    "dexNumber": 911,
+    "name": "Skeledirge",
+    "types": [
+      "fire",
+      "ghost"
+    ],
+    "bst": 530,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "quaxly",
+    "dexNumber": 912,
+    "name": "Quaxly",
+    "types": [
+      "water"
+    ],
+    "bst": 310,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "quaxwell",
+    "dexNumber": 913,
+    "name": "Quaxwell",
+    "types": [
+      "water"
+    ],
+    "bst": 410,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "quaquaval",
+    "dexNumber": 914,
+    "name": "Quaquaval",
+    "types": [
+      "water",
+      "fighting"
+    ],
+    "bst": 530,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "lechonk",
+    "dexNumber": 915,
+    "name": "Lechonk",
+    "types": [
+      "normal"
+    ],
+    "bst": 254,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "oinkologne",
+    "dexNumber": 916,
+    "name": "Oinkologne",
+    "types": [
+      "normal"
+    ],
+    "bst": 489,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "tarountula",
+    "dexNumber": 917,
+    "name": "Tarountula",
+    "types": [
+      "bug"
+    ],
+    "bst": 210,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "spidops",
+    "dexNumber": 918,
+    "name": "Spidops",
+    "types": [
+      "bug"
+    ],
+    "bst": 404,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "nymble",
+    "dexNumber": 919,
+    "name": "Nymble",
+    "types": [
+      "bug"
+    ],
+    "bst": 210,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "lokix",
+    "dexNumber": 920,
+    "name": "Lokix",
+    "types": [
+      "bug",
+      "dark"
+    ],
+    "bst": 450,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "pawmi",
+    "dexNumber": 921,
+    "name": "Pawmi",
+    "types": [
+      "electric"
+    ],
+    "bst": 240,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "pawmo",
+    "dexNumber": 922,
+    "name": "Pawmo",
+    "types": [
+      "electric",
+      "fighting"
+    ],
+    "bst": 350,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "pawmot",
+    "dexNumber": 923,
+    "name": "Pawmot",
+    "types": [
+      "electric",
+      "fighting"
+    ],
+    "bst": 490,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "tandemaus",
+    "dexNumber": 924,
+    "name": "Tandemaus",
+    "types": [
+      "normal"
+    ],
+    "bst": 305,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "maushold",
+    "dexNumber": 925,
+    "name": "Maushold",
+    "types": [
+      "normal"
+    ],
+    "bst": 470,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "fidough",
+    "dexNumber": 926,
+    "name": "Fidough",
+    "types": [
+      "fairy"
+    ],
+    "bst": 312,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "dachsbun",
+    "dexNumber": 927,
+    "name": "Dachsbun",
+    "types": [
+      "fairy"
+    ],
+    "bst": 477,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "smoliv",
+    "dexNumber": 928,
+    "name": "Smoliv",
+    "types": [
+      "grass",
+      "normal"
+    ],
+    "bst": 260,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "dolliv",
+    "dexNumber": 929,
+    "name": "Dolliv",
+    "types": [
+      "grass",
+      "normal"
+    ],
+    "bst": 354,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "arboliva",
+    "dexNumber": 930,
+    "name": "Arboliva",
+    "types": [
+      "grass",
+      "normal"
+    ],
+    "bst": 510,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "squawkabilly",
+    "dexNumber": 931,
+    "name": "Squawkabilly",
+    "types": [
+      "normal",
+      "flying"
+    ],
+    "bst": 417,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "nacli",
+    "dexNumber": 932,
+    "name": "Nacli",
+    "types": [
+      "rock"
+    ],
+    "bst": 280,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "naclstack",
+    "dexNumber": 933,
+    "name": "Naclstack",
+    "types": [
+      "rock"
+    ],
+    "bst": 355,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "garganacl",
+    "dexNumber": 934,
+    "name": "Garganacl",
+    "types": [
+      "rock"
+    ],
+    "bst": 500,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "charcadet",
+    "dexNumber": 935,
+    "name": "Charcadet",
+    "types": [
+      "fire"
+    ],
+    "bst": 255,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "armarouge",
+    "dexNumber": 936,
+    "name": "Armarouge",
+    "types": [
+      "fire",
+      "psychic"
+    ],
+    "bst": 525,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "ceruledge",
+    "dexNumber": 937,
+    "name": "Ceruledge",
+    "types": [
+      "fire",
+      "ghost"
+    ],
+    "bst": 525,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "tadbulb",
+    "dexNumber": 938,
+    "name": "Tadbulb",
+    "types": [
+      "electric"
+    ],
+    "bst": 272,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "bellibolt",
+    "dexNumber": 939,
+    "name": "Bellibolt",
+    "types": [
+      "electric"
+    ],
+    "bst": 495,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "wattrel",
+    "dexNumber": 940,
+    "name": "Wattrel",
+    "types": [
+      "electric",
+      "flying"
+    ],
+    "bst": 280,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "kilowattrel",
+    "dexNumber": 941,
+    "name": "Kilowattrel",
+    "types": [
+      "electric",
+      "flying"
+    ],
+    "bst": 490,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "maschiff",
+    "dexNumber": 942,
+    "name": "Maschiff",
+    "types": [
+      "dark"
+    ],
+    "bst": 340,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "mabosstiff",
+    "dexNumber": 943,
+    "name": "Mabosstiff",
+    "types": [
+      "dark"
+    ],
+    "bst": 505,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "shroodle",
+    "dexNumber": 944,
+    "name": "Shroodle",
+    "types": [
+      "poison",
+      "normal"
+    ],
+    "bst": 290,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "grafaiai",
+    "dexNumber": 945,
+    "name": "Grafaiai",
+    "types": [
+      "poison",
+      "normal"
+    ],
+    "bst": 485,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "bramblin",
+    "dexNumber": 946,
+    "name": "Bramblin",
+    "types": [
+      "grass",
+      "ghost"
+    ],
+    "bst": 275,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "brambleghast",
+    "dexNumber": 947,
+    "name": "Brambleghast",
+    "types": [
+      "grass",
+      "ghost"
+    ],
+    "bst": 480,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "toedscool",
+    "dexNumber": 948,
+    "name": "Toedscool",
+    "types": [
+      "ground",
+      "grass"
+    ],
+    "bst": 335,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "toedscruel",
+    "dexNumber": 949,
+    "name": "Toedscruel",
+    "types": [
+      "ground",
+      "grass"
+    ],
+    "bst": 515,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "klawf",
+    "dexNumber": 950,
+    "name": "Klawf",
+    "types": [
+      "rock"
+    ],
+    "bst": 450,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "capsakid",
+    "dexNumber": 951,
+    "name": "Capsakid",
+    "types": [
+      "grass"
+    ],
+    "bst": 304,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "scovillain",
+    "dexNumber": 952,
+    "name": "Scovillain",
+    "types": [
+      "grass",
+      "fire"
+    ],
+    "bst": 486,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "rellor",
+    "dexNumber": 953,
+    "name": "Rellor",
+    "types": [
+      "bug"
+    ],
+    "bst": 270,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "rabsca",
+    "dexNumber": 954,
+    "name": "Rabsca",
+    "types": [
+      "bug",
+      "psychic"
+    ],
+    "bst": 470,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "flittle",
+    "dexNumber": 955,
+    "name": "Flittle",
+    "types": [
+      "psychic"
+    ],
+    "bst": 255,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "espathra",
+    "dexNumber": 956,
+    "name": "Espathra",
+    "types": [
+      "psychic"
+    ],
+    "bst": 481,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "tinkatink",
+    "dexNumber": 957,
+    "name": "Tinkatink",
+    "types": [
+      "fairy",
+      "steel"
+    ],
+    "bst": 297,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "tinkatuff",
+    "dexNumber": 958,
+    "name": "Tinkatuff",
+    "types": [
+      "fairy",
+      "steel"
+    ],
+    "bst": 380,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "tinkaton",
+    "dexNumber": 959,
+    "name": "Tinkaton",
+    "types": [
+      "fairy",
+      "steel"
+    ],
+    "bst": 506,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "wiglett",
+    "dexNumber": 960,
+    "name": "Wiglett",
+    "types": [
+      "water"
+    ],
+    "bst": 245,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "wugtrio",
+    "dexNumber": 961,
+    "name": "Wugtrio",
+    "types": [
+      "water"
+    ],
+    "bst": 425,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "bombirdier",
+    "dexNumber": 962,
+    "name": "Bombirdier",
+    "types": [
+      "flying",
+      "dark"
+    ],
+    "bst": 485,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "finizen",
+    "dexNumber": 963,
+    "name": "Finizen",
+    "types": [
+      "water"
+    ],
+    "bst": 315,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "palafin",
+    "dexNumber": 964,
+    "name": "Palafin",
+    "types": [
+      "water"
+    ],
+    "bst": 457,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "varoom",
+    "dexNumber": 965,
+    "name": "Varoom",
+    "types": [
+      "steel",
+      "poison"
+    ],
+    "bst": 300,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "revavroom",
+    "dexNumber": 966,
+    "name": "Revavroom",
+    "types": [
+      "steel",
+      "poison"
+    ],
+    "bst": 500,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "cyclizar",
+    "dexNumber": 967,
+    "name": "Cyclizar",
+    "types": [
+      "dragon",
+      "normal"
+    ],
+    "bst": 501,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "orthworm",
+    "dexNumber": 968,
+    "name": "Orthworm",
+    "types": [
+      "steel"
+    ],
+    "bst": 480,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "glimmet",
+    "dexNumber": 969,
+    "name": "Glimmet",
+    "types": [
+      "rock",
+      "poison"
+    ],
+    "bst": 350,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "glimmora",
+    "dexNumber": 970,
+    "name": "Glimmora",
+    "types": [
+      "rock",
+      "poison"
+    ],
+    "bst": 525,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "greavard",
+    "dexNumber": 971,
+    "name": "Greavard",
+    "types": [
+      "ghost"
+    ],
+    "bst": 290,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "houndstone",
+    "dexNumber": 972,
+    "name": "Houndstone",
+    "types": [
+      "ghost"
+    ],
+    "bst": 488,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "flamigo",
+    "dexNumber": 973,
+    "name": "Flamigo",
+    "types": [
+      "flying",
+      "fighting"
+    ],
+    "bst": 500,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "cetoddle",
+    "dexNumber": 974,
+    "name": "Cetoddle",
+    "types": [
+      "ice"
+    ],
+    "bst": 334,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "cetitan",
+    "dexNumber": 975,
+    "name": "Cetitan",
+    "types": [
+      "ice"
+    ],
+    "bst": 521,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "veluza",
+    "dexNumber": 976,
+    "name": "Veluza",
+    "types": [
+      "water",
+      "psychic"
+    ],
+    "bst": 478,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "dondozo",
+    "dexNumber": 977,
+    "name": "Dondozo",
+    "types": [
+      "water"
+    ],
+    "bst": 530,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "tatsugiri",
+    "dexNumber": 978,
+    "name": "Tatsugiri",
+    "types": [
+      "dragon",
+      "water"
+    ],
+    "bst": 475,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "annihilape",
+    "dexNumber": 979,
+    "name": "Annihilape",
+    "types": [
+      "fighting",
+      "ghost"
+    ],
+    "bst": 535,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "clodsire",
+    "dexNumber": 980,
+    "name": "Clodsire",
+    "types": [
+      "poison",
+      "ground"
+    ],
+    "bst": 430,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "farigiraf",
+    "dexNumber": 981,
+    "name": "Farigiraf",
+    "types": [
+      "normal",
+      "psychic"
+    ],
+    "bst": 520,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "dudunsparce",
+    "dexNumber": 982,
+    "name": "Dudunsparce",
+    "types": [
+      "normal"
+    ],
+    "bst": 520,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "kingambit",
+    "dexNumber": 983,
+    "name": "Kingambit",
+    "types": [
+      "dark",
+      "steel"
+    ],
+    "bst": 550,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "great-tusk",
+    "dexNumber": 984,
+    "name": "Great Tusk",
+    "types": [
+      "ground",
+      "fighting"
+    ],
+    "bst": 570,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "scream-tail",
+    "dexNumber": 985,
+    "name": "Scream Tail",
+    "types": [
+      "fairy",
+      "psychic"
+    ],
+    "bst": 570,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "brute-bonnet",
+    "dexNumber": 986,
+    "name": "Brute Bonnet",
+    "types": [
+      "grass",
+      "dark"
+    ],
+    "bst": 570,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "flutter-mane",
+    "dexNumber": 987,
+    "name": "Flutter Mane",
+    "types": [
+      "ghost",
+      "fairy"
+    ],
+    "bst": 570,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "slither-wing",
+    "dexNumber": 988,
+    "name": "Slither Wing",
+    "types": [
+      "bug",
+      "fighting"
+    ],
+    "bst": 570,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "sandy-shocks",
+    "dexNumber": 989,
+    "name": "Sandy Shocks",
+    "types": [
+      "electric",
+      "ground"
+    ],
+    "bst": 570,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "iron-treads",
+    "dexNumber": 990,
+    "name": "Iron Treads",
+    "types": [
+      "ground",
+      "steel"
+    ],
+    "bst": 570,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "iron-bundle",
+    "dexNumber": 991,
+    "name": "Iron Bundle",
+    "types": [
+      "ice",
+      "water"
+    ],
+    "bst": 570,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "iron-hands",
+    "dexNumber": 992,
+    "name": "Iron Hands",
+    "types": [
+      "fighting",
+      "electric"
+    ],
+    "bst": 570,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "iron-jugulis",
+    "dexNumber": 993,
+    "name": "Iron Jugulis",
+    "types": [
+      "dark",
+      "flying"
+    ],
+    "bst": 570,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "iron-moth",
+    "dexNumber": 994,
+    "name": "Iron Moth",
+    "types": [
+      "fire",
+      "poison"
+    ],
+    "bst": 570,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "iron-thorns",
+    "dexNumber": 995,
+    "name": "Iron Thorns",
+    "types": [
+      "rock",
+      "electric"
+    ],
+    "bst": 570,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "frigibax",
+    "dexNumber": 996,
+    "name": "Frigibax",
+    "types": [
+      "dragon",
+      "ice"
+    ],
+    "bst": 320,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "arctibax",
+    "dexNumber": 997,
+    "name": "Arctibax",
+    "types": [
+      "dragon",
+      "ice"
+    ],
+    "bst": 423,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "baxcalibur",
+    "dexNumber": 998,
+    "name": "Baxcalibur",
+    "types": [
+      "dragon",
+      "ice"
+    ],
+    "bst": 600,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "gimmighoul",
+    "dexNumber": 999,
+    "name": "Gimmighoul",
+    "types": [
+      "ghost"
+    ],
+    "bst": 300,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "gholdengo",
+    "dexNumber": 1000,
+    "name": "Gholdengo",
+    "types": [
+      "steel",
+      "ghost"
+    ],
+    "bst": 550,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "wo-chien",
+    "dexNumber": 1001,
+    "name": "Wo-Chien",
+    "types": [
+      "dark",
+      "grass"
+    ],
+    "bst": 570,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "chien-pao",
+    "dexNumber": 1002,
+    "name": "Chien-Pao",
+    "types": [
+      "dark",
+      "ice"
+    ],
+    "bst": 570,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "ting-lu",
+    "dexNumber": 1003,
+    "name": "Ting-Lu",
+    "types": [
+      "dark",
+      "ground"
+    ],
+    "bst": 570,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "chi-yu",
+    "dexNumber": 1004,
+    "name": "Chi-Yu",
+    "types": [
+      "dark",
+      "fire"
+    ],
+    "bst": 570,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "roaring-moon",
+    "dexNumber": 1005,
+    "name": "Roaring Moon",
+    "types": [
+      "dragon",
+      "dark"
+    ],
+    "bst": 590,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "iron-valiant",
+    "dexNumber": 1006,
+    "name": "Iron Valiant",
+    "types": [
+      "fairy",
+      "fighting"
+    ],
+    "bst": 590,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "koraidon",
+    "dexNumber": 1007,
+    "name": "Koraidon",
+    "types": [
+      "fighting",
+      "dragon"
+    ],
+    "bst": 670,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "miraidon",
+    "dexNumber": 1008,
+    "name": "Miraidon",
+    "types": [
+      "electric",
+      "dragon"
+    ],
+    "bst": 670,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "walking-wake",
+    "dexNumber": 1009,
+    "name": "Walking Wake",
+    "types": [
+      "water",
+      "dragon"
+    ],
+    "bst": 590,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "iron-leaves",
+    "dexNumber": 1010,
+    "name": "Iron Leaves",
+    "types": [
+      "grass",
+      "psychic"
+    ],
+    "bst": 590,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "dipplin",
+    "dexNumber": 1011,
+    "name": "Dipplin",
+    "types": [
+      "grass",
+      "dragon"
+    ],
+    "bst": 485,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "poltchageist",
+    "dexNumber": 1012,
+    "name": "Poltchageist",
+    "types": [
+      "grass",
+      "ghost"
+    ],
+    "bst": 308,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "sinistcha",
+    "dexNumber": 1013,
+    "name": "Sinistcha",
+    "types": [
+      "grass",
+      "ghost"
+    ],
+    "bst": 508,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "okidogi",
+    "dexNumber": 1014,
+    "name": "Okidogi",
+    "types": [
+      "poison",
+      "fighting"
+    ],
+    "bst": 555,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "munkidori",
+    "dexNumber": 1015,
+    "name": "Munkidori",
+    "types": [
+      "poison",
+      "psychic"
+    ],
+    "bst": 555,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "fezandipiti",
+    "dexNumber": 1016,
+    "name": "Fezandipiti",
+    "types": [
+      "poison",
+      "fairy"
+    ],
+    "bst": 555,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "ogerpon",
+    "dexNumber": 1017,
+    "name": "Ogerpon",
+    "types": [
+      "grass"
+    ],
+    "bst": 550,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "archaludon",
+    "dexNumber": 1018,
+    "name": "Archaludon",
+    "types": [
+      "steel",
+      "dragon"
+    ],
+    "bst": 600,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "hydrapple",
+    "dexNumber": 1019,
+    "name": "Hydrapple",
+    "types": [
+      "grass",
+      "dragon"
+    ],
+    "bst": 540,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "gouging-fire",
+    "dexNumber": 1020,
+    "name": "Gouging Fire",
+    "types": [
+      "fire",
+      "dragon"
+    ],
+    "bst": 590,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "raging-bolt",
+    "dexNumber": 1021,
+    "name": "Raging Bolt",
+    "types": [
+      "electric",
+      "dragon"
+    ],
+    "bst": 590,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "iron-boulder",
+    "dexNumber": 1022,
+    "name": "Iron Boulder",
+    "types": [
+      "rock",
+      "psychic"
+    ],
+    "bst": 590,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "iron-crown",
+    "dexNumber": 1023,
+    "name": "Iron Crown",
+    "types": [
+      "steel",
+      "psychic"
+    ],
+    "bst": 590,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "terapagos",
+    "dexNumber": 1024,
+    "name": "Terapagos",
+    "types": [
+      "normal"
+    ],
+    "bst": 450,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "pecharunt",
+    "dexNumber": 1025,
+    "name": "Pecharunt",
+    "types": [
+      "poison",
+      "ghost"
+    ],
+    "bst": 600,
+    "generation": "Gen 9"
+  }
+]

@@ -24,6 +24,37 @@ export default function Home() {
     let isMounted = true;
 
     async function checkSession() {
+      // Dev auto-login: when enabled, always adopt the test account's session
+      // from the server route (which reads DEV_TEST_EMAIL/PASSWORD) so the user
+      // stays on the intended test account across dev-server restarts. This must
+      // run before the existing-session check to override stale sessions.
+      if (process.env.NEXT_PUBLIC_DEV_AUTO_LOGIN === "true") {
+        try {
+          const response = await fetch("/api/auth/dev-login");
+
+          if (response.ok) {
+            const tokens = (await response.json()) as {
+              access_token: string | null;
+              refresh_token: string | null;
+            };
+
+            if (tokens.access_token && tokens.refresh_token) {
+              await supabase.auth.setSession({
+                access_token: tokens.access_token,
+                refresh_token: tokens.refresh_token,
+              });
+
+              if (isMounted) {
+                router.replace("/dashboard");
+                return;
+              }
+            }
+          }
+        } catch {
+          // Fall through to the manual login form if auto-login fails.
+        }
+      }
+
       const {
         data: { session },
       } = await supabase.auth.getSession();
@@ -38,7 +69,9 @@ export default function Home() {
         return;
       }
 
-      setIsCheckingSession(false);
+      if (isMounted) {
+        setIsCheckingSession(false);
+      }
     }
 
     checkSession();

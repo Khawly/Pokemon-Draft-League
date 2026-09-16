@@ -175,15 +175,21 @@ export async function loadDraftboardData(
 
   let hasInPoolPokemon = false;
   if (season) {
-    // Count pool Pokémon across every draft pool of the current season.
+    // Count pool Pokémon for the current season, scoped to the active pool when
+    // the owner has set one (falling back to every pool in the season).
     const { data: poolRows, error: poolError } = await supabase
       .from("draft_pools")
-      .select("id")
+      .select("id, is_active")
       .eq("league_id", leagueId)
       .eq("season_id", season.id);
 
     if (!poolError && poolRows && poolRows.length > 0) {
-      const poolIds = poolRows.map((row) => (row as { id: string }).id);
+      const scopedPools = (poolRows as { id: string; is_active: boolean }[]).filter(
+        (row) => row.is_active,
+      );
+      const poolIds = (scopedPools.length > 0 ? scopedPools : poolRows).map(
+        (row) => (row as { id: string }).id,
+      );
       const { count } = await supabase
         .from("draft_pool_pokemon")
         .select("pokemon_id", { count: "exact", head: true })

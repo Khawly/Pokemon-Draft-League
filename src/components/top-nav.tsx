@@ -33,6 +33,11 @@ const settingsItems: SettingsItem[] = [
     path: "/members-settings",
     requiresLeague: true,
   },
+  {
+    label: "Draft Pool",
+    path: "/pool",
+    requiresLeague: true,
+  },
 ];
 
 /** LocalStorage key used to persist the user's last-selected league across sessions. */

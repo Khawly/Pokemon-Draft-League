@@ -536,7 +536,7 @@ function DraftBoardPageContent() {
                 checklistComplete={checklistComplete}
                 takenPositions={takenPositions}
                 onOpenDraftSettings={() =>
-                  router.push(`/draft-settings?leagueId=${goods.league.id}`)
+                  router.push(`/pool?leagueId=${goods.league.id}`)
                 }
               />
             )}
@@ -651,7 +651,7 @@ function InviteCard({
  * @param props.poolComplete - Whether the draft pool is set up.
  * @param props.checklistComplete - Whether every checklist item passes.
  * @param props.takenPositions - Positions already assigned to a team.
- * @param props.onOpenDraftSettings - Opens the draft settings/pool page.
+ * @param props.onOpenDraftSettings - Opens the draft pool page.
  * @returns The draft checklist card markup.
  */
 function ChecklistCard({
@@ -726,19 +726,20 @@ function ChecklistCard({
         </ChecklistItem>
 
         <ChecklistItem complete={poolComplete} label="Draft pool complete">
-          {poolComplete ? (
+          {poolComplete && (
             <span className="ml-auto shrink-0 text-sm text-emerald-300">
               Ready
             </span>
-          ) : (
-            <button
-              type="button"
-              onClick={onOpenDraftSettings}
-              className="ml-auto shrink-0 text-xs font-medium text-amber-300 underline-offset-2 transition hover:underline"
-            >
-              Set up pool
-            </button>
           )}
+          <button
+            type="button"
+            onClick={onOpenDraftSettings}
+            className={`shrink-0 text-xs font-medium text-amber-300 underline-offset-2 transition hover:underline ${
+              poolComplete ? "ml-3" : "ml-auto"
+            }`}
+          >
+            {poolComplete ? "Draft Pool" : "Set up pool"}
+          </button>
         </ChecklistItem>
       </ul>
 

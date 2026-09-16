@@ -134,58 +134,61 @@ export default function SettingsPage() {
 
   useEffect(() => {
     async function loadProfile() {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
 
-      if (!session?.user) {
-        router.replace("/");
-        return;
+        if (!session?.user) {
+          router.replace("/");
+          return;
+        }
+
+        const currentUser = session.user;
+        setUserId(currentUser.id);
+
+        const { data, error: profileError } = await supabase
+          .from("profiles")
+          .select("display_name, pokemon_showdown_username, avatar_url")
+          .eq("id", currentUser.id)
+          .maybeSingle();
+
+        if (profileError) {
+          setError(profileError.message);
+          return;
+        }
+
+        const nextDisplayName =
+          data?.display_name ||
+          (currentUser.user_metadata?.display_name as string | undefined) ||
+          currentUser.email?.split("@")[0] ||
+          "Trainer";
+        const nextShowdownUsername =
+          (data?.pokemon_showdown_username as string | undefined) || "";
+        const nextAvatarUrl = (data?.avatar_url as string | undefined) || null;
+        const initials =
+          nextDisplayName
+            .split(/\s+/)
+            .filter(Boolean)
+            .slice(0, 2)
+            .map((part: string) => part[0]?.toUpperCase() ?? "")
+            .join("") || "T";
+
+        const nextProfile = {
+          displayName: nextDisplayName,
+          showdownUsername: nextShowdownUsername,
+          avatarUrl: nextAvatarUrl,
+          avatarInitials: initials,
+        };
+
+        originalProfileRef.current = nextProfile;
+        setDisplayName(nextDisplayName);
+        setShowdownUsername(nextShowdownUsername);
+        setAvatarInitials(initials);
+        setAvatarUrl(nextAvatarUrl);
+      } finally {
+        setIsLoading(false);
       }
-
-      const currentUser = session.user;
-      setUserId(currentUser.id);
-
-      const { data, error: profileError } = await supabase
-        .from("profiles")
-        .select("display_name, pokemon_showdown_username, avatar_url")
-        .eq("id", currentUser.id)
-        .maybeSingle();
-
-      if (profileError) {
-        setError(profileError.message);
-        return;
-      }
-
-      const nextDisplayName =
-        data?.display_name ||
-        (currentUser.user_metadata?.display_name as string | undefined) ||
-        currentUser.email?.split("@")[0] ||
-        "Trainer";
-      const nextShowdownUsername =
-        (data?.pokemon_showdown_username as string | undefined) || "";
-      const nextAvatarUrl = (data?.avatar_url as string | undefined) || null;
-      const initials =
-        nextDisplayName
-          .split(/\s+/)
-          .filter(Boolean)
-          .slice(0, 2)
-          .map((part: string) => part[0]?.toUpperCase() ?? "")
-          .join("") || "T";
-
-      const nextProfile = {
-        displayName: nextDisplayName,
-        showdownUsername: nextShowdownUsername,
-        avatarUrl: nextAvatarUrl,
-        avatarInitials: initials,
-      };
-
-      originalProfileRef.current = nextProfile;
-      setDisplayName(nextDisplayName);
-      setShowdownUsername(nextShowdownUsername);
-      setAvatarInitials(initials);
-      setAvatarUrl(nextAvatarUrl);
-      setIsLoading(false);
     }
 
     loadProfile();

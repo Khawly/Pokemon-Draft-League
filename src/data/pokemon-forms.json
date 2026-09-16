@@ -1,0 +1,4114 @@
+[
+  {
+    "slug": "venusaur-mega",
+    "baseSlug": "venusaur",
+    "spriteId": 10033,
+    "dexNumber": 3,
+    "name": "Mega Venusaur",
+    "types": [
+      "grass",
+      "poison"
+    ],
+    "bst": 625,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "venusaur-gmax",
+    "baseSlug": "venusaur",
+    "spriteId": 10195,
+    "dexNumber": 3,
+    "name": "Gigantamax Venusaur",
+    "types": [
+      "grass",
+      "poison"
+    ],
+    "bst": 525,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "charizard-mega-x",
+    "baseSlug": "charizard",
+    "spriteId": 10034,
+    "dexNumber": 6,
+    "name": "Mega Charizard X",
+    "types": [
+      "fire",
+      "dragon"
+    ],
+    "bst": 634,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "charizard-mega-y",
+    "baseSlug": "charizard",
+    "spriteId": 10035,
+    "dexNumber": 6,
+    "name": "Mega Charizard Y",
+    "types": [
+      "fire",
+      "flying"
+    ],
+    "bst": 634,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "charizard-gmax",
+    "baseSlug": "charizard",
+    "spriteId": 10196,
+    "dexNumber": 6,
+    "name": "Gigantamax Charizard",
+    "types": [
+      "fire",
+      "flying"
+    ],
+    "bst": 534,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "blastoise-mega",
+    "baseSlug": "blastoise",
+    "spriteId": 10036,
+    "dexNumber": 9,
+    "name": "Mega Blastoise",
+    "types": [
+      "water"
+    ],
+    "bst": 630,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "blastoise-gmax",
+    "baseSlug": "blastoise",
+    "spriteId": 10197,
+    "dexNumber": 9,
+    "name": "Gigantamax Blastoise",
+    "types": [
+      "water"
+    ],
+    "bst": 530,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "butterfree-gmax",
+    "baseSlug": "butterfree",
+    "spriteId": 10198,
+    "dexNumber": 12,
+    "name": "Gigantamax Butterfree",
+    "types": [
+      "bug",
+      "flying"
+    ],
+    "bst": 395,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "beedrill-mega",
+    "baseSlug": "beedrill",
+    "spriteId": 10090,
+    "dexNumber": 15,
+    "name": "Mega Beedrill",
+    "types": [
+      "bug",
+      "poison"
+    ],
+    "bst": 495,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "pidgeot-mega",
+    "baseSlug": "pidgeot",
+    "spriteId": 10073,
+    "dexNumber": 18,
+    "name": "Mega Pidgeot",
+    "types": [
+      "normal",
+      "flying"
+    ],
+    "bst": 579,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "rattata-alola",
+    "baseSlug": "rattata",
+    "spriteId": 10091,
+    "dexNumber": 19,
+    "name": "Alolan Rattata",
+    "types": [
+      "dark",
+      "normal"
+    ],
+    "bst": 253,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "raticate-alola",
+    "baseSlug": "raticate",
+    "spriteId": 10092,
+    "dexNumber": 20,
+    "name": "Alolan Raticate",
+    "types": [
+      "dark",
+      "normal"
+    ],
+    "bst": 413,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "raticate-totem-alola",
+    "baseSlug": "raticate",
+    "spriteId": 10093,
+    "dexNumber": 20,
+    "name": "Raticate Totem Alola",
+    "types": [
+      "dark",
+      "normal"
+    ],
+    "bst": 413,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "pikachu-rock-star",
+    "baseSlug": "pikachu",
+    "spriteId": 10080,
+    "dexNumber": 25,
+    "name": "Pikachu Rock Star",
+    "types": [
+      "electric"
+    ],
+    "bst": 320,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "pikachu-belle",
+    "baseSlug": "pikachu",
+    "spriteId": 10081,
+    "dexNumber": 25,
+    "name": "Pikachu Belle",
+    "types": [
+      "electric"
+    ],
+    "bst": 320,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "pikachu-pop-star",
+    "baseSlug": "pikachu",
+    "spriteId": 10082,
+    "dexNumber": 25,
+    "name": "Pikachu Pop Star",
+    "types": [
+      "electric"
+    ],
+    "bst": 320,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "pikachu-phd",
+    "baseSlug": "pikachu",
+    "spriteId": 10083,
+    "dexNumber": 25,
+    "name": "Pikachu Phd",
+    "types": [
+      "electric"
+    ],
+    "bst": 320,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "pikachu-libre",
+    "baseSlug": "pikachu",
+    "spriteId": 10084,
+    "dexNumber": 25,
+    "name": "Pikachu Libre",
+    "types": [
+      "electric"
+    ],
+    "bst": 320,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "pikachu-cosplay",
+    "baseSlug": "pikachu",
+    "spriteId": 10085,
+    "dexNumber": 25,
+    "name": "Pikachu Cosplay",
+    "types": [
+      "electric"
+    ],
+    "bst": 320,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "pikachu-original-cap",
+    "baseSlug": "pikachu",
+    "spriteId": 10094,
+    "dexNumber": 25,
+    "name": "Pikachu Original Cap",
+    "types": [
+      "electric"
+    ],
+    "bst": 320,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "pikachu-hoenn-cap",
+    "baseSlug": "pikachu",
+    "spriteId": 10095,
+    "dexNumber": 25,
+    "name": "Pikachu Hoenn Cap",
+    "types": [
+      "electric"
+    ],
+    "bst": 320,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "pikachu-sinnoh-cap",
+    "baseSlug": "pikachu",
+    "spriteId": 10096,
+    "dexNumber": 25,
+    "name": "Pikachu Sinnoh Cap",
+    "types": [
+      "electric"
+    ],
+    "bst": 320,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "pikachu-unova-cap",
+    "baseSlug": "pikachu",
+    "spriteId": 10097,
+    "dexNumber": 25,
+    "name": "Pikachu Unova Cap",
+    "types": [
+      "electric"
+    ],
+    "bst": 320,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "pikachu-kalos-cap",
+    "baseSlug": "pikachu",
+    "spriteId": 10098,
+    "dexNumber": 25,
+    "name": "Pikachu Kalos Cap",
+    "types": [
+      "electric"
+    ],
+    "bst": 320,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "pikachu-alola-cap",
+    "baseSlug": "pikachu",
+    "spriteId": 10099,
+    "dexNumber": 25,
+    "name": "Alolan Pikachu Cap",
+    "types": [
+      "electric"
+    ],
+    "bst": 320,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "pikachu-partner-cap",
+    "baseSlug": "pikachu",
+    "spriteId": 10148,
+    "dexNumber": 25,
+    "name": "Pikachu Partner Cap",
+    "types": [
+      "electric"
+    ],
+    "bst": 320,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "pikachu-starter",
+    "baseSlug": "pikachu",
+    "spriteId": 10158,
+    "dexNumber": 25,
+    "name": "Pikachu Starter",
+    "types": [
+      "electric"
+    ],
+    "bst": 430,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "pikachu-world-cap",
+    "baseSlug": "pikachu",
+    "spriteId": 10160,
+    "dexNumber": 25,
+    "name": "Pikachu World Cap",
+    "types": [
+      "electric"
+    ],
+    "bst": 320,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "pikachu-gmax",
+    "baseSlug": "pikachu",
+    "spriteId": 10199,
+    "dexNumber": 25,
+    "name": "Gigantamax Pikachu",
+    "types": [
+      "electric"
+    ],
+    "bst": 320,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "raichu-alola",
+    "baseSlug": "raichu",
+    "spriteId": 10100,
+    "dexNumber": 26,
+    "name": "Alolan Raichu",
+    "types": [
+      "electric",
+      "psychic"
+    ],
+    "bst": 485,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "raichu-mega-x",
+    "baseSlug": "raichu",
+    "spriteId": 10304,
+    "dexNumber": 26,
+    "name": "Mega Raichu X",
+    "types": [
+      "electric"
+    ],
+    "bst": 585,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "raichu-mega-y",
+    "baseSlug": "raichu",
+    "spriteId": 10305,
+    "dexNumber": 26,
+    "name": "Mega Raichu Y",
+    "types": [
+      "electric"
+    ],
+    "bst": 585,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "sandshrew-alola",
+    "baseSlug": "sandshrew",
+    "spriteId": 10101,
+    "dexNumber": 27,
+    "name": "Alolan Sandshrew",
+    "types": [
+      "ice",
+      "steel"
+    ],
+    "bst": 300,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "sandslash-alola",
+    "baseSlug": "sandslash",
+    "spriteId": 10102,
+    "dexNumber": 28,
+    "name": "Alolan Sandslash",
+    "types": [
+      "ice",
+      "steel"
+    ],
+    "bst": 450,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "clefable-mega",
+    "baseSlug": "clefable",
+    "spriteId": 10278,
+    "dexNumber": 36,
+    "name": "Mega Clefable",
+    "types": [
+      "fairy",
+      "flying"
+    ],
+    "bst": 583,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "vulpix-alola",
+    "baseSlug": "vulpix",
+    "spriteId": 10103,
+    "dexNumber": 37,
+    "name": "Alolan Vulpix",
+    "types": [
+      "ice"
+    ],
+    "bst": 299,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "ninetales-alola",
+    "baseSlug": "ninetales",
+    "spriteId": 10104,
+    "dexNumber": 38,
+    "name": "Alolan Ninetales",
+    "types": [
+      "ice",
+      "fairy"
+    ],
+    "bst": 505,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "diglett-alola",
+    "baseSlug": "diglett",
+    "spriteId": 10105,
+    "dexNumber": 50,
+    "name": "Alolan Diglett",
+    "types": [
+      "ground",
+      "steel"
+    ],
+    "bst": 265,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "dugtrio-alola",
+    "baseSlug": "dugtrio",
+    "spriteId": 10106,
+    "dexNumber": 51,
+    "name": "Alolan Dugtrio",
+    "types": [
+      "ground",
+      "steel"
+    ],
+    "bst": 425,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "meowth-alola",
+    "baseSlug": "meowth",
+    "spriteId": 10107,
+    "dexNumber": 52,
+    "name": "Alolan Meowth",
+    "types": [
+      "dark"
+    ],
+    "bst": 290,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "meowth-galar",
+    "baseSlug": "meowth",
+    "spriteId": 10161,
+    "dexNumber": 52,
+    "name": "Galarian Meowth",
+    "types": [
+      "steel"
+    ],
+    "bst": 290,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "meowth-gmax",
+    "baseSlug": "meowth",
+    "spriteId": 10200,
+    "dexNumber": 52,
+    "name": "Gigantamax Meowth",
+    "types": [
+      "normal"
+    ],
+    "bst": 290,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "persian-alola",
+    "baseSlug": "persian",
+    "spriteId": 10108,
+    "dexNumber": 53,
+    "name": "Alolan Persian",
+    "types": [
+      "dark"
+    ],
+    "bst": 440,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "growlithe-hisui",
+    "baseSlug": "growlithe",
+    "spriteId": 10229,
+    "dexNumber": 58,
+    "name": "Hisuian Growlithe",
+    "types": [
+      "fire",
+      "rock"
+    ],
+    "bst": 350,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "arcanine-hisui",
+    "baseSlug": "arcanine",
+    "spriteId": 10230,
+    "dexNumber": 59,
+    "name": "Hisuian Arcanine",
+    "types": [
+      "fire",
+      "rock"
+    ],
+    "bst": 555,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "alakazam-mega",
+    "baseSlug": "alakazam",
+    "spriteId": 10037,
+    "dexNumber": 65,
+    "name": "Mega Alakazam",
+    "types": [
+      "psychic"
+    ],
+    "bst": 600,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "machamp-gmax",
+    "baseSlug": "machamp",
+    "spriteId": 10201,
+    "dexNumber": 68,
+    "name": "Gigantamax Machamp",
+    "types": [
+      "fighting"
+    ],
+    "bst": 505,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "victreebel-mega",
+    "baseSlug": "victreebel",
+    "spriteId": 10279,
+    "dexNumber": 71,
+    "name": "Mega Victreebel",
+    "types": [
+      "grass",
+      "poison"
+    ],
+    "bst": 590,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "geodude-alola",
+    "baseSlug": "geodude",
+    "spriteId": 10109,
+    "dexNumber": 74,
+    "name": "Alolan Geodude",
+    "types": [
+      "rock",
+      "electric"
+    ],
+    "bst": 300,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "graveler-alola",
+    "baseSlug": "graveler",
+    "spriteId": 10110,
+    "dexNumber": 75,
+    "name": "Alolan Graveler",
+    "types": [
+      "rock",
+      "electric"
+    ],
+    "bst": 390,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "golem-alola",
+    "baseSlug": "golem",
+    "spriteId": 10111,
+    "dexNumber": 76,
+    "name": "Alolan Golem",
+    "types": [
+      "rock",
+      "electric"
+    ],
+    "bst": 495,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "ponyta-galar",
+    "baseSlug": "ponyta",
+    "spriteId": 10162,
+    "dexNumber": 77,
+    "name": "Galarian Ponyta",
+    "types": [
+      "psychic"
+    ],
+    "bst": 410,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "rapidash-galar",
+    "baseSlug": "rapidash",
+    "spriteId": 10163,
+    "dexNumber": 78,
+    "name": "Galarian Rapidash",
+    "types": [
+      "psychic",
+      "fairy"
+    ],
+    "bst": 500,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "slowpoke-galar",
+    "baseSlug": "slowpoke",
+    "spriteId": 10164,
+    "dexNumber": 79,
+    "name": "Galarian Slowpoke",
+    "types": [
+      "psychic"
+    ],
+    "bst": 315,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "slowbro-mega",
+    "baseSlug": "slowbro",
+    "spriteId": 10071,
+    "dexNumber": 80,
+    "name": "Mega Slowbro",
+    "types": [
+      "water",
+      "psychic"
+    ],
+    "bst": 590,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "slowbro-galar",
+    "baseSlug": "slowbro",
+    "spriteId": 10165,
+    "dexNumber": 80,
+    "name": "Galarian Slowbro",
+    "types": [
+      "poison",
+      "psychic"
+    ],
+    "bst": 490,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "farfetchd-galar",
+    "baseSlug": "farfetchd",
+    "spriteId": 10166,
+    "dexNumber": 83,
+    "name": "Galarian Farfetch’d",
+    "types": [
+      "fighting"
+    ],
+    "bst": 377,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "grimer-alola",
+    "baseSlug": "grimer",
+    "spriteId": 10112,
+    "dexNumber": 88,
+    "name": "Alolan Grimer",
+    "types": [
+      "poison",
+      "dark"
+    ],
+    "bst": 325,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "muk-alola",
+    "baseSlug": "muk",
+    "spriteId": 10113,
+    "dexNumber": 89,
+    "name": "Alolan Muk",
+    "types": [
+      "poison",
+      "dark"
+    ],
+    "bst": 500,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "gengar-mega",
+    "baseSlug": "gengar",
+    "spriteId": 10038,
+    "dexNumber": 94,
+    "name": "Mega Gengar",
+    "types": [
+      "ghost",
+      "poison"
+    ],
+    "bst": 600,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "gengar-gmax",
+    "baseSlug": "gengar",
+    "spriteId": 10202,
+    "dexNumber": 94,
+    "name": "Gigantamax Gengar",
+    "types": [
+      "ghost",
+      "poison"
+    ],
+    "bst": 500,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "kingler-gmax",
+    "baseSlug": "kingler",
+    "spriteId": 10203,
+    "dexNumber": 99,
+    "name": "Gigantamax Kingler",
+    "types": [
+      "water"
+    ],
+    "bst": 475,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "voltorb-hisui",
+    "baseSlug": "voltorb",
+    "spriteId": 10231,
+    "dexNumber": 100,
+    "name": "Hisuian Voltorb",
+    "types": [
+      "electric",
+      "grass"
+    ],
+    "bst": 330,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "electrode-hisui",
+    "baseSlug": "electrode",
+    "spriteId": 10232,
+    "dexNumber": 101,
+    "name": "Hisuian Electrode",
+    "types": [
+      "electric",
+      "grass"
+    ],
+    "bst": 490,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "exeggutor-alola",
+    "baseSlug": "exeggutor",
+    "spriteId": 10114,
+    "dexNumber": 103,
+    "name": "Alolan Exeggutor",
+    "types": [
+      "grass",
+      "dragon"
+    ],
+    "bst": 530,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "marowak-alola",
+    "baseSlug": "marowak",
+    "spriteId": 10115,
+    "dexNumber": 105,
+    "name": "Alolan Marowak",
+    "types": [
+      "fire",
+      "ghost"
+    ],
+    "bst": 425,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "marowak-totem",
+    "baseSlug": "marowak",
+    "spriteId": 10149,
+    "dexNumber": 105,
+    "name": "Marowak Totem",
+    "types": [
+      "fire",
+      "ghost"
+    ],
+    "bst": 425,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "weezing-galar",
+    "baseSlug": "weezing",
+    "spriteId": 10167,
+    "dexNumber": 110,
+    "name": "Galarian Weezing",
+    "types": [
+      "poison",
+      "fairy"
+    ],
+    "bst": 490,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "kangaskhan-mega",
+    "baseSlug": "kangaskhan",
+    "spriteId": 10039,
+    "dexNumber": 115,
+    "name": "Mega Kangaskhan",
+    "types": [
+      "normal"
+    ],
+    "bst": 590,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "starmie-mega",
+    "baseSlug": "starmie",
+    "spriteId": 10280,
+    "dexNumber": 121,
+    "name": "Mega Starmie",
+    "types": [
+      "water",
+      "psychic"
+    ],
+    "bst": 620,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "mr-mime-galar",
+    "baseSlug": "mr-mime",
+    "spriteId": 10168,
+    "dexNumber": 122,
+    "name": "Galarian Mr. Mime",
+    "types": [
+      "ice",
+      "psychic"
+    ],
+    "bst": 460,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "pinsir-mega",
+    "baseSlug": "pinsir",
+    "spriteId": 10040,
+    "dexNumber": 127,
+    "name": "Mega Pinsir",
+    "types": [
+      "bug",
+      "flying"
+    ],
+    "bst": 600,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "tauros-paldea-combat-breed",
+    "baseSlug": "tauros",
+    "spriteId": 10250,
+    "dexNumber": 128,
+    "name": "Tauros (Combat Breed)",
+    "types": [
+      "fighting"
+    ],
+    "bst": 490,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "tauros-paldea-blaze-breed",
+    "baseSlug": "tauros",
+    "spriteId": 10251,
+    "dexNumber": 128,
+    "name": "Tauros (Blaze Breed)",
+    "types": [
+      "fighting",
+      "fire"
+    ],
+    "bst": 490,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "tauros-paldea-aqua-breed",
+    "baseSlug": "tauros",
+    "spriteId": 10252,
+    "dexNumber": 128,
+    "name": "Tauros (Aqua Breed)",
+    "types": [
+      "fighting",
+      "water"
+    ],
+    "bst": 490,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "gyarados-mega",
+    "baseSlug": "gyarados",
+    "spriteId": 10041,
+    "dexNumber": 130,
+    "name": "Mega Gyarados",
+    "types": [
+      "water",
+      "dark"
+    ],
+    "bst": 640,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "lapras-gmax",
+    "baseSlug": "lapras",
+    "spriteId": 10204,
+    "dexNumber": 131,
+    "name": "Gigantamax Lapras",
+    "types": [
+      "water",
+      "ice"
+    ],
+    "bst": 535,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "eevee-starter",
+    "baseSlug": "eevee",
+    "spriteId": 10159,
+    "dexNumber": 133,
+    "name": "Eevee Starter",
+    "types": [
+      "normal"
+    ],
+    "bst": 435,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "eevee-gmax",
+    "baseSlug": "eevee",
+    "spriteId": 10205,
+    "dexNumber": 133,
+    "name": "Gigantamax Eevee",
+    "types": [
+      "normal"
+    ],
+    "bst": 325,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "aerodactyl-mega",
+    "baseSlug": "aerodactyl",
+    "spriteId": 10042,
+    "dexNumber": 142,
+    "name": "Mega Aerodactyl",
+    "types": [
+      "rock",
+      "flying"
+    ],
+    "bst": 615,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "snorlax-gmax",
+    "baseSlug": "snorlax",
+    "spriteId": 10206,
+    "dexNumber": 143,
+    "name": "Gigantamax Snorlax",
+    "types": [
+      "normal"
+    ],
+    "bst": 540,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "articuno-galar",
+    "baseSlug": "articuno",
+    "spriteId": 10169,
+    "dexNumber": 144,
+    "name": "Galarian Articuno",
+    "types": [
+      "psychic",
+      "flying"
+    ],
+    "bst": 580,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "zapdos-galar",
+    "baseSlug": "zapdos",
+    "spriteId": 10170,
+    "dexNumber": 145,
+    "name": "Galarian Zapdos",
+    "types": [
+      "fighting",
+      "flying"
+    ],
+    "bst": 580,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "moltres-galar",
+    "baseSlug": "moltres",
+    "spriteId": 10171,
+    "dexNumber": 146,
+    "name": "Galarian Moltres",
+    "types": [
+      "dark",
+      "flying"
+    ],
+    "bst": 580,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "dragonite-mega",
+    "baseSlug": "dragonite",
+    "spriteId": 10281,
+    "dexNumber": 149,
+    "name": "Mega Dragonite",
+    "types": [
+      "dragon",
+      "flying"
+    ],
+    "bst": 700,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "mewtwo-mega-x",
+    "baseSlug": "mewtwo",
+    "spriteId": 10043,
+    "dexNumber": 150,
+    "name": "Mega Mewtwo X",
+    "types": [
+      "psychic",
+      "fighting"
+    ],
+    "bst": 780,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "mewtwo-mega-y",
+    "baseSlug": "mewtwo",
+    "spriteId": 10044,
+    "dexNumber": 150,
+    "name": "Mega Mewtwo Y",
+    "types": [
+      "psychic"
+    ],
+    "bst": 780,
+    "generation": "Gen 1"
+  },
+  {
+    "slug": "meganium-mega",
+    "baseSlug": "meganium",
+    "spriteId": 10282,
+    "dexNumber": 154,
+    "name": "Mega Meganium",
+    "types": [
+      "grass",
+      "fairy"
+    ],
+    "bst": 625,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "typhlosion-hisui",
+    "baseSlug": "typhlosion",
+    "spriteId": 10233,
+    "dexNumber": 157,
+    "name": "Hisuian Typhlosion",
+    "types": [
+      "fire",
+      "ghost"
+    ],
+    "bst": 534,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "feraligatr-mega",
+    "baseSlug": "feraligatr",
+    "spriteId": 10283,
+    "dexNumber": 160,
+    "name": "Mega Feraligatr",
+    "types": [
+      "water",
+      "dragon"
+    ],
+    "bst": 630,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "ampharos-mega",
+    "baseSlug": "ampharos",
+    "spriteId": 10045,
+    "dexNumber": 181,
+    "name": "Mega Ampharos",
+    "types": [
+      "electric",
+      "dragon"
+    ],
+    "bst": 610,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "wooper-paldea",
+    "baseSlug": "wooper",
+    "spriteId": 10253,
+    "dexNumber": 194,
+    "name": "Paldean Wooper",
+    "types": [
+      "poison",
+      "ground"
+    ],
+    "bst": 210,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "slowking-galar",
+    "baseSlug": "slowking",
+    "spriteId": 10172,
+    "dexNumber": 199,
+    "name": "Galarian Slowking",
+    "types": [
+      "poison",
+      "psychic"
+    ],
+    "bst": 490,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "steelix-mega",
+    "baseSlug": "steelix",
+    "spriteId": 10072,
+    "dexNumber": 208,
+    "name": "Mega Steelix",
+    "types": [
+      "steel",
+      "ground"
+    ],
+    "bst": 610,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "qwilfish-hisui",
+    "baseSlug": "qwilfish",
+    "spriteId": 10234,
+    "dexNumber": 211,
+    "name": "Hisuian Qwilfish",
+    "types": [
+      "dark",
+      "poison"
+    ],
+    "bst": 440,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "scizor-mega",
+    "baseSlug": "scizor",
+    "spriteId": 10046,
+    "dexNumber": 212,
+    "name": "Mega Scizor",
+    "types": [
+      "bug",
+      "steel"
+    ],
+    "bst": 600,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "heracross-mega",
+    "baseSlug": "heracross",
+    "spriteId": 10047,
+    "dexNumber": 214,
+    "name": "Mega Heracross",
+    "types": [
+      "bug",
+      "fighting"
+    ],
+    "bst": 600,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "sneasel-hisui",
+    "baseSlug": "sneasel",
+    "spriteId": 10235,
+    "dexNumber": 215,
+    "name": "Hisuian Sneasel",
+    "types": [
+      "fighting",
+      "poison"
+    ],
+    "bst": 430,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "corsola-galar",
+    "baseSlug": "corsola",
+    "spriteId": 10173,
+    "dexNumber": 222,
+    "name": "Galarian Corsola",
+    "types": [
+      "ghost"
+    ],
+    "bst": 410,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "skarmory-mega",
+    "baseSlug": "skarmory",
+    "spriteId": 10284,
+    "dexNumber": 227,
+    "name": "Mega Skarmory",
+    "types": [
+      "steel",
+      "flying"
+    ],
+    "bst": 565,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "houndoom-mega",
+    "baseSlug": "houndoom",
+    "spriteId": 10048,
+    "dexNumber": 229,
+    "name": "Mega Houndoom",
+    "types": [
+      "dark",
+      "fire"
+    ],
+    "bst": 600,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "tyranitar-mega",
+    "baseSlug": "tyranitar",
+    "spriteId": 10049,
+    "dexNumber": 248,
+    "name": "Mega Tyranitar",
+    "types": [
+      "rock",
+      "dark"
+    ],
+    "bst": 700,
+    "generation": "Gen 2"
+  },
+  {
+    "slug": "sceptile-mega",
+    "baseSlug": "sceptile",
+    "spriteId": 10065,
+    "dexNumber": 254,
+    "name": "Mega Sceptile",
+    "types": [
+      "grass",
+      "dragon"
+    ],
+    "bst": 630,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "blaziken-mega",
+    "baseSlug": "blaziken",
+    "spriteId": 10050,
+    "dexNumber": 257,
+    "name": "Mega Blaziken",
+    "types": [
+      "fire",
+      "fighting"
+    ],
+    "bst": 630,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "swampert-mega",
+    "baseSlug": "swampert",
+    "spriteId": 10064,
+    "dexNumber": 260,
+    "name": "Mega Swampert",
+    "types": [
+      "water",
+      "ground"
+    ],
+    "bst": 635,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "zigzagoon-galar",
+    "baseSlug": "zigzagoon",
+    "spriteId": 10174,
+    "dexNumber": 263,
+    "name": "Galarian Zigzagoon",
+    "types": [
+      "dark",
+      "normal"
+    ],
+    "bst": 240,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "linoone-galar",
+    "baseSlug": "linoone",
+    "spriteId": 10175,
+    "dexNumber": 264,
+    "name": "Galarian Linoone",
+    "types": [
+      "dark",
+      "normal"
+    ],
+    "bst": 420,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "gardevoir-mega",
+    "baseSlug": "gardevoir",
+    "spriteId": 10051,
+    "dexNumber": 282,
+    "name": "Mega Gardevoir",
+    "types": [
+      "psychic",
+      "fairy"
+    ],
+    "bst": 618,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "sableye-mega",
+    "baseSlug": "sableye",
+    "spriteId": 10066,
+    "dexNumber": 302,
+    "name": "Mega Sableye",
+    "types": [
+      "dark",
+      "ghost"
+    ],
+    "bst": 480,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "mawile-mega",
+    "baseSlug": "mawile",
+    "spriteId": 10052,
+    "dexNumber": 303,
+    "name": "Mega Mawile",
+    "types": [
+      "steel",
+      "fairy"
+    ],
+    "bst": 480,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "aggron-mega",
+    "baseSlug": "aggron",
+    "spriteId": 10053,
+    "dexNumber": 306,
+    "name": "Mega Aggron",
+    "types": [
+      "steel"
+    ],
+    "bst": 630,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "medicham-mega",
+    "baseSlug": "medicham",
+    "spriteId": 10054,
+    "dexNumber": 308,
+    "name": "Mega Medicham",
+    "types": [
+      "fighting",
+      "psychic"
+    ],
+    "bst": 510,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "manectric-mega",
+    "baseSlug": "manectric",
+    "spriteId": 10055,
+    "dexNumber": 310,
+    "name": "Mega Manectric",
+    "types": [
+      "electric"
+    ],
+    "bst": 575,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "sharpedo-mega",
+    "baseSlug": "sharpedo",
+    "spriteId": 10070,
+    "dexNumber": 319,
+    "name": "Mega Sharpedo",
+    "types": [
+      "water",
+      "dark"
+    ],
+    "bst": 560,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "camerupt-mega",
+    "baseSlug": "camerupt",
+    "spriteId": 10087,
+    "dexNumber": 323,
+    "name": "Mega Camerupt",
+    "types": [
+      "fire",
+      "ground"
+    ],
+    "bst": 560,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "altaria-mega",
+    "baseSlug": "altaria",
+    "spriteId": 10067,
+    "dexNumber": 334,
+    "name": "Mega Altaria",
+    "types": [
+      "dragon",
+      "fairy"
+    ],
+    "bst": 590,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "castform-sunny",
+    "baseSlug": "castform",
+    "spriteId": 10013,
+    "dexNumber": 351,
+    "name": "Castform Sunny",
+    "types": [
+      "fire"
+    ],
+    "bst": 420,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "castform-rainy",
+    "baseSlug": "castform",
+    "spriteId": 10014,
+    "dexNumber": 351,
+    "name": "Castform Rainy",
+    "types": [
+      "water"
+    ],
+    "bst": 420,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "castform-snowy",
+    "baseSlug": "castform",
+    "spriteId": 10015,
+    "dexNumber": 351,
+    "name": "Castform Snowy",
+    "types": [
+      "ice"
+    ],
+    "bst": 420,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "banette-mega",
+    "baseSlug": "banette",
+    "spriteId": 10056,
+    "dexNumber": 354,
+    "name": "Mega Banette",
+    "types": [
+      "ghost"
+    ],
+    "bst": 555,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "chimecho-mega",
+    "baseSlug": "chimecho",
+    "spriteId": 10306,
+    "dexNumber": 358,
+    "name": "Mega Chimecho",
+    "types": [
+      "psychic",
+      "steel"
+    ],
+    "bst": 555,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "absol-mega",
+    "baseSlug": "absol",
+    "spriteId": 10057,
+    "dexNumber": 359,
+    "name": "Mega Absol",
+    "types": [
+      "dark"
+    ],
+    "bst": 565,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "absol-mega-z",
+    "baseSlug": "absol",
+    "spriteId": 10307,
+    "dexNumber": 359,
+    "name": "Mega Absol Z",
+    "types": [
+      "dark",
+      "ghost"
+    ],
+    "bst": 565,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "glalie-mega",
+    "baseSlug": "glalie",
+    "spriteId": 10074,
+    "dexNumber": 362,
+    "name": "Mega Glalie",
+    "types": [
+      "ice"
+    ],
+    "bst": 580,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "salamence-mega",
+    "baseSlug": "salamence",
+    "spriteId": 10089,
+    "dexNumber": 373,
+    "name": "Mega Salamence",
+    "types": [
+      "dragon",
+      "flying"
+    ],
+    "bst": 700,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "metagross-mega",
+    "baseSlug": "metagross",
+    "spriteId": 10076,
+    "dexNumber": 376,
+    "name": "Mega Metagross",
+    "types": [
+      "steel",
+      "psychic"
+    ],
+    "bst": 700,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "latias-mega",
+    "baseSlug": "latias",
+    "spriteId": 10062,
+    "dexNumber": 380,
+    "name": "Mega Latias",
+    "types": [
+      "dragon",
+      "psychic"
+    ],
+    "bst": 700,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "latios-mega",
+    "baseSlug": "latios",
+    "spriteId": 10063,
+    "dexNumber": 381,
+    "name": "Mega Latios",
+    "types": [
+      "dragon",
+      "psychic"
+    ],
+    "bst": 700,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "kyogre-primal",
+    "baseSlug": "kyogre",
+    "spriteId": 10077,
+    "dexNumber": 382,
+    "name": "Primal Kyogre",
+    "types": [
+      "water"
+    ],
+    "bst": 770,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "groudon-primal",
+    "baseSlug": "groudon",
+    "spriteId": 10078,
+    "dexNumber": 383,
+    "name": "Primal Groudon",
+    "types": [
+      "ground",
+      "fire"
+    ],
+    "bst": 770,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "rayquaza-mega",
+    "baseSlug": "rayquaza",
+    "spriteId": 10079,
+    "dexNumber": 384,
+    "name": "Mega Rayquaza",
+    "types": [
+      "dragon",
+      "flying"
+    ],
+    "bst": 780,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "deoxys-attack",
+    "baseSlug": "deoxys",
+    "spriteId": 10001,
+    "dexNumber": 386,
+    "name": "Deoxys (Attack Forme)",
+    "types": [
+      "psychic"
+    ],
+    "bst": 600,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "deoxys-defense",
+    "baseSlug": "deoxys",
+    "spriteId": 10002,
+    "dexNumber": 386,
+    "name": "Deoxys (Defense Forme)",
+    "types": [
+      "psychic"
+    ],
+    "bst": 600,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "deoxys-speed",
+    "baseSlug": "deoxys",
+    "spriteId": 10003,
+    "dexNumber": 386,
+    "name": "Deoxys (Speed Forme)",
+    "types": [
+      "psychic"
+    ],
+    "bst": 600,
+    "generation": "Gen 3"
+  },
+  {
+    "slug": "staraptor-mega",
+    "baseSlug": "staraptor",
+    "spriteId": 10308,
+    "dexNumber": 398,
+    "name": "Mega Staraptor",
+    "types": [
+      "fighting",
+      "flying"
+    ],
+    "bst": 585,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "wormadam-sandy",
+    "baseSlug": "wormadam",
+    "spriteId": 10004,
+    "dexNumber": 413,
+    "name": "Wormadam (Sandy Cloak)",
+    "types": [
+      "bug",
+      "ground"
+    ],
+    "bst": 424,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "wormadam-trash",
+    "baseSlug": "wormadam",
+    "spriteId": 10005,
+    "dexNumber": 413,
+    "name": "Wormadam (Trash Cloak)",
+    "types": [
+      "bug",
+      "steel"
+    ],
+    "bst": 424,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "lopunny-mega",
+    "baseSlug": "lopunny",
+    "spriteId": 10088,
+    "dexNumber": 428,
+    "name": "Mega Lopunny",
+    "types": [
+      "normal",
+      "fighting"
+    ],
+    "bst": 580,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "garchomp-mega",
+    "baseSlug": "garchomp",
+    "spriteId": 10058,
+    "dexNumber": 445,
+    "name": "Mega Garchomp",
+    "types": [
+      "dragon",
+      "ground"
+    ],
+    "bst": 700,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "garchomp-mega-z",
+    "baseSlug": "garchomp",
+    "spriteId": 10309,
+    "dexNumber": 445,
+    "name": "Mega Garchomp Z",
+    "types": [
+      "dragon"
+    ],
+    "bst": 700,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "lucario-mega",
+    "baseSlug": "lucario",
+    "spriteId": 10059,
+    "dexNumber": 448,
+    "name": "Mega Lucario",
+    "types": [
+      "fighting",
+      "steel"
+    ],
+    "bst": 625,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "lucario-mega-z",
+    "baseSlug": "lucario",
+    "spriteId": 10310,
+    "dexNumber": 448,
+    "name": "Mega Lucario Z",
+    "types": [
+      "fighting",
+      "steel"
+    ],
+    "bst": 625,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "abomasnow-mega",
+    "baseSlug": "abomasnow",
+    "spriteId": 10060,
+    "dexNumber": 460,
+    "name": "Mega Abomasnow",
+    "types": [
+      "grass",
+      "ice"
+    ],
+    "bst": 594,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "gallade-mega",
+    "baseSlug": "gallade",
+    "spriteId": 10068,
+    "dexNumber": 475,
+    "name": "Mega Gallade",
+    "types": [
+      "psychic",
+      "fighting"
+    ],
+    "bst": 618,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "froslass-mega",
+    "baseSlug": "froslass",
+    "spriteId": 10285,
+    "dexNumber": 478,
+    "name": "Mega Froslass",
+    "types": [
+      "ice",
+      "ghost"
+    ],
+    "bst": 580,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "rotom-heat",
+    "baseSlug": "rotom",
+    "spriteId": 10008,
+    "dexNumber": 479,
+    "name": "Heat Rotom",
+    "types": [
+      "electric",
+      "fire"
+    ],
+    "bst": 520,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "rotom-wash",
+    "baseSlug": "rotom",
+    "spriteId": 10009,
+    "dexNumber": 479,
+    "name": "Wash Rotom",
+    "types": [
+      "electric",
+      "water"
+    ],
+    "bst": 520,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "rotom-frost",
+    "baseSlug": "rotom",
+    "spriteId": 10010,
+    "dexNumber": 479,
+    "name": "Frost Rotom",
+    "types": [
+      "electric",
+      "ice"
+    ],
+    "bst": 520,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "rotom-fan",
+    "baseSlug": "rotom",
+    "spriteId": 10011,
+    "dexNumber": 479,
+    "name": "Fan Rotom",
+    "types": [
+      "electric",
+      "flying"
+    ],
+    "bst": 520,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "rotom-mow",
+    "baseSlug": "rotom",
+    "spriteId": 10012,
+    "dexNumber": 479,
+    "name": "Mow Rotom",
+    "types": [
+      "electric",
+      "grass"
+    ],
+    "bst": 520,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "dialga-origin",
+    "baseSlug": "dialga",
+    "spriteId": 10245,
+    "dexNumber": 483,
+    "name": "Dialga (Origin Forme)",
+    "types": [
+      "steel",
+      "dragon"
+    ],
+    "bst": 680,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "palkia-origin",
+    "baseSlug": "palkia",
+    "spriteId": 10246,
+    "dexNumber": 484,
+    "name": "Palkia (Origin Forme)",
+    "types": [
+      "water",
+      "dragon"
+    ],
+    "bst": 680,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "heatran-mega",
+    "baseSlug": "heatran",
+    "spriteId": 10311,
+    "dexNumber": 485,
+    "name": "Mega Heatran",
+    "types": [
+      "fire",
+      "steel"
+    ],
+    "bst": 700,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "giratina-origin",
+    "baseSlug": "giratina",
+    "spriteId": 10007,
+    "dexNumber": 487,
+    "name": "Giratina (Origin Forme)",
+    "types": [
+      "ghost",
+      "dragon"
+    ],
+    "bst": 680,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "darkrai-mega",
+    "baseSlug": "darkrai",
+    "spriteId": 10312,
+    "dexNumber": 491,
+    "name": "Mega Darkrai",
+    "types": [
+      "dark"
+    ],
+    "bst": 700,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "shaymin-sky",
+    "baseSlug": "shaymin",
+    "spriteId": 10006,
+    "dexNumber": 492,
+    "name": "Shaymin (Sky Forme)",
+    "types": [
+      "grass",
+      "flying"
+    ],
+    "bst": 600,
+    "generation": "Gen 4"
+  },
+  {
+    "slug": "emboar-mega",
+    "baseSlug": "emboar",
+    "spriteId": 10286,
+    "dexNumber": 500,
+    "name": "Mega Emboar",
+    "types": [
+      "fire",
+      "fighting"
+    ],
+    "bst": 628,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "samurott-hisui",
+    "baseSlug": "samurott",
+    "spriteId": 10236,
+    "dexNumber": 503,
+    "name": "Hisuian Samurott",
+    "types": [
+      "water",
+      "dark"
+    ],
+    "bst": 528,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "excadrill-mega",
+    "baseSlug": "excadrill",
+    "spriteId": 10287,
+    "dexNumber": 530,
+    "name": "Mega Excadrill",
+    "types": [
+      "ground",
+      "steel"
+    ],
+    "bst": 608,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "audino-mega",
+    "baseSlug": "audino",
+    "spriteId": 10069,
+    "dexNumber": 531,
+    "name": "Mega Audino",
+    "types": [
+      "normal",
+      "fairy"
+    ],
+    "bst": 545,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "scolipede-mega",
+    "baseSlug": "scolipede",
+    "spriteId": 10288,
+    "dexNumber": 545,
+    "name": "Mega Scolipede",
+    "types": [
+      "bug",
+      "poison"
+    ],
+    "bst": 585,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "lilligant-hisui",
+    "baseSlug": "lilligant",
+    "spriteId": 10237,
+    "dexNumber": 549,
+    "name": "Hisuian Lilligant",
+    "types": [
+      "grass",
+      "fighting"
+    ],
+    "bst": 480,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "basculin-blue-striped",
+    "baseSlug": "basculin",
+    "spriteId": 10016,
+    "dexNumber": 550,
+    "name": "Basculin (Blue-Striped Form)",
+    "types": [
+      "water"
+    ],
+    "bst": 460,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "basculin-white-striped",
+    "baseSlug": "basculin",
+    "spriteId": 10247,
+    "dexNumber": 550,
+    "name": "Basculin (White-Striped Form)",
+    "types": [
+      "water"
+    ],
+    "bst": 460,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "darumaka-galar",
+    "baseSlug": "darumaka",
+    "spriteId": 10176,
+    "dexNumber": 554,
+    "name": "Galarian Darumaka",
+    "types": [
+      "ice"
+    ],
+    "bst": 315,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "darmanitan-zen",
+    "baseSlug": "darmanitan",
+    "spriteId": 10017,
+    "dexNumber": 555,
+    "name": "Darmanitan Zen",
+    "types": [
+      "fire",
+      "psychic"
+    ],
+    "bst": 540,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "darmanitan-galar-standard",
+    "baseSlug": "darmanitan",
+    "spriteId": 10177,
+    "dexNumber": 555,
+    "name": "Galarian Darmanitan Standard",
+    "types": [
+      "ice"
+    ],
+    "bst": 480,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "darmanitan-galar-zen",
+    "baseSlug": "darmanitan",
+    "spriteId": 10178,
+    "dexNumber": 555,
+    "name": "Galarian Darmanitan Zen",
+    "types": [
+      "ice",
+      "fire"
+    ],
+    "bst": 540,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "scrafty-mega",
+    "baseSlug": "scrafty",
+    "spriteId": 10289,
+    "dexNumber": 560,
+    "name": "Mega Scrafty",
+    "types": [
+      "dark",
+      "fighting"
+    ],
+    "bst": 588,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "yamask-galar",
+    "baseSlug": "yamask",
+    "spriteId": 10179,
+    "dexNumber": 562,
+    "name": "Galarian Yamask",
+    "types": [
+      "ground",
+      "ghost"
+    ],
+    "bst": 303,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "garbodor-gmax",
+    "baseSlug": "garbodor",
+    "spriteId": 10207,
+    "dexNumber": 569,
+    "name": "Gigantamax Garbodor",
+    "types": [
+      "poison"
+    ],
+    "bst": 474,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "zorua-hisui",
+    "baseSlug": "zorua",
+    "spriteId": 10238,
+    "dexNumber": 570,
+    "name": "Hisuian Zorua",
+    "types": [
+      "normal",
+      "ghost"
+    ],
+    "bst": 330,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "zoroark-hisui",
+    "baseSlug": "zoroark",
+    "spriteId": 10239,
+    "dexNumber": 571,
+    "name": "Hisuian Zoroark",
+    "types": [
+      "normal",
+      "ghost"
+    ],
+    "bst": 510,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "eelektross-mega",
+    "baseSlug": "eelektross",
+    "spriteId": 10290,
+    "dexNumber": 604,
+    "name": "Mega Eelektross",
+    "types": [
+      "electric"
+    ],
+    "bst": 615,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "chandelure-mega",
+    "baseSlug": "chandelure",
+    "spriteId": 10291,
+    "dexNumber": 609,
+    "name": "Mega Chandelure",
+    "types": [
+      "ghost",
+      "fire"
+    ],
+    "bst": 620,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "stunfisk-galar",
+    "baseSlug": "stunfisk",
+    "spriteId": 10180,
+    "dexNumber": 618,
+    "name": "Galarian Stunfisk",
+    "types": [
+      "ground",
+      "steel"
+    ],
+    "bst": 471,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "golurk-mega",
+    "baseSlug": "golurk",
+    "spriteId": 10313,
+    "dexNumber": 623,
+    "name": "Mega Golurk",
+    "types": [
+      "ground",
+      "ghost"
+    ],
+    "bst": 583,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "braviary-hisui",
+    "baseSlug": "braviary",
+    "spriteId": 10240,
+    "dexNumber": 628,
+    "name": "Hisuian Braviary",
+    "types": [
+      "psychic",
+      "flying"
+    ],
+    "bst": 510,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "tornadus-therian",
+    "baseSlug": "tornadus",
+    "spriteId": 10019,
+    "dexNumber": 641,
+    "name": "Tornadus (Therian Forme)",
+    "types": [
+      "flying"
+    ],
+    "bst": 580,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "thundurus-therian",
+    "baseSlug": "thundurus",
+    "spriteId": 10020,
+    "dexNumber": 642,
+    "name": "Thundurus (Therian Forme)",
+    "types": [
+      "electric",
+      "flying"
+    ],
+    "bst": 580,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "landorus-therian",
+    "baseSlug": "landorus",
+    "spriteId": 10021,
+    "dexNumber": 645,
+    "name": "Landorus (Therian Forme)",
+    "types": [
+      "ground",
+      "flying"
+    ],
+    "bst": 600,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "kyurem-black",
+    "baseSlug": "kyurem",
+    "spriteId": 10022,
+    "dexNumber": 646,
+    "name": "Kyurem Black",
+    "types": [
+      "dragon",
+      "ice"
+    ],
+    "bst": 700,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "kyurem-white",
+    "baseSlug": "kyurem",
+    "spriteId": 10023,
+    "dexNumber": 646,
+    "name": "Kyurem White",
+    "types": [
+      "dragon",
+      "ice"
+    ],
+    "bst": 700,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "keldeo-resolute",
+    "baseSlug": "keldeo",
+    "spriteId": 10024,
+    "dexNumber": 647,
+    "name": "Keldeo (Resolute Form)",
+    "types": [
+      "water",
+      "fighting"
+    ],
+    "bst": 580,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "meloetta-pirouette",
+    "baseSlug": "meloetta",
+    "spriteId": 10018,
+    "dexNumber": 648,
+    "name": "Meloetta Pirouette",
+    "types": [
+      "normal",
+      "fighting"
+    ],
+    "bst": 600,
+    "generation": "Gen 5"
+  },
+  {
+    "slug": "chesnaught-mega",
+    "baseSlug": "chesnaught",
+    "spriteId": 10292,
+    "dexNumber": 652,
+    "name": "Mega Chesnaught",
+    "types": [
+      "grass",
+      "fighting"
+    ],
+    "bst": 630,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "delphox-mega",
+    "baseSlug": "delphox",
+    "spriteId": 10293,
+    "dexNumber": 655,
+    "name": "Mega Delphox",
+    "types": [
+      "fire",
+      "psychic"
+    ],
+    "bst": 634,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "greninja-battle-bond",
+    "baseSlug": "greninja",
+    "spriteId": 10116,
+    "dexNumber": 658,
+    "name": "Greninja Battle Bond",
+    "types": [
+      "water",
+      "dark"
+    ],
+    "bst": 530,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "greninja-ash",
+    "baseSlug": "greninja",
+    "spriteId": 10117,
+    "dexNumber": 658,
+    "name": "Greninja Ash",
+    "types": [
+      "water",
+      "dark"
+    ],
+    "bst": 640,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "greninja-mega",
+    "baseSlug": "greninja",
+    "spriteId": 10294,
+    "dexNumber": 658,
+    "name": "Mega Greninja",
+    "types": [
+      "water",
+      "dark"
+    ],
+    "bst": 630,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "pyroar-mega",
+    "baseSlug": "pyroar",
+    "spriteId": 10295,
+    "dexNumber": 668,
+    "name": "Mega Pyroar",
+    "types": [
+      "fire",
+      "normal"
+    ],
+    "bst": 607,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "floette-eternal",
+    "baseSlug": "floette",
+    "spriteId": 10061,
+    "dexNumber": 670,
+    "name": "Floette Eternal",
+    "types": [
+      "fairy"
+    ],
+    "bst": 551,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "floette-mega",
+    "baseSlug": "floette",
+    "spriteId": 10296,
+    "dexNumber": 670,
+    "name": "Mega Floette",
+    "types": [
+      "fairy"
+    ],
+    "bst": 651,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "meowstic-female",
+    "baseSlug": "meowstic",
+    "spriteId": 10025,
+    "dexNumber": 678,
+    "name": "Meowstic (Female)",
+    "types": [
+      "psychic"
+    ],
+    "bst": 466,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "meowstic-male-mega",
+    "baseSlug": "meowstic",
+    "spriteId": 10314,
+    "dexNumber": 678,
+    "name": "Meowstic (Male)",
+    "types": [
+      "psychic"
+    ],
+    "bst": 566,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "meowstic-female-mega",
+    "baseSlug": "meowstic",
+    "spriteId": 10326,
+    "dexNumber": 678,
+    "name": "Meowstic (Female)",
+    "types": [
+      "psychic"
+    ],
+    "bst": 566,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "aegislash-blade",
+    "baseSlug": "aegislash",
+    "spriteId": 10026,
+    "dexNumber": 681,
+    "name": "Aegislash (Blade Forme)",
+    "types": [
+      "steel",
+      "ghost"
+    ],
+    "bst": 500,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "malamar-mega",
+    "baseSlug": "malamar",
+    "spriteId": 10297,
+    "dexNumber": 687,
+    "name": "Mega Malamar",
+    "types": [
+      "dark",
+      "psychic"
+    ],
+    "bst": 582,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "barbaracle-mega",
+    "baseSlug": "barbaracle",
+    "spriteId": 10298,
+    "dexNumber": 689,
+    "name": "Mega Barbaracle",
+    "types": [
+      "rock",
+      "fighting"
+    ],
+    "bst": 600,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "dragalge-mega",
+    "baseSlug": "dragalge",
+    "spriteId": 10299,
+    "dexNumber": 691,
+    "name": "Mega Dragalge",
+    "types": [
+      "poison",
+      "dragon"
+    ],
+    "bst": 594,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "hawlucha-mega",
+    "baseSlug": "hawlucha",
+    "spriteId": 10300,
+    "dexNumber": 701,
+    "name": "Mega Hawlucha",
+    "types": [
+      "fighting",
+      "flying"
+    ],
+    "bst": 600,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "sliggoo-hisui",
+    "baseSlug": "sliggoo",
+    "spriteId": 10241,
+    "dexNumber": 705,
+    "name": "Hisuian Sliggoo",
+    "types": [
+      "steel",
+      "dragon"
+    ],
+    "bst": 452,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "goodra-hisui",
+    "baseSlug": "goodra",
+    "spriteId": 10242,
+    "dexNumber": 706,
+    "name": "Hisuian Goodra",
+    "types": [
+      "steel",
+      "dragon"
+    ],
+    "bst": 600,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "pumpkaboo-small",
+    "baseSlug": "pumpkaboo",
+    "spriteId": 10027,
+    "dexNumber": 710,
+    "name": "Pumpkaboo Small",
+    "types": [
+      "ghost",
+      "grass"
+    ],
+    "bst": 335,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "pumpkaboo-large",
+    "baseSlug": "pumpkaboo",
+    "spriteId": 10028,
+    "dexNumber": 710,
+    "name": "Pumpkaboo Large",
+    "types": [
+      "ghost",
+      "grass"
+    ],
+    "bst": 335,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "pumpkaboo-super",
+    "baseSlug": "pumpkaboo",
+    "spriteId": 10029,
+    "dexNumber": 710,
+    "name": "Pumpkaboo Super",
+    "types": [
+      "ghost",
+      "grass"
+    ],
+    "bst": 335,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "gourgeist-small",
+    "baseSlug": "gourgeist",
+    "spriteId": 10030,
+    "dexNumber": 711,
+    "name": "Gourgeist (Small Size)",
+    "types": [
+      "ghost",
+      "grass"
+    ],
+    "bst": 494,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "gourgeist-large",
+    "baseSlug": "gourgeist",
+    "spriteId": 10031,
+    "dexNumber": 711,
+    "name": "Gourgeist (Large Size)",
+    "types": [
+      "ghost",
+      "grass"
+    ],
+    "bst": 494,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "gourgeist-super",
+    "baseSlug": "gourgeist",
+    "spriteId": 10032,
+    "dexNumber": 711,
+    "name": "Gourgeist (Super Size)",
+    "types": [
+      "ghost",
+      "grass"
+    ],
+    "bst": 494,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "avalugg-hisui",
+    "baseSlug": "avalugg",
+    "spriteId": 10243,
+    "dexNumber": 713,
+    "name": "Hisuian Avalugg",
+    "types": [
+      "ice",
+      "rock"
+    ],
+    "bst": 514,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "zygarde-complete",
+    "baseSlug": "zygarde",
+    "spriteId": 10120,
+    "dexNumber": 718,
+    "name": "Zygarde (Complete Forme)",
+    "types": [
+      "dragon",
+      "ground"
+    ],
+    "bst": 708,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "zygarde-10",
+    "baseSlug": "zygarde",
+    "spriteId": 10181,
+    "dexNumber": 718,
+    "name": "Zygarde (10% Forme)",
+    "types": [
+      "dragon",
+      "ground"
+    ],
+    "bst": 486,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "diancie-mega",
+    "baseSlug": "diancie",
+    "spriteId": 10075,
+    "dexNumber": 719,
+    "name": "Mega Diancie",
+    "types": [
+      "rock",
+      "fairy"
+    ],
+    "bst": 700,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "hoopa-unbound",
+    "baseSlug": "hoopa",
+    "spriteId": 10086,
+    "dexNumber": 720,
+    "name": "Hoopa (Unbound)",
+    "types": [
+      "psychic",
+      "dark"
+    ],
+    "bst": 680,
+    "generation": "Gen 6"
+  },
+  {
+    "slug": "decidueye-hisui",
+    "baseSlug": "decidueye",
+    "spriteId": 10244,
+    "dexNumber": 724,
+    "name": "Hisuian Decidueye",
+    "types": [
+      "grass",
+      "fighting"
+    ],
+    "bst": 530,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "gumshoos-totem",
+    "baseSlug": "gumshoos",
+    "spriteId": 10121,
+    "dexNumber": 735,
+    "name": "Gumshoos Totem",
+    "types": [
+      "normal"
+    ],
+    "bst": 418,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "vikavolt-totem",
+    "baseSlug": "vikavolt",
+    "spriteId": 10122,
+    "dexNumber": 738,
+    "name": "Vikavolt Totem",
+    "types": [
+      "bug",
+      "electric"
+    ],
+    "bst": 500,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "crabominable-mega",
+    "baseSlug": "crabominable",
+    "spriteId": 10315,
+    "dexNumber": 740,
+    "name": "Mega Crabominable",
+    "types": [
+      "fighting",
+      "ice"
+    ],
+    "bst": 578,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "oricorio-pom-pom",
+    "baseSlug": "oricorio",
+    "spriteId": 10123,
+    "dexNumber": 741,
+    "name": "Oricorio (Pom-Pom Style)",
+    "types": [
+      "electric",
+      "flying"
+    ],
+    "bst": 476,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "oricorio-pau",
+    "baseSlug": "oricorio",
+    "spriteId": 10124,
+    "dexNumber": 741,
+    "name": "Oricorio (Pa'u Style)",
+    "types": [
+      "psychic",
+      "flying"
+    ],
+    "bst": 476,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "oricorio-sensu",
+    "baseSlug": "oricorio",
+    "spriteId": 10125,
+    "dexNumber": 741,
+    "name": "Oricorio (Sensu Style)",
+    "types": [
+      "ghost",
+      "flying"
+    ],
+    "bst": 476,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "ribombee-totem",
+    "baseSlug": "ribombee",
+    "spriteId": 10150,
+    "dexNumber": 743,
+    "name": "Ribombee Totem",
+    "types": [
+      "bug",
+      "fairy"
+    ],
+    "bst": 464,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "rockruff-own-tempo",
+    "baseSlug": "rockruff",
+    "spriteId": 10151,
+    "dexNumber": 744,
+    "name": "Rockruff Own Tempo",
+    "types": [
+      "rock"
+    ],
+    "bst": 280,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "lycanroc-midnight",
+    "baseSlug": "lycanroc",
+    "spriteId": 10126,
+    "dexNumber": 745,
+    "name": "Lycanroc Midnight",
+    "types": [
+      "rock"
+    ],
+    "bst": 487,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "lycanroc-dusk",
+    "baseSlug": "lycanroc",
+    "spriteId": 10152,
+    "dexNumber": 745,
+    "name": "Lycanroc Dusk",
+    "types": [
+      "rock"
+    ],
+    "bst": 487,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "wishiwashi-school",
+    "baseSlug": "wishiwashi",
+    "spriteId": 10127,
+    "dexNumber": 746,
+    "name": "Wishiwashi School",
+    "types": [
+      "water"
+    ],
+    "bst": 620,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "araquanid-totem",
+    "baseSlug": "araquanid",
+    "spriteId": 10153,
+    "dexNumber": 752,
+    "name": "Araquanid Totem",
+    "types": [
+      "water",
+      "bug"
+    ],
+    "bst": 454,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "lurantis-totem",
+    "baseSlug": "lurantis",
+    "spriteId": 10128,
+    "dexNumber": 754,
+    "name": "Lurantis Totem",
+    "types": [
+      "grass"
+    ],
+    "bst": 480,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "salazzle-totem",
+    "baseSlug": "salazzle",
+    "spriteId": 10129,
+    "dexNumber": 758,
+    "name": "Salazzle Totem",
+    "types": [
+      "poison",
+      "fire"
+    ],
+    "bst": 480,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "golisopod-mega",
+    "baseSlug": "golisopod",
+    "spriteId": 10316,
+    "dexNumber": 768,
+    "name": "Mega Golisopod",
+    "types": [
+      "bug",
+      "steel"
+    ],
+    "bst": 630,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "minior-orange-meteor",
+    "baseSlug": "minior",
+    "spriteId": 10130,
+    "dexNumber": 774,
+    "name": "Minior Orange Meteor",
+    "types": [
+      "rock",
+      "flying"
+    ],
+    "bst": 440,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "minior-yellow-meteor",
+    "baseSlug": "minior",
+    "spriteId": 10131,
+    "dexNumber": 774,
+    "name": "Minior Yellow Meteor",
+    "types": [
+      "rock",
+      "flying"
+    ],
+    "bst": 440,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "minior-green-meteor",
+    "baseSlug": "minior",
+    "spriteId": 10132,
+    "dexNumber": 774,
+    "name": "Minior Green Meteor",
+    "types": [
+      "rock",
+      "flying"
+    ],
+    "bst": 440,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "minior-blue-meteor",
+    "baseSlug": "minior",
+    "spriteId": 10133,
+    "dexNumber": 774,
+    "name": "Minior Blue Meteor",
+    "types": [
+      "rock",
+      "flying"
+    ],
+    "bst": 440,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "minior-indigo-meteor",
+    "baseSlug": "minior",
+    "spriteId": 10134,
+    "dexNumber": 774,
+    "name": "Minior Indigo Meteor",
+    "types": [
+      "rock",
+      "flying"
+    ],
+    "bst": 440,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "minior-violet-meteor",
+    "baseSlug": "minior",
+    "spriteId": 10135,
+    "dexNumber": 774,
+    "name": "Minior Violet Meteor",
+    "types": [
+      "rock",
+      "flying"
+    ],
+    "bst": 440,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "minior-red",
+    "baseSlug": "minior",
+    "spriteId": 10136,
+    "dexNumber": 774,
+    "name": "Minior Red",
+    "types": [
+      "rock",
+      "flying"
+    ],
+    "bst": 500,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "minior-orange",
+    "baseSlug": "minior",
+    "spriteId": 10137,
+    "dexNumber": 774,
+    "name": "Minior Orange",
+    "types": [
+      "rock",
+      "flying"
+    ],
+    "bst": 500,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "minior-yellow",
+    "baseSlug": "minior",
+    "spriteId": 10138,
+    "dexNumber": 774,
+    "name": "Minior Yellow",
+    "types": [
+      "rock",
+      "flying"
+    ],
+    "bst": 500,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "minior-green",
+    "baseSlug": "minior",
+    "spriteId": 10139,
+    "dexNumber": 774,
+    "name": "Minior Green",
+    "types": [
+      "rock",
+      "flying"
+    ],
+    "bst": 500,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "minior-blue",
+    "baseSlug": "minior",
+    "spriteId": 10140,
+    "dexNumber": 774,
+    "name": "Minior Blue",
+    "types": [
+      "rock",
+      "flying"
+    ],
+    "bst": 500,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "minior-indigo",
+    "baseSlug": "minior",
+    "spriteId": 10141,
+    "dexNumber": 774,
+    "name": "Minior Indigo",
+    "types": [
+      "rock",
+      "flying"
+    ],
+    "bst": 500,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "minior-violet",
+    "baseSlug": "minior",
+    "spriteId": 10142,
+    "dexNumber": 774,
+    "name": "Minior Violet",
+    "types": [
+      "rock",
+      "flying"
+    ],
+    "bst": 500,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "togedemaru-totem",
+    "baseSlug": "togedemaru",
+    "spriteId": 10154,
+    "dexNumber": 777,
+    "name": "Togedemaru Totem",
+    "types": [
+      "electric",
+      "steel"
+    ],
+    "bst": 435,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "mimikyu-busted",
+    "baseSlug": "mimikyu",
+    "spriteId": 10143,
+    "dexNumber": 778,
+    "name": "Mimikyu Busted",
+    "types": [
+      "ghost",
+      "fairy"
+    ],
+    "bst": 476,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "mimikyu-totem-disguised",
+    "baseSlug": "mimikyu",
+    "spriteId": 10144,
+    "dexNumber": 778,
+    "name": "Mimikyu Totem Disguised",
+    "types": [
+      "ghost",
+      "fairy"
+    ],
+    "bst": 476,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "mimikyu-totem-busted",
+    "baseSlug": "mimikyu",
+    "spriteId": 10145,
+    "dexNumber": 778,
+    "name": "Mimikyu Totem Busted",
+    "types": [
+      "ghost",
+      "fairy"
+    ],
+    "bst": 476,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "drampa-mega",
+    "baseSlug": "drampa",
+    "spriteId": 10302,
+    "dexNumber": 780,
+    "name": "Mega Drampa",
+    "types": [
+      "normal",
+      "dragon"
+    ],
+    "bst": 585,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "kommo-o-totem",
+    "baseSlug": "kommo-o",
+    "spriteId": 10146,
+    "dexNumber": 784,
+    "name": "Kommo-o Totem",
+    "types": [
+      "dragon",
+      "fighting"
+    ],
+    "bst": 600,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "necrozma-dusk",
+    "baseSlug": "necrozma",
+    "spriteId": 10155,
+    "dexNumber": 800,
+    "name": "Necrozma Dusk",
+    "types": [
+      "psychic",
+      "steel"
+    ],
+    "bst": 680,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "necrozma-dawn",
+    "baseSlug": "necrozma",
+    "spriteId": 10156,
+    "dexNumber": 800,
+    "name": "Necrozma Dawn",
+    "types": [
+      "psychic",
+      "ghost"
+    ],
+    "bst": 680,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "necrozma-ultra",
+    "baseSlug": "necrozma",
+    "spriteId": 10157,
+    "dexNumber": 800,
+    "name": "Necrozma Ultra",
+    "types": [
+      "psychic",
+      "dragon"
+    ],
+    "bst": 754,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "magearna-original",
+    "baseSlug": "magearna",
+    "spriteId": 10147,
+    "dexNumber": 801,
+    "name": "Magearna Original",
+    "types": [
+      "steel",
+      "fairy"
+    ],
+    "bst": 600,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "magearna-mega",
+    "baseSlug": "magearna",
+    "spriteId": 10317,
+    "dexNumber": 801,
+    "name": "Mega Magearna",
+    "types": [
+      "steel",
+      "fairy"
+    ],
+    "bst": 700,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "magearna-original-mega",
+    "baseSlug": "magearna",
+    "spriteId": 10318,
+    "dexNumber": 801,
+    "name": "Magearna Original Mega",
+    "types": [
+      "steel",
+      "fairy"
+    ],
+    "bst": 700,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "zeraora-mega",
+    "baseSlug": "zeraora",
+    "spriteId": 10319,
+    "dexNumber": 807,
+    "name": "Mega Zeraora",
+    "types": [
+      "electric"
+    ],
+    "bst": 700,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "melmetal-gmax",
+    "baseSlug": "melmetal",
+    "spriteId": 10208,
+    "dexNumber": 809,
+    "name": "Gigantamax Melmetal",
+    "types": [
+      "steel"
+    ],
+    "bst": 600,
+    "generation": "Gen 7"
+  },
+  {
+    "slug": "rillaboom-gmax",
+    "baseSlug": "rillaboom",
+    "spriteId": 10209,
+    "dexNumber": 812,
+    "name": "Gigantamax Rillaboom",
+    "types": [
+      "grass"
+    ],
+    "bst": 530,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "cinderace-gmax",
+    "baseSlug": "cinderace",
+    "spriteId": 10210,
+    "dexNumber": 815,
+    "name": "Gigantamax Cinderace",
+    "types": [
+      "fire"
+    ],
+    "bst": 530,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "inteleon-gmax",
+    "baseSlug": "inteleon",
+    "spriteId": 10211,
+    "dexNumber": 818,
+    "name": "Gigantamax Inteleon",
+    "types": [
+      "water"
+    ],
+    "bst": 530,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "corviknight-gmax",
+    "baseSlug": "corviknight",
+    "spriteId": 10212,
+    "dexNumber": 823,
+    "name": "Gigantamax Corviknight",
+    "types": [
+      "flying",
+      "steel"
+    ],
+    "bst": 495,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "orbeetle-gmax",
+    "baseSlug": "orbeetle",
+    "spriteId": 10213,
+    "dexNumber": 826,
+    "name": "Gigantamax Orbeetle",
+    "types": [
+      "bug",
+      "psychic"
+    ],
+    "bst": 505,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "drednaw-gmax",
+    "baseSlug": "drednaw",
+    "spriteId": 10214,
+    "dexNumber": 834,
+    "name": "Gigantamax Drednaw",
+    "types": [
+      "water",
+      "rock"
+    ],
+    "bst": 485,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "coalossal-gmax",
+    "baseSlug": "coalossal",
+    "spriteId": 10215,
+    "dexNumber": 839,
+    "name": "Gigantamax Coalossal",
+    "types": [
+      "rock",
+      "fire"
+    ],
+    "bst": 510,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "flapple-gmax",
+    "baseSlug": "flapple",
+    "spriteId": 10216,
+    "dexNumber": 841,
+    "name": "Gigantamax Flapple",
+    "types": [
+      "grass",
+      "dragon"
+    ],
+    "bst": 485,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "appletun-gmax",
+    "baseSlug": "appletun",
+    "spriteId": 10217,
+    "dexNumber": 842,
+    "name": "Gigantamax Appletun",
+    "types": [
+      "grass",
+      "dragon"
+    ],
+    "bst": 485,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "sandaconda-gmax",
+    "baseSlug": "sandaconda",
+    "spriteId": 10218,
+    "dexNumber": 844,
+    "name": "Gigantamax Sandaconda",
+    "types": [
+      "ground"
+    ],
+    "bst": 510,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "cramorant-gulping",
+    "baseSlug": "cramorant",
+    "spriteId": 10182,
+    "dexNumber": 845,
+    "name": "Cramorant Gulping",
+    "types": [
+      "flying",
+      "water"
+    ],
+    "bst": 475,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "cramorant-gorging",
+    "baseSlug": "cramorant",
+    "spriteId": 10183,
+    "dexNumber": 845,
+    "name": "Cramorant Gorging",
+    "types": [
+      "flying",
+      "water"
+    ],
+    "bst": 475,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "toxtricity-low-key",
+    "baseSlug": "toxtricity",
+    "spriteId": 10184,
+    "dexNumber": 849,
+    "name": "Toxtricity Low Key",
+    "types": [
+      "electric",
+      "poison"
+    ],
+    "bst": 502,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "toxtricity-amped-gmax",
+    "baseSlug": "toxtricity",
+    "spriteId": 10219,
+    "dexNumber": 849,
+    "name": "Toxtricity Amped Gmax",
+    "types": [
+      "electric",
+      "poison"
+    ],
+    "bst": 502,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "toxtricity-low-key-gmax",
+    "baseSlug": "toxtricity",
+    "spriteId": 10228,
+    "dexNumber": 849,
+    "name": "Toxtricity Low Key Gmax",
+    "types": [
+      "electric",
+      "poison"
+    ],
+    "bst": 502,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "centiskorch-gmax",
+    "baseSlug": "centiskorch",
+    "spriteId": 10220,
+    "dexNumber": 851,
+    "name": "Gigantamax Centiskorch",
+    "types": [
+      "fire",
+      "bug"
+    ],
+    "bst": 525,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "hatterene-gmax",
+    "baseSlug": "hatterene",
+    "spriteId": 10221,
+    "dexNumber": 858,
+    "name": "Gigantamax Hatterene",
+    "types": [
+      "psychic",
+      "fairy"
+    ],
+    "bst": 510,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "grimmsnarl-gmax",
+    "baseSlug": "grimmsnarl",
+    "spriteId": 10222,
+    "dexNumber": 861,
+    "name": "Gigantamax Grimmsnarl",
+    "types": [
+      "dark",
+      "fairy"
+    ],
+    "bst": 510,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "alcremie-gmax",
+    "baseSlug": "alcremie",
+    "spriteId": 10223,
+    "dexNumber": 869,
+    "name": "Gigantamax Alcremie",
+    "types": [
+      "fairy"
+    ],
+    "bst": 495,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "falinks-mega",
+    "baseSlug": "falinks",
+    "spriteId": 10303,
+    "dexNumber": 870,
+    "name": "Mega Falinks",
+    "types": [
+      "fighting"
+    ],
+    "bst": 570,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "eiscue-noice",
+    "baseSlug": "eiscue",
+    "spriteId": 10185,
+    "dexNumber": 875,
+    "name": "Eiscue Noice",
+    "types": [
+      "ice"
+    ],
+    "bst": 470,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "indeedee-female",
+    "baseSlug": "indeedee",
+    "spriteId": 10186,
+    "dexNumber": 876,
+    "name": "Indeedee Female",
+    "types": [
+      "psychic",
+      "normal"
+    ],
+    "bst": 475,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "morpeko-hangry",
+    "baseSlug": "morpeko",
+    "spriteId": 10187,
+    "dexNumber": 877,
+    "name": "Morpeko Hangry",
+    "types": [
+      "electric",
+      "dark"
+    ],
+    "bst": 436,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "copperajah-gmax",
+    "baseSlug": "copperajah",
+    "spriteId": 10224,
+    "dexNumber": 879,
+    "name": "Gigantamax Copperajah",
+    "types": [
+      "steel"
+    ],
+    "bst": 500,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "duraludon-gmax",
+    "baseSlug": "duraludon",
+    "spriteId": 10225,
+    "dexNumber": 884,
+    "name": "Gigantamax Duraludon",
+    "types": [
+      "steel",
+      "dragon"
+    ],
+    "bst": 535,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "zacian-crowned",
+    "baseSlug": "zacian",
+    "spriteId": 10188,
+    "dexNumber": 888,
+    "name": "Zacian Crowned",
+    "types": [
+      "fairy",
+      "steel"
+    ],
+    "bst": 700,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "zamazenta-crowned",
+    "baseSlug": "zamazenta",
+    "spriteId": 10189,
+    "dexNumber": 889,
+    "name": "Zamazenta Crowned",
+    "types": [
+      "fighting",
+      "steel"
+    ],
+    "bst": 700,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "eternatus-eternamax",
+    "baseSlug": "eternatus",
+    "spriteId": 10190,
+    "dexNumber": 890,
+    "name": "Eternatus Eternamax",
+    "types": [
+      "poison",
+      "dragon"
+    ],
+    "bst": 1125,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "urshifu-rapid-strike",
+    "baseSlug": "urshifu",
+    "spriteId": 10191,
+    "dexNumber": 892,
+    "name": "Urshifu Rapid Strike",
+    "types": [
+      "fighting",
+      "water"
+    ],
+    "bst": 550,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "urshifu-single-strike-gmax",
+    "baseSlug": "urshifu",
+    "spriteId": 10226,
+    "dexNumber": 892,
+    "name": "Urshifu Single Strike Gmax",
+    "types": [
+      "fighting",
+      "dark"
+    ],
+    "bst": 550,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "urshifu-rapid-strike-gmax",
+    "baseSlug": "urshifu",
+    "spriteId": 10227,
+    "dexNumber": 892,
+    "name": "Urshifu Rapid Strike Gmax",
+    "types": [
+      "fighting",
+      "water"
+    ],
+    "bst": 550,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "zarude-dada",
+    "baseSlug": "zarude",
+    "spriteId": 10192,
+    "dexNumber": 893,
+    "name": "Zarude Dada",
+    "types": [
+      "dark",
+      "grass"
+    ],
+    "bst": 600,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "calyrex-ice",
+    "baseSlug": "calyrex",
+    "spriteId": 10193,
+    "dexNumber": 898,
+    "name": "Calyrex Ice",
+    "types": [
+      "psychic",
+      "ice"
+    ],
+    "bst": 680,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "calyrex-shadow",
+    "baseSlug": "calyrex",
+    "spriteId": 10194,
+    "dexNumber": 898,
+    "name": "Calyrex Shadow",
+    "types": [
+      "psychic",
+      "ghost"
+    ],
+    "bst": 680,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "ursaluna-bloodmoon",
+    "baseSlug": "ursaluna",
+    "spriteId": 10272,
+    "dexNumber": 901,
+    "name": "Ursaluna Bloodmoon",
+    "types": [
+      "ground",
+      "normal"
+    ],
+    "bst": 555,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "basculegion-female",
+    "baseSlug": "basculegion",
+    "spriteId": 10248,
+    "dexNumber": 902,
+    "name": "Basculegion Female",
+    "types": [
+      "water",
+      "ghost"
+    ],
+    "bst": 530,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "enamorus-therian",
+    "baseSlug": "enamorus",
+    "spriteId": 10249,
+    "dexNumber": 905,
+    "name": "Enamorus (Therian Forme)",
+    "types": [
+      "fairy",
+      "flying"
+    ],
+    "bst": 580,
+    "generation": "Gen 8"
+  },
+  {
+    "slug": "oinkologne-female",
+    "baseSlug": "oinkologne",
+    "spriteId": 10254,
+    "dexNumber": 916,
+    "name": "Oinkologne Female",
+    "types": [
+      "normal"
+    ],
+    "bst": 489,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "maushold-family-of-three",
+    "baseSlug": "maushold",
+    "spriteId": 10257,
+    "dexNumber": 925,
+    "name": "Maushold Family Of Three",
+    "types": [
+      "normal"
+    ],
+    "bst": 470,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "squawkabilly-blue-plumage",
+    "baseSlug": "squawkabilly",
+    "spriteId": 10260,
+    "dexNumber": 931,
+    "name": "Squawkabilly Blue Plumage",
+    "types": [
+      "normal",
+      "flying"
+    ],
+    "bst": 417,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "squawkabilly-yellow-plumage",
+    "baseSlug": "squawkabilly",
+    "spriteId": 10261,
+    "dexNumber": 931,
+    "name": "Squawkabilly Yellow Plumage",
+    "types": [
+      "normal",
+      "flying"
+    ],
+    "bst": 417,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "squawkabilly-white-plumage",
+    "baseSlug": "squawkabilly",
+    "spriteId": 10262,
+    "dexNumber": 931,
+    "name": "Squawkabilly White Plumage",
+    "types": [
+      "normal",
+      "flying"
+    ],
+    "bst": 417,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "scovillain-mega",
+    "baseSlug": "scovillain",
+    "spriteId": 10320,
+    "dexNumber": 952,
+    "name": "Mega Scovillain",
+    "types": [
+      "grass",
+      "fire"
+    ],
+    "bst": 586,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "palafin-hero",
+    "baseSlug": "palafin",
+    "spriteId": 10256,
+    "dexNumber": 964,
+    "name": "Palafin Hero",
+    "types": [
+      "water"
+    ],
+    "bst": 650,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "glimmora-mega",
+    "baseSlug": "glimmora",
+    "spriteId": 10321,
+    "dexNumber": 970,
+    "name": "Mega Glimmora",
+    "types": [
+      "rock",
+      "poison"
+    ],
+    "bst": 625,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "tatsugiri-droopy",
+    "baseSlug": "tatsugiri",
+    "spriteId": 10258,
+    "dexNumber": 978,
+    "name": "Tatsugiri Droopy",
+    "types": [
+      "dragon",
+      "water"
+    ],
+    "bst": 475,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "tatsugiri-stretchy",
+    "baseSlug": "tatsugiri",
+    "spriteId": 10259,
+    "dexNumber": 978,
+    "name": "Tatsugiri Stretchy",
+    "types": [
+      "dragon",
+      "water"
+    ],
+    "bst": 475,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "tatsugiri-curly-mega",
+    "baseSlug": "tatsugiri",
+    "spriteId": 10322,
+    "dexNumber": 978,
+    "name": "Tatsugiri Curly Mega",
+    "types": [
+      "dragon",
+      "water"
+    ],
+    "bst": 575,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "tatsugiri-droopy-mega",
+    "baseSlug": "tatsugiri",
+    "spriteId": 10323,
+    "dexNumber": 978,
+    "name": "Tatsugiri Droopy Mega",
+    "types": [
+      "dragon",
+      "water"
+    ],
+    "bst": 575,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "tatsugiri-stretchy-mega",
+    "baseSlug": "tatsugiri",
+    "spriteId": 10324,
+    "dexNumber": 978,
+    "name": "Tatsugiri Stretchy Mega",
+    "types": [
+      "dragon",
+      "water"
+    ],
+    "bst": 575,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "dudunsparce-three-segment",
+    "baseSlug": "dudunsparce",
+    "spriteId": 10255,
+    "dexNumber": 982,
+    "name": "Dudunsparce Three Segment",
+    "types": [
+      "normal"
+    ],
+    "bst": 520,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "baxcalibur-mega",
+    "baseSlug": "baxcalibur",
+    "spriteId": 10325,
+    "dexNumber": 998,
+    "name": "Mega Baxcalibur",
+    "types": [
+      "dragon",
+      "ice"
+    ],
+    "bst": 700,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "gimmighoul-roaming",
+    "baseSlug": "gimmighoul",
+    "spriteId": 10263,
+    "dexNumber": 999,
+    "name": "Gimmighoul Roaming",
+    "types": [
+      "ghost"
+    ],
+    "bst": 300,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "koraidon-limited-build",
+    "baseSlug": "koraidon",
+    "spriteId": 10264,
+    "dexNumber": 1007,
+    "name": "Koraidon Limited Build",
+    "types": [
+      "fighting",
+      "dragon"
+    ],
+    "bst": 670,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "koraidon-sprinting-build",
+    "baseSlug": "koraidon",
+    "spriteId": 10265,
+    "dexNumber": 1007,
+    "name": "Koraidon Sprinting Build",
+    "types": [
+      "fighting",
+      "dragon"
+    ],
+    "bst": 670,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "koraidon-swimming-build",
+    "baseSlug": "koraidon",
+    "spriteId": 10266,
+    "dexNumber": 1007,
+    "name": "Koraidon Swimming Build",
+    "types": [
+      "fighting",
+      "dragon"
+    ],
+    "bst": 670,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "koraidon-gliding-build",
+    "baseSlug": "koraidon",
+    "spriteId": 10267,
+    "dexNumber": 1007,
+    "name": "Koraidon Gliding Build",
+    "types": [
+      "fighting",
+      "dragon"
+    ],
+    "bst": 670,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "miraidon-low-power-mode",
+    "baseSlug": "miraidon",
+    "spriteId": 10268,
+    "dexNumber": 1008,
+    "name": "Miraidon Low Power Mode",
+    "types": [
+      "electric",
+      "dragon"
+    ],
+    "bst": 670,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "miraidon-drive-mode",
+    "baseSlug": "miraidon",
+    "spriteId": 10269,
+    "dexNumber": 1008,
+    "name": "Miraidon Drive Mode",
+    "types": [
+      "electric",
+      "dragon"
+    ],
+    "bst": 670,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "miraidon-aquatic-mode",
+    "baseSlug": "miraidon",
+    "spriteId": 10270,
+    "dexNumber": 1008,
+    "name": "Miraidon Aquatic Mode",
+    "types": [
+      "electric",
+      "dragon"
+    ],
+    "bst": 670,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "miraidon-glide-mode",
+    "baseSlug": "miraidon",
+    "spriteId": 10271,
+    "dexNumber": 1008,
+    "name": "Miraidon Glide Mode",
+    "types": [
+      "electric",
+      "dragon"
+    ],
+    "bst": 670,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "ogerpon-wellspring-mask",
+    "baseSlug": "ogerpon",
+    "spriteId": 10273,
+    "dexNumber": 1017,
+    "name": "Ogerpon Wellspring Mask",
+    "types": [
+      "grass",
+      "water"
+    ],
+    "bst": 550,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "ogerpon-hearthflame-mask",
+    "baseSlug": "ogerpon",
+    "spriteId": 10274,
+    "dexNumber": 1017,
+    "name": "Ogerpon Hearthflame Mask",
+    "types": [
+      "grass",
+      "fire"
+    ],
+    "bst": 550,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "ogerpon-cornerstone-mask",
+    "baseSlug": "ogerpon",
+    "spriteId": 10275,
+    "dexNumber": 1017,
+    "name": "Ogerpon Cornerstone Mask",
+    "types": [
+      "grass",
+      "rock"
+    ],
+    "bst": 550,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "terapagos-terastal",
+    "baseSlug": "terapagos",
+    "spriteId": 10276,
+    "dexNumber": 1024,
+    "name": "Terapagos Terastal",
+    "types": [
+      "normal"
+    ],
+    "bst": 600,
+    "generation": "Gen 9"
+  },
+  {
+    "slug": "terapagos-stellar",
+    "baseSlug": "terapagos",
+    "spriteId": 10277,
+    "dexNumber": 1024,
+    "name": "Terapagos Stellar",
+    "types": [
+      "normal"
+    ],
+    "bst": 700,
+    "generation": "Gen 9"
+  }
+]

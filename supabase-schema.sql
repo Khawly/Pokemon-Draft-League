@@ -109,19 +109,21 @@ CREATE TABLE IF NOT EXISTS public.team_roster (
 );
 
 -- Named group of Pokémon that a league season drafts from; a league may have
--- multiple pools.
+-- multiple pools, but at most one is marked active as the pool the draft uses.
 CREATE TABLE IF NOT EXISTS public.draft_pools (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   league_id UUID NOT NULL REFERENCES public.leagues(id) ON DELETE CASCADE,
   season_id UUID NOT NULL REFERENCES public.seasons(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
+  is_active BOOLEAN NOT NULL DEFAULT FALSE,
   created_by UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- Pokémon belonging to a draft pool, with its tier and whether it is still
--- available in the pool for drafting.
+-- available in the pool for drafting. Type/BST/gen are display metadata
+-- captured from the PokeAPI; notes round-trip through CSV import/export.
 CREATE TABLE IF NOT EXISTS public.draft_pool_pokemon (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   draft_pool_id UUID NOT NULL REFERENCES public.draft_pools(id) ON DELETE CASCADE,
@@ -129,6 +131,11 @@ CREATE TABLE IF NOT EXISTS public.draft_pool_pokemon (
   species_name TEXT NOT NULL,
   tier_value INTEGER NOT NULL DEFAULT 0,
   is_in_pool BOOLEAN NOT NULL DEFAULT TRUE,
+  type_primary TEXT,
+  type_secondary TEXT,
+  bst INTEGER,
+  generation TEXT,
+  notes TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE (draft_pool_id, pokemon_id)
@@ -651,6 +658,13 @@ DROP INDEX IF EXISTS teams_league_season_owner_uk;
 CREATE UNIQUE INDEX teams_league_season_owner_uk
 ON public.teams (league_id, season_id, owner_user_id);
 
+-- Enforces at most one active draft pool per season; covers only is_active rows
+-- so inactive pools stay unconstrained.
+DROP INDEX IF EXISTS draft_pools_one_active_per_season_uk;
+CREATE UNIQUE INDEX draft_pools_one_active_per_season_uk
+ON public.draft_pools (season_id)
+WHERE is_active;
+
 -- SECURITY DEFINER RPC that issues a random 64-char token invite that expires
 -- in 30 days. Only the league owner may create invites; both the sign-in check
 -- and the ownership check are enforced inside the function. Returns the new
@@ -781,11 +795,58 @@ BEGIN
 END;
 $$;
 
+-- SECURITY DEFINER RPC that switches the active pool for the target pool's
+-- season. Only the league owner may call it. Deactivates any other active pool
+-- in the season before activating the target so the partial unique index is
+-- never violated, and returns the activated pool id.
+CREATE OR REPLACE FUNCTION public.set_active_draft_pool(p_pool_id UUID)
+RETURNS UUID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_user_id UUID := auth.uid();
+  v_league_id UUID;
+  v_season_id UUID;
+BEGIN
+  IF v_user_id IS NULL THEN
+    RAISE EXCEPTION 'You must be signed in to set the active pool.';
+  END IF;
+
+  SELECT dp.league_id, dp.season_id INTO v_league_id, v_season_id
+  FROM public.draft_pools dp
+  WHERE dp.id = p_pool_id;
+
+  IF v_league_id IS NULL THEN
+    RAISE EXCEPTION 'That draft pool does not exist.';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM public.leagues l
+    WHERE l.id = v_league_id AND l.owner_id = v_user_id
+  ) THEN
+    RAISE EXCEPTION 'Only the league owner can set the active pool.';
+  END IF;
+
+  UPDATE public.draft_pools
+  SET is_active = FALSE
+  WHERE season_id = v_season_id AND is_active = TRUE AND id <> p_pool_id;
+
+  UPDATE public.draft_pools
+  SET is_active = TRUE
+  WHERE id = p_pool_id;
+
+  RETURN p_pool_id;
+END;
+$$;
+
 -- SECURITY DEFINER RPC that transitions the latest season of a league into
 -- draft_active. Only the league owner may call it; the function then enforces
 -- the full pre-draft checklist: a season exists and is not already active or
 -- complete, every team slot is filled, every team has a draft_position, and the
--- draft pool contains at least one in-pool Pokémon.
+-- active draft pool contains at least one in-pool Pokémon (falling back to
+-- every pool in the season when no active pool has been set).
 CREATE OR REPLACE FUNCTION public.start_draft(
   p_league_id UUID
 )
@@ -860,11 +921,17 @@ BEGIN
   END IF;
 
   SELECT COUNT(*)::INTEGER INTO v_pool_pokemon_count
-  FROM public.draft_pools dp
-  JOIN public.draft_pool_pokemon dpp ON dpp.draft_pool_id = dp.id
-  WHERE dp.league_id = p_league_id
-    AND dp.season_id = v_season_id
-    AND dpp.is_in_pool = TRUE;
+  FROM public.draft_pool_pokemon dpp
+  JOIN public.draft_pools dp ON dp.id = dpp.draft_pool_id
+  WHERE dp.season_id = v_season_id
+    AND dpp.is_in_pool = TRUE
+    AND (
+      dp.is_active = TRUE
+      OR NOT EXISTS (
+        SELECT 1 FROM public.draft_pools a
+        WHERE a.season_id = v_season_id AND a.is_active = TRUE
+      )
+    );
 
   IF v_pool_pokemon_count <= 0 THEN
     RAISE EXCEPTION 'Draft cannot start: the draft pool has no in-pool Pokémon yet.';

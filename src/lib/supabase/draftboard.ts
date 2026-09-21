@@ -1,34 +1,27 @@
 /*
  * Draft board data loader for the Pokemon Draft League.
  *
- * Assembles league, season, member, team, invite, and draft-pool data, plus the
+ * Assembles league, season, member, invite, and draft-pool data, plus the
  * current user's role, into a single `DraftboardGoods` payload for a league.
+ * Draft order positions live on each league member, not on teams.
  */
 import { supabase } from "@/lib/supabase/client";
 
 /**
- * A league member with resolved profile display name and avatar.
+ * A league member with resolved profile display name, avatar, and their
+ * per-player draft order position (null until assigned).
  */
 export type DraftboardMember = {
   user_id: string;
   role: "owner" | "admin" | "member";
   display_name: string | null;
   avatar_url: string | null;
-};
-
-/**
- * A team competing in the league's current season.
- */
-export type DraftboardTeam = {
-  id: string;
-  owner_user_id: string;
-  team_name: string;
   draft_position: number | null;
 };
 
 /**
  * Complete draft board data for a league: league meta, current season, members,
- * teams, whether any Pokémon are in the pool, the latest invite token, and the
+ * whether any Pokémon are in the pool, the latest invite token, and the
  * requesting user's role.
  */
 export type DraftboardGoods = {
@@ -44,7 +37,6 @@ export type DraftboardGoods = {
     status: string;
   } | null;
   members: DraftboardMember[];
-  teams: DraftboardTeam[];
   hasInPoolPokemon: boolean;
   inviteToken: string | null;
   userRole: string | null;
@@ -54,6 +46,7 @@ export type DraftboardGoods = {
 type MemberRow = {
   user_id: string;
   role: "owner" | "admin" | "member";
+  draft_position: number | null;
   profiles?: {
     display_name?: string | null;
     avatar_url?: string | null;
@@ -114,29 +107,22 @@ export async function loadDraftboardData(
       status: string;
     } | null) ?? null;
 
-  // Members and teams only apply once a season exists; otherwise skip those
-  // queries instead of erroring.
+  // Members only apply once a season exists; otherwise skip those queries
+  // instead of erroring.
   const [
     memberResult,
-    teamResult,
     membershipResult,
     inviteResult,
   ] = await Promise.all([
     season
       ? supabase
           .from("league_members")
-          .select("user_id, role, profiles: user_id (display_name, avatar_url)")
+          .select(
+            "user_id, role, draft_position, profiles: user_id (display_name, avatar_url)",
+          )
           .eq("league_id", leagueId)
           .eq("is_active", true)
           .order("joined_at", { ascending: true })
-      : Promise.resolve({ data: [], error: null }),
-    season
-      ? supabase
-          .from("teams")
-          .select("id, owner_user_id, team_name, draft_position")
-          .eq("league_id", leagueId)
-          .eq("season_id", season.id)
-          .order("draft_position", { ascending: true })
       : Promise.resolve({ data: [], error: null }),
     supabase
       .from("league_members")
@@ -154,7 +140,7 @@ export async function loadDraftboardData(
       .maybeSingle(),
   ]);
 
-  if (memberResult.error || teamResult.error) {
+  if (memberResult.error) {
     throw new Error("League data could not be loaded.");
   }
 
@@ -164,13 +150,7 @@ export async function loadDraftboardData(
     role: row.role,
     display_name: row.profiles?.display_name ?? null,
     avatar_url: row.profiles?.avatar_url ?? null,
-  }));
-
-  const teams = ((teamResult.data ?? []) as DraftboardTeam[]).map((team) => ({
-    id: team.id,
-    owner_user_id: team.owner_user_id,
-    team_name: team.team_name,
-    draft_position: team.draft_position,
+    draft_position: row.draft_position,
   }));
 
   let hasInPoolPokemon = false;
@@ -214,7 +194,6 @@ export async function loadDraftboardData(
     },
     season,
     members,
-    teams,
     hasInPoolPokemon,
     inviteToken,
     userRole: membershipRole,

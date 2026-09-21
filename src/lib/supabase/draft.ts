@@ -33,6 +33,8 @@ export type DraftSeason = {
   draft_started_at: string | null;
   draft_completed_at: string | null;
   draft_pick_started_at: string | null;
+  /** Set while the owner has paused the on-clock pick timer; NULL when running. */
+  draft_paused_at: string | null;
 };
 
 /** Per-season draft configuration read from league_settings. */
@@ -62,6 +64,8 @@ export type DraftMember = {
   role: "owner" | "admin" | "member";
   display_name: string | null;
   avatar_url: string | null;
+  /** Draft order slot (1-based), set on the league member pre-start. */
+  draft_position: number | null;
 };
 
 /** One entry of the pick ledger, joined to its team and picker. */
@@ -108,6 +112,11 @@ export type DraftPriorityEntry = {
   pokemon_id: string;
   species_name: string;
   tier_value: number;
+  type_primary: string | null;
+  type_secondary: string | null;
+  bst: number | null;
+  /** Dex number for species, 10001+ for alternate forms (drives the sprite). */
+  spriteId: number;
   auto_pick: boolean;
   skip_pick: boolean;
 };
@@ -126,6 +135,8 @@ export type DraftGoods = {
   picks: DraftPick[];
   poolRows: DraftPoolRow[];
   priority: DraftPriorityEntry[];
+  /** Per-round Auto-Pick / Skip-Pick flags for the current user (round key). */
+  roundFlags: Map<number, { autoPick: boolean; skipPick: boolean }>;
   currentUserId: string;
   userRole: string | null;
   myTeamId: string | null;
@@ -210,7 +221,7 @@ export async function loadDraftData(leagueId: string): Promise<DraftGoods> {
   const { data: seasonRow, error: seasonError } = await supabase
     .from("seasons")
     .select(
-      "id, season_number, status, draft_started_at, draft_completed_at, draft_pick_started_at",
+      "id, season_number, status, draft_started_at, draft_completed_at, draft_pick_started_at, draft_paused_at",
     )
     .eq("league_id", leagueId)
     .order("season_number", { ascending: false })
@@ -237,6 +248,7 @@ export async function loadDraftData(leagueId: string): Promise<DraftGoods> {
     picks: [],
     poolRows: [],
     priority: [],
+    roundFlags: new Map<number, { autoPick: boolean; skipPick: boolean }>(),
     currentUserId: user.id,
     userRole: null,
     myTeamId: null,
@@ -263,7 +275,7 @@ export async function loadDraftData(leagueId: string): Promise<DraftGoods> {
         .order("draft_position", { ascending: true, nullsFirst: false }),
       supabase
         .from("league_members")
-        .select("user_id, role, profiles: user_id (display_name, avatar_url)")
+        .select("user_id, role, draft_position, profiles: user_id (display_name, avatar_url)")
         .eq("league_id", leagueId)
         .eq("is_active", true),
       supabase
@@ -319,12 +331,14 @@ export async function loadDraftData(leagueId: string): Promise<DraftGoods> {
   const members = ((memberResult.data ?? []) as {
     user_id: string;
     role: "owner" | "admin" | "member";
+    draft_position: number | null;
     profiles?: { display_name?: string | null; avatar_url?: string | null } | null;
   }[]).map((row) => ({
     user_id: row.user_id,
     role: row.role,
     display_name: row.profiles?.display_name ?? null,
     avatar_url: row.profiles?.avatar_url ?? null,
+    draft_position: row.draft_position,
   }));
 
   const picks = ((pickResult.data ?? []) as PickLedgerRow[]).map((row) => ({
@@ -426,12 +440,35 @@ export async function loadDraftData(leagueId: string): Promise<DraftGoods> {
       pokemon_id: row.pokemon_id,
       species_name: poolRow?.species_name ?? catalog?.name ?? row.pokemon_id,
       tier_value: poolRow?.tier_value ?? 0,
+      type_primary: poolRow?.type_primary ?? null,
+      type_secondary: poolRow?.type_secondary ?? null,
+      bst: poolRow?.bst ?? null,
       auto_pick: Boolean(row.auto_pick),
       skip_pick: Boolean(row.skip_pick),
+      spriteId: catalog?.spriteId ?? poolRow?.spriteId ?? 0,
     };
   });
 
   const myTeam = teams.find((team) => team.owner_user_id === user.id);
+
+  // Load the current user's per-round Auto/Skip flags (they live independent of
+  // the priority list, so they survive empty rounds).
+  const { data: roundFlagRows, error: roundFlagError } = await supabase
+    .from("draft_round_settings")
+    .select("round_number, auto_pick, skip_pick")
+    .eq("season_id", season.id)
+    .eq("user_id", user.id);
+
+  if (roundFlagError) {
+    throw new Error("Your round settings could not be loaded.");
+  }
+
+  const roundFlags = new Map<number, { autoPick: boolean; skipPick: boolean }>(
+    (roundFlagRows ?? []).map((row) => [
+      row.round_number,
+      { autoPick: Boolean(row.auto_pick), skipPick: Boolean(row.skip_pick) },
+    ]),
+  );
 
   return {
     ...base,
@@ -441,6 +478,7 @@ export async function loadDraftData(leagueId: string): Promise<DraftGoods> {
     picks,
     poolRows: poolRowsMapped,
     priority,
+    roundFlags,
     userRole: members.find((member) => member.user_id === user.id)?.role ?? null,
     myTeamId: myTeam?.id ?? null,
   };
@@ -491,6 +529,69 @@ export async function resolveDraftTimeout(
 
   if (error) {
     throw new Error(error.message || "Unable to resolve the pick timer.");
+  }
+
+  return (data as { season_id: string; status: string }[])[0];
+}
+
+/**
+ * Pauses or resumes the current pick timer for a league's active draft.
+ *
+ * Owner-only RPC. While paused the timer is frozen (deadlines do not expire,
+ * no auto-pick/pass fires); resuming shifts the start stamp forward by the
+ * elapsed pause so the pick keeps its full time budget.
+ *
+ * @param leagueId - The league whose draft timer to toggle.
+ * @param paused - True to pause the timer, false to resume it.
+ * @returns The season id, status, and the resulting draft_paused_at value.
+ * @throws If the caller is not the league owner or the draft is not active.
+ */
+export async function setDraftPaused(
+  leagueId: string,
+  paused: boolean,
+): Promise<{
+  season_id: string;
+  status: string;
+  draft_paused_at: string | null;
+}> {
+  const { data, error } = await supabase.rpc("set_draft_paused", {
+    p_league_id: leagueId,
+    p_paused: paused,
+  });
+
+  if (error) {
+    throw new Error(error.message || "Unable to update the draft timer.");
+  }
+
+  return (data as {
+    season_id: string;
+    status: string;
+    draft_paused_at: string | null;
+  }[])[0];
+}
+
+/**
+ * Returns the latest season of a league to its pre-draft state.
+ *
+ * Owner-only RPC; it clears the auto-created team mirror, pick ledger,
+ * rosters, transactions, and priority lists for the season and flips it back
+ * to `draft_pending` so the order can be re-arranged and the draft started
+ * again.
+ *
+ * @param leagueId - The league whose latest season should be reset.
+ * @returns A Promise resolving to the season id and its new status.
+ * @throws If the caller is not the league owner, no season exists, or the
+ *   reset fails.
+ */
+export async function resetDraft(
+  leagueId: string,
+): Promise<{ season_id: string; status: string }> {
+  const { data, error } = await supabase.rpc("reset_draft", {
+    p_league_id: leagueId,
+  });
+
+  if (error) {
+    throw new Error(error.message || "Unable to reset the draft.");
   }
 
   return (data as { season_id: string; status: string }[])[0];
@@ -657,11 +758,15 @@ export function isPokemonPicked(goods: DraftGoods, pokemonId: string): boolean {
  *
  * @param goods - The loaded draft state.
  * @returns The deadline timestamp, or null when no pick timer is running (no
- *   start stamp, or the draft is not active).
+ *   start stamp, the draft is not active, or the timer is paused).
  */
 export function getPickDeadlineMs(goods: DraftGoods): number | null {
   const start = goods.season?.draft_pick_started_at;
-  if (!start || goods.season?.status !== "draft_active") {
+  if (
+    !start ||
+    goods.season?.status !== "draft_active" ||
+    goods.season?.draft_paused_at != null
+  ) {
     return null;
   }
 

@@ -8,7 +8,8 @@
  * draft_picks ledger plus the make_draft_pick / resolve_draft_timeout /
  * save_priority_list RPCs in @/lib/supabase/draft); this page polls that
  * state, computes the current turn and pick deadline, drives the countdown
- * timer and audio/visual notifications, and issues the pick/priority actions.
+ * timer and audio/visual notifications, asks the database to resolve expired
+ * or zero-token turns, and issues the pick/priority actions.
  *
  * The page is split into a Suspense wrapper (to satisfy useSearchParams) and a
  * client content component that owns polling, the timer, and all mutations.
@@ -25,17 +26,23 @@
 "use client";
 
 import Image from "next/image";
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   DraftGoods,
+  DraftTeam,
+  DraftPoolRow,
+  DraftStatus,
+  DraftPick,
   computeDraftSlice,
   getPickDeadlineMs,
   getTeamSalary,
   isPokemonPicked,
   loadDraftData,
+  resetDraft,
   resolveDraftTimeout,
   savePriorityList,
+  setDraftPaused,
   setPriorityRoundFlags,
   submitDraftPick,
   DraftPriorityEntry,
@@ -111,9 +118,10 @@ function Sprite({
   );
 }
 
-/** Formats a tier value as a display label ("Unranked" when zero). */
-function tierLabel(tier: number): string {
-  return tier === 0 ? "Unranked" : `Tier ${tier}`;
+/** Extracts just the generation number from a label like "Gen 1". */
+function generationNumber(generation: string): string {
+  const match = /\d+/.exec(generation);
+  return match ? match[0] : generation;
 }
 
 /**
@@ -162,26 +170,26 @@ const STATUS_LABELS: Record<string, string> = {
 type PoolActions = {
   /** Submits a draft pick (null pokemon = pass) for the on-clock team. */
   onPick: (pokemonId: string | null) => void;
-  /** Adds a pool Pokemon to a round of the current user's priority list. */
-  onAddToPriority: (pokemonId: string, roundNumber: number) => void;
 };
 
 /** Actions the arena page passes down to the priority panel. */
 type PriorityActions = {
-  /** Reorders an entry within its round (delta -1 = move up/leftward). */
-  onMoveWithinRound: (key: string, delta: number) => void;
-  /** Moves an entry to a different round (keeps its position in that list). */
-  onMoveToRound: (key: string, targetRound: number) => void;
+  /** Adds a pool Pokemon to a round of the current user's priority list. */
+  onAddToRound: (pokemonId: string, roundNumber: number) => void;
+  /** Moves an entry to an absolute position within a round via drag-and-drop. */
+  onMoveEntry: (key: string, targetRound: number, targetIndex: number) => void;
+  /** Requests a confirm dialog pick for a priority card (on your turn). */
+  onPick: (pokemonId: string) => void;
   /** Sets the Auto-Pick / Skip-Pick flags for a round via the RPC. */
   onSetRoundFlags: (
     roundNumber: number,
     autoPick: boolean,
     skipPick: boolean,
   ) => void;
-  /** Removes an entry from the priority list. */
+  /** Removes an entry dropped outside any round bucket. */
   onRemove: (key: string) => void;
-  /** Persists the current list via the save_priority_list RPC. */
-  onSave: () => void;
+  /** Removes every entry from the priority list. */
+  onClear: () => void;
   /** Clears any list-level error shown by the panel. */
   onClearError: () => void;
 };
@@ -195,24 +203,165 @@ type ArenaPanelProps = {
 };
 
 /*
- * The on-draft header: league/season identity, status pill, live round/pick
- * info, and a countdown toward the current pick deadline.
+ * The on-draft header: league/season identity, a draft timer showing the pick
+ * time limit from draft settings (paused while the draft has not started), the
+ * season status pill, and live round/pick info.
  */
 
 /**
- * Renders the arena header with league identity, status, and the live pick
- * countdown.
+ * Formats a millisecond duration as "m:ss" without a live deadline.
+ *
+ * @param ms - The duration in milliseconds.
+ * @returns The formatted duration string.
+ */
+function formatDuration(ms: number): string {
+  const seconds = Math.max(0, Math.ceil(ms / 1000));
+  const minutes = Math.floor(seconds / 60);
+  const remainder = seconds % 60;
+  return `${minutes}:${remainder.toString().padStart(2, "0")}`;
+}
+
+/**
+ * Renders the draft timer pinned top-right of the arena header.
+ *
+ * The timer is seeded with the pick time limit configured in draft settings and
+ * counts down while a pick is on the clock; it sits paused at the full limit
+ * until the draft starts, turns red/urgent inside the final minute, and is
+ * frozen once the draft completes.
+ *
+ * @param props.limitMinutes - Pick time limit from draft settings.
+ * @param props.status - The season's draft lifecycle status.
+ * @param props.startedAt - When the current on-clock pick started (persisted).
+ * @param props.pausedAt - When the owner paused the timer, or null when running.
+ * @param props.now - Current wall-clock timestamp.
+ * @returns The timer markup.
+ */
+function DraftTimer({
+  limitMinutes,
+  status,
+  startedAt,
+  pausedAt,
+  now,
+}: {
+  limitMinutes: number | null;
+  status: DraftStatus | null;
+  startedAt: string | null;
+  pausedAt: string | null;
+  now: number;
+}) {
+  const limitMs = (limitMinutes && limitMinutes > 0 ? limitMinutes : 5) * 60_000;
+
+  if (status === "draft_active" && startedAt) {
+    const deadline = new Date(startedAt).getTime() + limitMs;
+
+    if (pausedAt) {
+      // The timer is frozen: show the remaining budget as of the pause instant.
+      const pausedAtMs = new Date(pausedAt).getTime();
+      return (
+        <div className="flex items-center gap-3 rounded-xl border border-slate-700 bg-slate-800/60 px-4 py-2.5">
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+              Draft Timer
+            </p>
+            <p className="font-mono text-xl font-bold tabular-nums text-slate-100">
+              {formatCountdown(deadline, pausedAtMs)}
+            </p>
+          </div>
+          <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-300">
+            Paused
+          </span>
+        </div>
+      );
+    }
+
+    const remaining = Math.max(0, deadline - now);
+    const urgent = remaining <= URGENT_THRESHOLD_MS;
+    return (
+      <div
+        className={`flex items-center gap-3 rounded-xl border px-4 py-2.5 ${
+          urgent
+            ? "animate-pulse border-red-500/40 bg-red-500/10"
+            : "border-slate-700 bg-slate-800/60"
+        }`}
+      >
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+            Draft Timer
+          </p>
+          <p className="font-mono text-xl font-bold tabular-nums text-slate-100">
+            {formatCountdown(deadline, now)}
+          </p>
+        </div>
+        <span
+          className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${
+            urgent
+              ? "bg-red-500/15 text-red-300"
+              : "bg-emerald-500/15 text-emerald-300"
+          }`}
+        >
+          {urgent ? "Urgent" : "Running"}
+        </span>
+      </div>
+    );
+  }
+
+  const finished = status === "draft_complete" || status === "archived";
+  return (
+    <div className="flex items-center gap-3 rounded-xl border border-slate-700 bg-slate-800/60 px-4 py-2.5">
+      <div>
+        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+          Draft Timer
+        </p>
+        <p className="font-mono text-xl font-bold tabular-nums text-slate-100">
+          {finished ? "0:00" : formatDuration(limitMs)}
+        </p>
+      </div>
+      <span
+        className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${
+          finished
+            ? "bg-slate-700 text-slate-300"
+            : "bg-slate-700 text-amber-300"
+        }`}
+      >
+        {finished ? "Complete" : "Paused"}
+      </span>
+    </div>
+  );
+}
+
+/**
+ * Renders the arena header with league identity, the draft timer, status, and
+ * live round/pick info.
  *
  * @param props - {@link ArenaPanelProps}
  * @returns The header markup.
  */
-function DraftHeader({ goods, now }: ArenaPanelProps) {
+function DraftHeader({
+  goods,
+  now,
+  isOwner = false,
+  onReset,
+  resetting = false,
+  onTogglePause,
+  pausing = false,
+}: ArenaPanelProps & {
+  /** Whether the signed-in user owns the league (enables the reset action). */
+  isOwner?: boolean;
+  /** Invoked when the owner confirms a draft reset. */
+  onReset?: () => void;
+  /** True while the reset RPC is in flight. */
+  resetting?: boolean;
+  /** Invoked when the owner toggles the Pause/Play timer control. */
+  onTogglePause?: () => void;
+  /** True while the pause/resume RPC is in flight. */
+  pausing?: boolean;
+}) {
   const season = goods.season;
   const status = season?.status ?? "draft_pending";
   const slice = computeDraftSlice(goods);
-  const deadline = getPickDeadlineMs(goods);
-  const countdown = formatCountdown(deadline, now);
-  const isUrgent = deadline != null && deadline - now <= 60_000;
+  const isPaused = season?.draft_paused_at != null;
+  const canTogglePause =
+    !!isOwner && status === "draft_active" && !!onTogglePause;
 
   return (
     <header className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-xl shadow-slate-950/30">
@@ -220,7 +369,8 @@ function DraftHeader({ goods, now }: ArenaPanelProps) {
         <div>
           <h1 className="text-2xl font-bold text-white">{goods.league.name}</h1>
           <p className="mt-1 text-sm text-slate-400">
-            Season {goods.season?.season_number ?? "—"}{" "}
+            Season {goods.season?.season_number ?? "—"}
+            {" · "}
             {goods.settings?.total_rounds ?? "—"} rounds
             {goods.settings?.draft_format === "snake"
               ? " · Snake"
@@ -231,19 +381,24 @@ function DraftHeader({ goods, now }: ArenaPanelProps) {
         </div>
 
         <div className="flex items-center gap-3">
-          {!slice.isOver && deadline != null && (
-            <div
-              className={`flex items-center gap-2 rounded-xl border px-4 py-2.5 ${
-                isUrgent
-                  ? "animate-pulse border-red-500/40 bg-red-500/10"
-                  : "border-slate-700 bg-slate-800/60"
-              }`}
+          <DraftTimer
+            limitMinutes={goods.settings?.pick_time_limit_minutes ?? null}
+            status={status}
+            startedAt={season?.draft_pick_started_at ?? null}
+            pausedAt={season?.draft_paused_at ?? null}
+            now={now}
+          />
+
+          {canTogglePause && (
+            <button
+              type="button"
+              onClick={onTogglePause}
+              disabled={pausing}
+              className="rounded-xl border border-slate-700 bg-slate-800/60 px-4 py-2 text-sm font-medium text-slate-100 transition hover:bg-slate-700/60 disabled:cursor-not-allowed disabled:opacity-40"
+              title={isPaused ? "Resume the draft timer" : "Pause the draft timer"}
             >
-              <span className="font-mono text-xl font-bold tabular-nums text-slate-100">
-                {countdown}
-              </span>
-              <span className="text-xs text-slate-400">on the clock</span>
-            </div>
+              {pausing ? "..." : isPaused ? "Play" : "Pause"}
+            </button>
           )}
 
           <span
@@ -253,6 +408,18 @@ function DraftHeader({ goods, now }: ArenaPanelProps) {
           >
             {STATUS_LABELS[status] ?? status}
           </span>
+
+          {isOwner && onReset && season && (
+            <button
+              type="button"
+              onClick={onReset}
+              disabled={resetting || status === "draft_pending"}
+              className="rounded-xl border border-red-800 bg-red-950/40 px-4 py-2 text-sm font-medium text-red-300 transition hover:bg-red-950/70 hover:text-red-200 disabled:cursor-not-allowed disabled:opacity-40"
+              title="Return the draft to its pre-draft state"
+            >
+              {resetting ? "Resetting..." : "Reset Draft"}
+            </button>
+          )}
         </div>
       </div>
 
@@ -287,103 +454,272 @@ function DraftHeader({ goods, now }: ArenaPanelProps) {
 }
 
 /*
- * The players strip: each team's card in draft position order, showing the team
- * name, its owner, a compact row of its most recent captured sprites, and
- * emphasis (amber ring) when that team is on the clock.
+ * The pick board: a grid of player columns (in draft order) and round rows.
+ * Each player's card sits in its own column; each round row holds that player's
+ * Pokemon card once a pick lands, so the board shows the season's picks at a
+ * glance. The on-clock column and current round are highlighted.
  */
 
 /**
- * Renders the horizontal strip of team cards in draft pick order.
+ * Resolves the dex id for a pick's pokemon id slug.
+ */
+function dexOf(pokemonId: string | null): number {
+  return getDexNumber(pokemonId ?? "");
+}
+
+/**
+ * Renders the player-pick board: one card per player (left to right in draft
+ * order) with one row per round, Pokemon cards filling in as picks are made.
+ * Players come from the league roster so the board renders before start.
  *
  * @param props - {@link ArenaPanelProps}
- * @returns The strip markup.
+ * @returns The pick board markup.
  */
-function PlayersStrip({ goods, now }: ArenaPanelProps) {
+function PickBoardGrid({ goods, now }: ArenaPanelProps) {
   const slice = computeDraftSlice(goods);
-  const ordered = [...goods.teams].sort((a, b) => {
-    const pa = a.draft_position ?? Number.MAX_SAFE_INTEGER;
-    const pb = b.draft_position ?? Number.MAX_SAFE_INTEGER;
-    return pa - pb;
-  });
+  const totalRounds = goods.settings?.total_rounds ?? slice.totalRounds;
+  const rounds = Array.from({ length: totalRounds }, (_, index) => index + 1);
+
+  // Teams by owner so each player panel can show its drafted team name once the
+  // season has started; players still render before start via their member row.
+  const teamByOwner = useMemo(() => {
+    const map = new Map<string, DraftTeam>();
+    goods.teams.forEach((team) => {
+      map.set(team.owner_user_id, team);
+    });
+    return map;
+  }, [goods.teams]);
+
+  // Order panels by the member's own draft slot, falling back to join order.
+  const withPosition = goods.members.filter(
+    (member) => member.draft_position !== null,
+  );
+  const ordered = (withPosition.length > 0 ? withPosition : goods.members).sort(
+    (a, b) =>
+      (a.draft_position ?? Number.MAX_SAFE_INTEGER) -
+      (b.draft_position ?? Number.MAX_SAFE_INTEGER),
+  );
+
+  // Index picks by owner + round so each board slot resolves its card in O(1).
+  const pickCellKey = (ownerUserId: string, round: number) =>
+    `${ownerUserId}:${round}`;
+  const pickByOwnerRound = useMemo(() => {
+    const map = new Map<string, DraftPick>();
+    goods.picks.forEach((pick) => {
+      map.set(pickCellKey(pick.owner_user_id, pick.round_number), pick);
+    });
+    return map;
+  }, [goods.picks]);
+
+  // Index pool rows by pokemon slug so picked cards resolve the exact catalog
+  // sprite id, typings, and tier the pool table uses (anniversary sprites etc.).
+  const poolRowByPokemon = useMemo(() => {
+    const map = new Map<string, DraftPoolRow>();
+    goods.poolRows.forEach((row) => {
+      map.set(row.pokemon_id, row);
+    });
+    return map;
+  }, [goods.poolRows]);
+
+  const onClockOwnerUserId = !slice.isOver
+    ? slice.currentTeam?.owner_user_id ?? null
+    : null;
+  const mine = goods.members.find(
+    (member) => member.user_id === goods.currentUserId,
+  );
+
+  // Overall pick number for a draft slot: snakes (reverse) every even round.
+  const isSnake = (goods.settings?.draft_format ?? "snake") === "snake";
+  const overallPickFor = (slot: number, round: number): number => {
+    const numPlayers = Math.max(ordered.length, 1);
+    const pickInRound =
+      isSnake && round % 2 === 0 ? numPlayers - slot + 1 : slot;
+    return (round - 1) * numPlayers + pickInRound;
+  };
 
   return (
     <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-5 shadow-xl shadow-slate-950/30">
       <div className="mb-4 flex items-center justify-between">
         <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">
-          Pick order
+          Draft Board
         </h2>
         <span className="text-xs text-slate-500">
-          {goods.myTeamId
+          {mine
             ? "You: " +
-              (ordered.find((team) => team.id === goods.myTeamId)?.team_name ??
-                "")
+              (teamByOwner.get(mine.user_id)?.team_name ?? mine.display_name ?? "")
             : ""}
         </span>
       </div>
 
-      <ol className="flex flex-wrap gap-3">
-        {ordered.map((team, index) => {
-          const onClock = slice.currentTeam?.id === team.id && !slice.isOver;
-          const picks = goods.picks.filter(
-            (pick) => pick.team_id === team.id && !pick.is_pass,
-          );
-          const recent = [...picks]
-            .sort((a, b) => b.overall_pick - a.overall_pick)
-            .slice(0, 3);
+      {ordered.length === 0 ? (
+        <div className="rounded-xl border border-slate-800 p-8 text-center text-sm text-slate-500">
+          No players in this league yet.
+        </div>
+      ) : (
+        <div className="flex gap-3 overflow-x-auto pb-2">
+          {ordered.map((member, index) => {
+            const team = teamByOwner.get(member.user_id) ?? null;
+            const isOnClock = onClockOwnerUserId === member.user_id;
+            const currentRound = isOnClock ? slice.roundNumber : null;
+            const panelName =
+              team?.team_name ?? member.display_name ?? "Unnamed player";
+            const salary =
+              team && goods.settings?.enable_pokemon_costs
+                ? getTeamSalary(goods, team.id)
+                : null;
 
-          return (
-            <li
-              key={team.id}
-              className={`min-w-[10rem] flex-1 rounded-xl border p-4 transition ${
-                onClock
-                  ? "border-amber-400 bg-amber-500/10 shadow-lg shadow-amber-500/10"
-                  : "border-slate-800 bg-slate-950/50"
-              }`}
-            >
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                  #{index + 1}
-                </span>
-                {onClock && (
-                  <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-300">
-                    On clock
-                  </span>
-                )}
-              </div>
-              <p className="mt-2 truncate text-sm font-semibold text-slate-100">
-                {team.team_name}
-              </p>
-              <div className="mt-2 flex h-10 items-center gap-1">
-                {recent.length === 0 ? (
-                  <span className="text-xs text-slate-600">No picks yet</span>
-                ) : (
-                  recent.map((pick) => (
-                    <Sprite
-                      key={pick.id}
-                      spriteId={pick.species_name ? dexOf(pick.pokemon_id) : 0}
-                      name={pick.species_name ?? "Picked"}
-                      size={36}
+            return (
+              <div
+                key={member.user_id}
+                className={`min-w-[13rem] flex-1 shrink-0 rounded-2xl border p-3 transition sm:min-w-[14rem] ${
+                  isOnClock
+                    ? "border-amber-400 bg-amber-500/10 shadow-lg shadow-amber-500/10"
+                    : "border-slate-800 bg-slate-950/50"
+                }`}
+              >
+                {/* Player card header */}
+                <div className="flex items-center gap-2">
+                  {member.avatar_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={member.avatar_url}
+                      alt=""
+                      className="h-9 w-9 shrink-0 rounded-full border border-slate-700 object-cover"
                     />
-                  ))
-                )}
+                  ) : (
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-800 text-sm font-bold text-amber-300">
+                      {panelName.charAt(0).toUpperCase()}
+                    </span>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold text-slate-100">
+                      {panelName}
+                    </p>
+                    <p className="truncate text-[10px] uppercase tracking-wider text-slate-500">
+                      Pick #{member.draft_position ?? index + 1}
+                      {member.user_id === goods.currentUserId ? " · You" : ""}
+                    </p>
+                    {salary && (
+                      <p
+                        className={`truncate font-mono text-xs font-semibold tabular-nums ${
+                          salary.remaining < 0
+                            ? "text-red-400"
+                            : "text-emerald-300"
+                        }`}
+                      >
+                        {salary.remaining}/{salary.budget} tokens
+                      </p>
+                    )}
+                  </div>
+                  {isOnClock && (
+                    <span className="shrink-0 rounded-full bg-amber-500/15 px-2 py-0.5 text-[9px] font-bold uppercase text-amber-300">
+                      On clock
+                    </span>
+                  )}
+                </div>
+
+                {/* One row per round; each holds the player's Pokemon card. */}
+                <div className="mt-3 max-h-[22rem] space-y-1.5 overflow-y-auto pr-1">
+                  {rounds.map((round) => {
+                    const pick = pickByOwnerRound.get(
+                      pickCellKey(member.user_id, round),
+                    );
+                    const isCurrentSlot = currentRound === round;
+                    return (
+                      <div
+                        key={round}
+                        className={`flex items-center gap-2 rounded-lg border px-2 py-1.5 transition ${
+                          isCurrentSlot
+                            ? "border-amber-400/70 bg-amber-500/10"
+                            : pick
+                              ? pick.is_pass
+                                ? "border-slate-800 bg-slate-900/60"
+                                : "border-slate-700 bg-slate-900"
+                              : "border-slate-800/80 bg-slate-950/40"
+                        }`}
+                      >
+                        <span className="w-7 shrink-0 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                          R{round}
+                        </span>
+                        {pick ? (
+                          pick.is_pass ? (
+                            <span className="text-xs font-medium text-slate-500">
+                              Pass
+                            </span>
+                          ) : (
+                            <>
+                              <Sprite
+                                spriteId={
+                                  pick.pokemon_id
+                                    ? (poolRowByPokemon.get(pick.pokemon_id)
+                                        ?.spriteId ?? dexOf(pick.pokemon_id))
+                                    : 0
+                                }
+                                name={pick.species_name ?? "Picked"}
+                                size={28}
+                              />
+                              <div className="min-w-0 flex-1">
+                                <p className="truncate text-xs font-medium text-slate-100">
+                                  {pick.species_name}
+                                </p>
+                                <div className="mt-0.5 flex flex-wrap items-center gap-1">
+                                  {(
+                                    [
+                                      poolRowByPokemon.get(
+                                        pick.pokemon_id ?? "",
+                                      )?.type_primary,
+                                      poolRowByPokemon.get(
+                                        pick.pokemon_id ?? "",
+                                      )?.type_secondary,
+                                    ] as (string | null | undefined)[]
+                                  )
+                                    .filter(Boolean)
+                                    .map((type) => (
+                                      <span
+                                        key={type}
+                                        className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${
+                                          TYPE_STYLES[type ?? ""] ??
+                                          "bg-slate-700 text-slate-200"
+                                        }`}
+                                      >
+                                        {type}
+                                      </span>
+                                    ))}
+                                  {pick.tier_value > 0 && (
+                                    <span className="rounded bg-slate-700 px-1.5 py-0.5 text-[10px] font-bold text-slate-200">
+                                      T{pick.tier_value}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </>
+                          )
+                        ) : (
+                          <span className="text-[11px] font-medium text-slate-500">
+                            Round {round} · Pick #
+                            {overallPickFor(
+                              member.draft_position ?? index + 1,
+                              round,
+                            )}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-            </li>
-          );
-        })}
-      </ol>
+            );
+          })}
+        </div>
+      )}
     </section>
   );
 }
 
 /*
- * NOTE: sprites in the strip derive their dex id from the pick's pokemon_id
+ * NOTE: sprites in the board derive their dex id from the pick's pokemon_id
  * slug via the shared catalog helper; see the pool page for the same pattern.
  */
-
-/** Resolves the dex id for a pick's pokemon id slug. */
-function dexOf(pokemonId: string | null): number {
-  return getDexNumber(pokemonId ?? "");
-}
 
 /*
  * The pool panel: a searchable/filterable/sortable table of the draftable pool,
@@ -416,13 +752,15 @@ function PoolPanel({
 }: ArenaPanelProps & { actions: PoolActions }) {
   const [query, setQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState<string | null>(null);
-  const [sortKey, setSortKey] = useState<SortKey>("dex");
-  const [sortDir, setSortDir] = useState<SortDir>("asc");
+  const [sortKey, setSortKey] = useState<SortKey>("tier");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const [tab, setTab] = useState<"table" | "tiers">("table");
 
   const typeOptions = useMemo(() => {
     const types = new Set<string>();
     goods.poolRows.forEach((row) => {
       if (row.type_primary) types.add(row.type_primary);
+      if (row.type_secondary) types.add(row.type_secondary);
     });
     return [...types].sort();
   }, [goods.poolRows]);
@@ -432,24 +770,57 @@ function PoolPanel({
     [goods.picks],
   );
 
-  const rows = useMemo(() => {
+  // Query and type-filtered rows shared by both the table and the tier list.
+  const filteredRows = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const filtered = goods.poolRows.filter((row) => {
+    return goods.poolRows.filter((row) => {
       if (q && !row.species_name.toLowerCase().includes(q)) return false;
-      if (typeFilter && row.type_primary !== typeFilter) return false;
+      if (
+        typeFilter &&
+        ![row.type_primary, row.type_secondary].includes(typeFilter)
+      )
+        return false;
       return true;
     });
+  }, [goods.poolRows, query, typeFilter]);
 
+  const rows = useMemo(() => {
     const dir = sortDir === "asc" ? 1 : -1;
-    return [...filtered].sort((a, b) => {
+    return [...filteredRows].sort((a, b) => {
       if (sortKey === "dex") return (a.dex - b.dex) * dir;
-      if (sortKey === "tier") return (a.tier_value - b.tier_value) * dir;
+      if (sortKey === "tier") {
+        const tierDelta = (a.tier_value - b.tier_value) * dir;
+        if (tierDelta !== 0) return tierDelta;
+        return (b.bst ?? 0) - (a.bst ?? 0);
+      }
       if (sortKey === "bst") return ((a.bst ?? 0) - (b.bst ?? 0)) * dir;
       return (a.generation ?? "").localeCompare(b.generation ?? "") * dir;
     });
-  }, [goods.poolRows, query, typeFilter, sortKey, sortDir]);
+  }, [filteredRows, sortKey, sortDir]);
+
+  // Groups the filtered rows into tier buckets (descending, unranked last) for
+  // the Tier List tab, mirroring the draft pool page's tier list layout.
+  const groupedByTier = useMemo(() => {
+    const groups = new Map<number, DraftPoolRow[]>();
+    filteredRows.forEach((row) => {
+      const list = groups.get(row.tier_value) ?? [];
+      list.push(row);
+      groups.set(row.tier_value, list);
+    });
+    const tiers = [...groups.keys()].sort((a, b) =>
+      a === 0 ? 1 : b === 0 ? -1 : b - a,
+    );
+    return tiers.map((tier) => ({
+      tier,
+      label: tier === 0 ? "Unranked" : `Tier ${tier}`,
+      rows: groups.get(tier) ?? [],
+    }));
+  }, [filteredRows]);
 
   const mySalary = goods.myTeamId ? getTeamSalary(goods, goods.myTeamId) : null;
+  // Set briefly true after a row drag ends, so a synthetic click after a drop
+  // into the priority panel is not treated as a pick click.
+  const rowDragEndedRecentlyRef = useRef(false);
 
   function toggleSort(key: SortKey) {
     if (sortKey === key) {
@@ -458,6 +829,42 @@ function PoolPanel({
       setSortKey(key);
       setSortDir("asc");
     }
+  }
+
+  // Whether this row can be drafted right now (must be the user's turn, the
+  // Pokemon still in the pool, and affordable under the salary budget). Shared
+  // by the table rows and the tier list cards.
+  function canPickRow(row: DraftPoolRow): boolean {
+    const isTaken = picked.has(row.pokemon_id);
+    if (isTaken || goods.userRole === null) return false;
+    if (!sliceOf(goods).isMyTurn) return false;
+    return (
+      mySalary?.remaining != null &&
+      (mySalary.remaining >= row.tier_value ||
+        !goods.settings?.enable_pokemon_costs)
+    );
+  }
+
+  // Clicking a row/card while not freshly dragging requests a pick (the arena
+  // validates turn/salary/picked state before showing the confirmation dialog).
+  function handleRowClick(row: DraftPoolRow) {
+    if (rowDragEndedRecentlyRef.current) return;
+    if (canPickRow(row)) {
+      actions.onPick(row.pokemon_id);
+    }
+  }
+
+  // Seeds the drag payload so a pool row can be dropped into a priority round.
+  // Picked Pokemon are still draggable (a no-op drop) since the row stays
+  // visible for reference.
+  function handlePoolDragStart(
+    event: React.DragEvent<HTMLElement>,
+    pokemonId: string,
+  ) {
+    event.dataTransfer.setData(DND_POKEMON, pokemonId);
+    // copyMove so the target can pick either a copy (add) or move (reorder)
+    // drop effect without the browser invalidating the drop.
+    event.dataTransfer.effectAllowed = "copyMove";
   }
 
   return (
@@ -502,162 +909,251 @@ function PoolPanel({
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-auto">
-        <table className="w-full divide-y divide-slate-800 text-sm">
-          <thead className="sticky top-0 z-10 bg-slate-900 text-slate-400">
-            <tr>
-              <th className="px-4 py-3 text-left">
-                <button
-                  type="button"
-                  onClick={() => toggleSort("dex")}
-                  className={`inline-flex items-center gap-1 font-semibold ${
-                    sortKey === "dex" ? "text-amber-300" : ""
-                  }`}
-                >
-                  Dex {sortKey === "dex" && (sortDir === "asc" ? "▲" : "▼")}
-                </button>
-              </th>
-              <th className="px-4 py-3 text-left font-semibold">Pokémon</th>
-              <th className="px-4 py-3 text-left font-semibold">Type</th>
-              <th className="px-4 py-3 text-left">
-                <button
-                  type="button"
-                  onClick={() => toggleSort("tier")}
-                  className={`inline-flex items-center gap-1 font-semibold ${
-                    sortKey === "tier" ? "text-amber-300" : ""
-                  }`}
-                >
-                  Tier {sortKey === "tier" && (sortDir === "asc" ? "▲" : "▼")}
-                </button>
-              </th>
-              <th className="px-4 py-3 text-right">
-                <button
-                  type="button"
-                  onClick={() => toggleSort("bst")}
-                  className={`inline-flex items-center gap-1 font-semibold ${
-                    sortKey === "bst" ? "text-amber-300" : ""
-                  }`}
-                >
-                  BST {sortKey === "bst" && (sortDir === "asc" ? "▲" : "▼")}
-                </button>
-              </th>
-              <th className="px-4 py-3 text-left">
-                <button
-                  type="button"
-                  onClick={() => toggleSort("generation")}
-                  className={`inline-flex items-center gap-1 font-semibold ${
-                    sortKey === "generation" ? "text-amber-300" : ""
-                  }`}
-                >
-                  Gen{" "}
-                  {sortKey === "generation" && (sortDir === "asc" ? "▲" : "▼")}
-                </button>
-              </th>
-              <th className="px-4 py-3 text-right font-semibold">Action</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-800/80 bg-slate-950/40">
-            {rows.map((row) => {
-              const isTaken = picked.has(row.pokemon_id);
-              const canPick =
-                !isTaken &&
-                goods.userRole !== null &&
-                (sliceOf(goods).isMyTurn
-                  ? mySalary?.remaining != null &&
-                    (mySalary.remaining >= row.tier_value ||
-                      !goods.settings?.enable_pokemon_costs)
-                  : false);
-              return (
-                <tr
-                  key={row.pokemon_id}
-                  className={isTaken ? "opacity-45" : "hover:bg-slate-800/50"}
-                >
-                  <td className="px-4 py-2.5 text-slate-500">
-                    {row.dex > 0 ? `#${row.dex}` : "—"}
-                  </td>
-                  <td className="px-4 py-2.5">
-                    <div className="flex items-center gap-3">
-                      <Sprite
-                        spriteId={row.dex}
-                        name={row.species_name}
-                        size={40}
-                      />
-                      <span className="font-medium text-slate-100">
-                        {row.species_name}
-                      </span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-2.5">
-                    <div className="flex flex-wrap gap-1">
-                      {[row.type_primary, row.type_secondary]
-                        .filter(Boolean)
-                        .map((type) => (
-                          <span
-                            key={type}
-                            className={`rounded px-1.5 py-0.5 text-xs font-semibold ${
-                              TYPE_STYLES[type ?? ""] ??
-                              "bg-slate-700 text-slate-200"
-                            }`}
-                          >
-                            {type}
-                          </span>
-                        ))}
-                    </div>
-                  </td>
-                  <td className="px-4 py-2.5 text-slate-300">
-                    {tierLabel(row.tier_value)}
-                  </td>
-                  <td className="px-4 py-2.5 text-right tabular-nums text-slate-300">
-                    {row.bst ?? "—"}
-                  </td>
-                  <td className="px-4 py-2.5 text-slate-400">
-                    {row.generation ?? "—"}
-                  </td>
-                  <td className="px-4 py-2.5 text-right">
-                    {isTaken ? (
-                      <span className="text-xs font-bold text-emerald-400">
-                        Drafted
-                      </span>
-                    ) : sliceOf(goods).isMyTurn ? (
-                      <button
-                        type="button"
-                        onClick={() => actions.onPick(row.pokemon_id)}
-                        disabled={!canPick}
-                        className="rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-bold text-slate-950 transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-40"
-                      >
-                        Pick
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          actions.onAddToPriority(
-                            row.pokemon_id,
-                            sliceOf(goods).roundNumber || 1,
-                          )
-                        }
-                        className="rounded-lg border border-slate-600 px-3 py-1.5 text-xs font-bold text-slate-200 transition hover:border-amber-400 hover:text-amber-300"
-                      >
-                        Add to round {sliceOf(goods).roundNumber || 1}
-                      </button>
-                    )}
+      <div className="flex items-center gap-2 border-b border-slate-800 px-4 py-3 text-sm">
+        {(
+          [
+            { key: "table", label: "Table" },
+            { key: "tiers", label: "Tiers" },
+          ] as const
+        ).map((tabItem) => (
+          <button
+            key={tabItem.key}
+            type="button"
+            onClick={() => setTab(tabItem.key)}
+            className={`rounded-xl border px-4 py-2 font-medium transition ${
+              tab === tabItem.key
+                ? "border-amber-400 bg-amber-500/10 text-amber-200"
+                : "border-slate-700 bg-slate-900 text-slate-300 hover:border-slate-600"
+            }`}
+          >
+            {tabItem.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === "table" && (
+        <div className="min-h-0 flex-1 overflow-auto">
+          <table className="w-full divide-y divide-slate-800 text-sm">
+            <thead className="sticky top-0 z-10 bg-slate-900 text-slate-400">
+              <tr>
+                <th className="px-4 py-3 text-left">
+                  <button
+                    type="button"
+                    onClick={() => toggleSort("dex")}
+                    className={`inline-flex items-center gap-1 font-semibold ${
+                      sortKey === "dex" ? "text-amber-300" : ""
+                    }`}
+                  >
+                    Dex {sortKey === "dex" && (sortDir === "asc" ? "▲" : "▼")}
+                  </button>
+                </th>
+                <th className="px-4 py-3 text-left font-semibold">Pokémon</th>
+                <th className="px-4 py-3 text-left font-semibold">Type</th>
+                <th className="px-4 py-3 text-left">
+                  <button
+                    type="button"
+                    onClick={() => toggleSort("tier")}
+                    className={`inline-flex items-center gap-1 font-semibold ${
+                      sortKey === "tier" ? "text-amber-300" : ""
+                    }`}
+                  >
+                    Tier {sortKey === "tier" && (sortDir === "asc" ? "▲" : "▼")}
+                  </button>
+                </th>
+                <th className="px-4 py-3 text-right">
+                  <button
+                    type="button"
+                    onClick={() => toggleSort("bst")}
+                    className={`inline-flex items-center gap-1 font-semibold ${
+                      sortKey === "bst" ? "text-amber-300" : ""
+                    }`}
+                  >
+                    BST {sortKey === "bst" && (sortDir === "asc" ? "▲" : "▼")}
+                  </button>
+                </th>
+                <th className="px-4 py-3 text-left">
+                  <button
+                    type="button"
+                    onClick={() => toggleSort("generation")}
+                    className={`inline-flex items-center gap-1 font-semibold ${
+                      sortKey === "generation" ? "text-amber-300" : ""
+                    }`}
+                  >
+                    Gen{" "}
+                    {sortKey === "generation" &&
+                      (sortDir === "asc" ? "▲" : "▼")}
+                  </button>
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-800/80 bg-slate-950/40">
+              {rows.map((row) => {
+                const isTaken = picked.has(row.pokemon_id);
+                const canPick = canPickRow(row);
+                return (
+                  <tr
+                    key={row.pokemon_id}
+                    draggable
+                    onDragStart={(event) =>
+                      handlePoolDragStart(event, row.pokemon_id)
+                    }
+                    onDragEnd={() => {
+                      rowDragEndedRecentlyRef.current = true;
+                      window.setTimeout(() => {
+                        rowDragEndedRecentlyRef.current = false;
+                      }, 350);
+                    }}
+                    onClick={() => handleRowClick(row)}
+                    className={`${
+                      isTaken
+                        ? "opacity-45"
+                        : canPick
+                          ? "cursor-pointer hover:bg-slate-800/50"
+                          : "cursor-grab hover:bg-slate-800/50 active:cursor-grabbing"
+                    }`}
+                  >
+                    <td className="px-4 py-2.5 text-slate-500">
+                      {row.dex > 0 ? `#${row.dex}` : "—"}
+                    </td>
+                    <td className="px-4 py-2.5">
+                      <div className="flex items-center gap-3">
+                        <Sprite
+                          spriteId={row.spriteId}
+                          name={row.species_name}
+                          size={40}
+                        />
+                        <span className="font-medium text-slate-100">
+                          {row.species_name}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-2.5">
+                      <div className="flex flex-wrap gap-1">
+                        {[row.type_primary, row.type_secondary]
+                          .filter(Boolean)
+                          .map((type) => (
+                            <span
+                              key={type}
+                              className={`rounded px-1.5 py-0.5 text-xs font-semibold ${
+                                TYPE_STYLES[type ?? ""] ??
+                                "bg-slate-700 text-slate-200"
+                              }`}
+                            >
+                              {type}
+                            </span>
+                          ))}
+                      </div>
+                    </td>
+                    <td className="px-4 py-2.5 text-slate-300">
+                      {row.tier_value > 0 ? row.tier_value : "—"}
+                    </td>
+                    <td className="px-4 py-2.5 text-right tabular-nums text-slate-300">
+                      {row.bst ?? "—"}
+                    </td>
+                    <td className="px-4 py-2.5 text-slate-400">
+                      {row.generation ? generationNumber(row.generation) : "—"}
+                    </td>
+                  </tr>
+                );
+              })}
+              {rows.length === 0 && (
+                <tr>
+                  <td
+                    colSpan={6}
+                    className="px-4 py-10 text-center text-slate-500"
+                  >
+                    No Pokémon match your filters.
                   </td>
                 </tr>
-              );
-            })}
-            {rows.length === 0 && (
-              <tr>
-                <td
-                  colSpan={7}
-                  className="px-4 py-10 text-center text-slate-500"
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {tab === "tiers" && (
+        <div className="min-h-0 flex-1 overflow-auto p-4">
+          {groupedByTier.length === 0 ? (
+            <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-center text-sm text-slate-400">
+              No Pokémon match your filters.
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {groupedByTier.map((group) => (
+                <section
+                  key={group.tier}
+                  className="rounded-2xl border border-slate-800 bg-slate-900/80 p-5"
                 >
-                  No Pokémon match your filters.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+                  <h2 className="mb-4 text-lg font-semibold text-white">
+                    {group.label}
+                    <span className="ml-2 text-sm font-normal text-slate-500">
+                      {group.rows.length} Pokémon
+                    </span>
+                  </h2>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {group.rows.map((row) => {
+                      const isTaken = picked.has(row.pokemon_id);
+                      const canPick = canPickRow(row);
+                      return (
+                        <div
+                          key={row.pokemon_id}
+                          draggable
+                          onDragStart={(event) =>
+                            handlePoolDragStart(event, row.pokemon_id)
+                          }
+                          onDragEnd={() => {
+                            rowDragEndedRecentlyRef.current = true;
+                            window.setTimeout(() => {
+                              rowDragEndedRecentlyRef.current = false;
+                            }, 350);
+                          }}
+                          onClick={() => handleRowClick(row)}
+                          className={`flex items-center gap-3 rounded-xl border border-slate-800 bg-slate-950/60 p-3 transition ${
+                            isTaken
+                              ? "opacity-45"
+                              : canPick
+                                ? "cursor-pointer hover:border-amber-500/60 hover:bg-slate-900"
+                                : "cursor-grab hover:border-slate-600 hover:bg-slate-900 active:cursor-grabbing"
+                          }`}
+                        >
+                          <Sprite
+                            spriteId={row.spriteId}
+                            name={row.species_name}
+                            size={44}
+                          />
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-medium text-slate-100">
+                              {row.species_name}
+                            </p>
+                            <div className="mt-1 flex flex-wrap items-center gap-1">
+                              {[row.type_primary, row.type_secondary]
+                                .filter(Boolean)
+                                .map((type) => (
+                                  <span
+                                    key={type}
+                                    className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${
+                                      TYPE_STYLES[type ?? ""] ??
+                                      "bg-slate-700 text-slate-200"
+                                    }`}
+                                  >
+                                    {type}
+                                  </span>
+                                ))}
+                            </div>
+                          </div>
+                          <span className="shrink-0 text-xs font-semibold text-slate-400">
+                            {row.bst != null ? `${row.bst} BST` : ""}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </section>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-800 px-4 py-3 text-xs text-slate-400">
         <span>
@@ -670,6 +1166,101 @@ function PoolPanel({
         )}
       </div>
     </section>
+  );
+}
+
+/*
+ * The pick confirmation dialog: shown when a user clicks a pool row or priority
+ * card while on the clock, asking them to confirm the draft pick before the
+ * RPC runs. It resolves the candidate from the pool so sprites, typing, tier,
+ * and BST always render from the same dataset the table uses.
+ */
+
+/**
+ * Renders the confirmation overlay for a pending draft pick.
+ *
+ * @param props - The selected pool row, confirm/cancel callbacks, and a busy flag.
+ * @returns The modal markup.
+ */
+function PickConfirm({
+  row,
+  isSaving,
+  onConfirm,
+  onCancel,
+}: {
+  /** The pool row the user wants to draft. */
+  row: DraftPoolRow;
+  /** True while the pick request is being submitted. */
+  isSaving: boolean;
+  /** Confirms the pick for the row's Pokemon. */
+  onConfirm: () => void;
+  /** Dismisses the dialog without picking. */
+  onCancel: () => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4"
+      onClick={onCancel}
+    >
+      <div
+        className="w-full max-w-sm rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl shadow-slate-950/60"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <h2 className="text-lg font-bold text-white">Draft this Pokémon?</h2>
+        <div className="mt-4 flex items-center gap-4 rounded-xl border border-slate-800 bg-slate-950/50 p-4">
+          <Sprite spriteId={row.dex} name={row.species_name} size={56} />
+          <div className="min-w-0 flex-1">
+            <p className="truncate font-semibold text-slate-100">
+              {row.species_name}
+            </p>
+            <div className="mt-1 flex flex-wrap items-center gap-1">
+              {[row.type_primary, row.type_secondary]
+                .filter(Boolean)
+                .map((type) => (
+                  <span
+                    key={type}
+                    className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${
+                      TYPE_STYLES[type ?? ""] ?? "bg-slate-700 text-slate-200"
+                    }`}
+                  >
+                    {type}
+                  </span>
+                ))}
+              {row.tier_value > 0 && (
+                <span className="text-[10px] font-bold text-amber-300">
+                  T{row.tier_value}
+                </span>
+              )}
+            </div>
+          </div>
+          <div className="text-right">
+            <p className="text-xs text-slate-500">BST</p>
+            <p className="font-mono text-lg font-bold text-slate-100">
+              {row.bst ?? "—"}
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-5 flex items-center gap-3">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={isSaving}
+            className="flex-1 rounded-xl border border-slate-700 px-4 py-2.5 text-sm font-bold text-slate-300 transition hover:bg-slate-800 disabled:opacity-40"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={isSaving}
+            className="flex-1 rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-bold text-slate-950 transition hover:bg-amber-400 disabled:opacity-40"
+          >
+            {isSaving ? "Picking..." : "Confirm draft"}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -690,18 +1281,13 @@ function sliceOf(goods: DraftGoods) {
 }
 
 /**
- * Renders the right priority panel: round buckets of the user's priority list
- * with reorder/remove controls and a Save action.
+ * Renders the right priority panel: round buckets of the user's priority list.
  *
- * @param props - {@link ArenaPanelProps} plus {@link PriorityActions}.
- * @returns The priority panel markup.
- */
-
-/** Key used to address a single priority entry across panels. */
-export type PriorityKey = string;
-
-/**
- * Renders the right priority panel.
+ * Cards are drag-and-drop surfaces: drag a pool Pokemon into any round to pin
+ * it, drag a card within its round to reorder (topmost = highest priority),
+ * drag a card to another round to move it, or drop a card on the panel's empty
+ * space to remove it. Every change auto-saves to the user's account, and each
+ * card shows the Pokemon's typing chips and tier.
  *
  * @param props - {@link ArenaPanelProps} plus {@link PriorityActions}.
  * @returns The priority panel markup.
@@ -737,23 +1323,172 @@ function PriorityPanel({
 
   const totalRounds = goods.settings?.total_rounds ?? 1;
   const rounds = Array.from({ length: totalRounds }, (_, index) => index + 1);
+  // Highlights the round/card under the cursor while a drag passes over, and
+  // tracks an in-flight priority drag so the panel can hint at drag-out delete.
+  const [overRound, setOverRound] = useState<number | null>(null);
+  const [overCard, setOverCard] = useState<string | null>(null);
+  const [draggingEntry, setDraggingEntry] = useState<string | null>(null);
+  // The panel's DOM node, so a card released outside its bounds can be removed.
+  const panelRef = useRef<HTMLElement | null>(null);
+  // Set briefly true after a drag ends so a synthetic click fired by the
+  // browser right after a drop isn't mistaken for a pick click.
+  const dragEndedRecentlyRef = useRef(false);
+
+  function handleCardDragStart(
+    event: React.DragEvent<HTMLLIElement>,
+    key: string,
+  ) {
+    event.dataTransfer.setData(DND_ENTRY, key);
+    event.dataTransfer.effectAllowed = "move";
+    setDraggingEntry(key);
+  }
+
+  // Called after the browser has resolved the drop: inside the panel the round
+  // drop handlers already reordered/moved the card, and empty-panel drops were
+  // already removed. This handles a release anywhere outside the panel bounds,
+  // which plain HTML DnD has no drop target for.
+  function handleCardDragEnd(event: React.DragEvent<HTMLLIElement>) {
+    const { clientX, clientY } = event;
+    const outside =
+      clientX > 0 &&
+      clientY > 0 &&
+      panelRef.current != null &&
+      !pointWithinRect(
+        clientX,
+        clientY,
+        panelRef.current.getBoundingClientRect(),
+      );
+    if (outside && draggingEntry) {
+      actions.onRemove(draggingEntry);
+    }
+    dragEndedRecentlyRef.current = true;
+    window.setTimeout(() => {
+      dragEndedRecentlyRef.current = false;
+    }, 350);
+    setDraggingEntry(null);
+    setOverCard(null);
+    setOverRound(null);
+  }
+
+  // Clicking a card while not dragging requests a pick (the arena validates
+  // turn/salary/picked state before showing the confirmation dialog). A click
+  // shortly after a drag is treated as the drag's synthetic cleanup rather
+  // than a genuine pick intent.
+  function handleCardClick(entry: DraftPriorityEntry) {
+    if (dragEndedRecentlyRef.current) return;
+    actions.onPick(entry.pokemon_id);
+  }
+
+  function handleRoundDragOver(
+    event: React.DragEvent<HTMLDivElement>,
+    round: number,
+  ) {
+    event.preventDefault();
+    // Match the drop effect to the payload the target accepts so the browser
+    // doesn't reject the drop (pool copies in, priority cards move).
+    event.dataTransfer.dropEffect = isPoolDrag(event) ? "copy" : "move";
+    setOverRound(round);
+  }
+
+  // A drop anywhere on a round bucket: a pool Pokemon gets appended to the
+  // round, a dragged card is moved into the round (appended at the end).
+  function handleRoundDrop(
+    event: React.DragEvent<HTMLDivElement>,
+    round: number,
+  ) {
+    event.preventDefault();
+    event.stopPropagation();
+    setOverRound(null);
+    setDraggingEntry(null);
+    const entryKeyData = event.dataTransfer.getData(DND_ENTRY);
+    if (entryKeyData) {
+      const list = byRound.get(round) ?? [];
+      actions.onMoveEntry(entryKeyData, round, list.length);
+      return;
+    }
+    const pokemonId = event.dataTransfer.getData(DND_POKEMON);
+    if (pokemonId) {
+      actions.onAddToRound(pokemonId, round);
+    }
+  }
+
+  // A drop on an individual card: reorder/move relative to that card's slot.
+  function handleCardDrop(
+    event: React.DragEvent<HTMLLIElement>,
+    entry: DraftPriorityEntry,
+    index: number,
+    round: number,
+  ) {
+    event.preventDefault();
+    event.stopPropagation();
+    setOverRound(null);
+    setOverCard(null);
+    setDraggingEntry(null);
+    const entryKeyData = event.dataTransfer.getData(DND_ENTRY);
+    if (entryKeyData) {
+      // Account for the dragged card vacating its slot when it is above the
+      // target in the same round (removal before insertion shifts indices).
+      let targetIndex = index;
+      const sourceRound = Number(entryKeyData.split(":")[0]);
+      if (sourceRound === round) {
+        const sourceList = byRound.get(round) ?? [];
+        const sourceIndex = sourceList.findIndex(
+          (candidate) => entryKey(candidate) === entryKeyData,
+        );
+        if (sourceIndex >= 0 && sourceIndex < index) {
+          targetIndex -= 1;
+        }
+      }
+      actions.onMoveEntry(entryKeyData, round, targetIndex);
+      return;
+    }
+    const pokemonId = event.dataTransfer.getData(DND_POKEMON);
+    if (pokemonId) {
+      actions.onAddToRound(pokemonId, round);
+    }
+  }
+
+  // A drop on the panel's empty space (outside every round) deletes the card.
+  function handlePanelDrop(event: React.DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    setOverRound(null);
+    setOverCard(null);
+    setDraggingEntry(null);
+    const entryKeyData = event.dataTransfer.getData(DND_ENTRY);
+    if (entryKeyData) {
+      actions.onRemove(entryKeyData);
+    }
+  }
 
   return (
-    <section className="flex min-h-0 flex-col rounded-2xl border border-slate-800 bg-slate-900/80 shadow-xl shadow-slate-950/30">
+    <section
+      ref={panelRef}
+      className="flex h-full min-h-0 flex-col rounded-2xl border border-slate-800 bg-slate-900/80 shadow-xl shadow-slate-950/30"
+    >
       <div className="flex items-center justify-between border-b border-slate-800 p-4">
         <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">
-          My priority
+          Priority List
         </h2>
         <span className="text-xs text-slate-500">
-          Leftmost = highest priority
+          {draggingEntry
+            ? "Drop on empty space to remove"
+            : "Topmost = highest priority"}
         </span>
       </div>
 
-      <div className="min-h-0 flex-1 space-y-6 overflow-auto p-4">
+      <div
+        className="min-h-0 flex-1 space-y-6 overflow-auto p-4"
+        onDragOver={(event) => event.preventDefault()}
+        onDrop={handlePanelDrop}
+      >
         {rounds.map((round) => {
           const list = byRound.get(round) ?? [];
           return (
-            <div key={round}>
+            <div
+              key={round}
+              onDragOver={(event) => handleRoundDragOver(event, round)}
+              onDrop={(event) => handleRoundDrop(event, round)}
+            >
               <div className="flex items-center justify-between">
                 <p className="text-sm font-bold text-slate-100">
                   Round {round}
@@ -796,57 +1531,85 @@ function PriorityPanel({
               </div>
 
               {list.length === 0 ? (
-                <p className="mt-2 rounded-xl border border-dashed border-slate-800 p-3 text-xs text-slate-600">
-                  Empty — add Pokémon from the pool to this round.
-                </p>
+                <div
+                  onDragOver={(event) => handleRoundDragOver(event, round)}
+                  onDrop={(event) => handleRoundDrop(event, round)}
+                  className={`mt-2 rounded-xl border border-dashed p-3 text-xs text-slate-600 transition ${
+                    overRound === round
+                      ? "border-amber-400 bg-amber-500/10 text-amber-200"
+                      : "border-slate-800"
+                  }`}
+                >
+                  Empty — drag Pokémon from the pool into this round.
+                </div>
               ) : (
                 <ol className="mt-2 space-y-1.5">
                   {list.map((entry, index) => (
                     <li
                       key={entryKey(entry)}
-                      className="flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-950/50 p-2"
+                      draggable
+                      onDragStart={(event) =>
+                        handleCardDragStart(event, entryKey(entry))
+                      }
+                      onDragEnd={handleCardDragEnd}
+                      onClick={() => handleCardClick(entry)}
+                      onDragOver={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        event.dataTransfer.dropEffect = isPoolDrag(event)
+                          ? "copy"
+                          : "move";
+                        setOverCard(entryKey(entry));
+                        setOverRound(round);
+                      }}
+                      onDrop={(event) =>
+                        handleCardDrop(event, entry, index, round)
+                      }
+                      className={`flex cursor-grab items-center gap-2 rounded-xl border bg-slate-950/50 p-2 transition active:cursor-grabbing ${
+                        overCard === entryKey(entry)
+                          ? "border-amber-400 bg-amber-500/10"
+                          : overRound === round
+                            ? "border-slate-500"
+                            : "border-slate-800 hover:border-slate-600"
+                      }`}
                     >
-                      <span className="w-6 text-center text-xs font-bold text-slate-500">
-                        {index + 1}
-                      </span>
                       <Sprite
-                        spriteId={dexOf(entry.pokemon_id)}
+                        spriteId={entry.spriteId}
                         name={entry.species_name}
                         size={36}
                       />
-                      <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-100">
-                        {entry.species_name}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          actions.onMoveWithinRound(entryKey(entry), -1)
-                        }
-                        disabled={index === 0}
-                        aria-label={`Move ${entry.species_name} left in round ${round}`}
-                        className="rounded-lg border border-slate-700 px-2 py-1 text-xs text-slate-300 transition hover:border-slate-500 disabled:opacity-30"
-                      >
-                        ←
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          actions.onMoveWithinRound(entryKey(entry), 1)
-                        }
-                        disabled={index === list.length - 1}
-                        aria-label={`Move ${entry.species_name} right in round ${round}`}
-                        className="rounded-lg border border-slate-700 px-2 py-1 text-xs text-slate-300 transition hover:border-slate-500 disabled:opacity-30"
-                      >
-                        →
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => actions.onRemove(entryKey(entry))}
-                        aria-label={`Remove ${entry.species_name}`}
-                        className="rounded-lg border border-red-800 px-2 py-1 text-xs font-bold text-red-300 transition hover:bg-red-900/40"
-                      >
-                        X
-                      </button>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <p className="min-w-0 flex-1 truncate text-sm font-medium text-slate-100">
+                            {entry.species_name}
+                          </p>
+                          <div className="flex shrink-0 items-center gap-1">
+                            {[entry.type_primary, entry.type_secondary]
+                              .filter(Boolean)
+                              .map((type) => (
+                                <span
+                                  key={type}
+                                  className={`rounded px-1.5 py-0.5 text-xs font-semibold ${
+                                    TYPE_STYLES[type ?? ""] ??
+                                    "bg-slate-700 text-slate-200"
+                                  }`}
+                                >
+                                  {type}
+                                </span>
+                              ))}
+                            {entry.tier_value > 0 && (
+                              <span className="text-xs font-bold text-amber-300">
+                                T{entry.tier_value}
+                              </span>
+                            )}
+                            {entry.bst != null && (
+                              <span className="text-xs font-semibold text-slate-400">
+                                {entry.bst} BST
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
                     </li>
                   ))}
                 </ol>
@@ -860,15 +1623,21 @@ function PriorityPanel({
         {error && (
           <p className="mb-3 text-xs font-semibold text-red-300">{error}</p>
         )}
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={actions.onSave}
-            disabled={isSaving}
-            className="w-full rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-bold text-slate-950 transition hover:bg-amber-400 disabled:opacity-40"
-          >
-            {isSaving ? "Saving" : "Save priority list"}
-          </button>
+        <div className="flex flex-col items-center gap-3">
+          {entries.length > 0 && (
+            <button
+              type="button"
+              onClick={actions.onClear}
+              className="rounded-lg border border-red-800 bg-red-950/40 px-3 py-1.5 text-xs font-bold text-red-300 transition hover:bg-red-900/50"
+            >
+              Clear List
+            </button>
+          )}
+          <p className="text-center text-xs text-slate-500">
+            {isSaving
+              ? "Saving…"
+              : "Changes save automatically to your account."}
+          </p>
         </div>
       </div>
     </section>
@@ -892,26 +1661,9 @@ function sameEntries(
   right: DraftPriorityEntry[],
 ): boolean {
   if (left.length !== right.length) return false;
-  return left.every((entry, index) => entryKey(entry) === entryKey(right[index]));
-}
-
-/**
- * Derives the per-round Auto-Pick / Skip-Pick flag map from loaded entries.
- *
- * @param entries - The priority entries (each row carries the round flags).
- * @returns A map from round number to its flag pair.
- */
-function roundFlagsFromEntries(
-  entries: DraftPriorityEntry[],
-): Map<number, { autoPick: boolean; skipPick: boolean }> {
-  const flags = new Map<number, { autoPick: boolean; skipPick: boolean }>();
-  entries.forEach((entry) => {
-    flags.set(entry.round_number, {
-      autoPick: entry.auto_pick,
-      skipPick: entry.skip_pick,
-    });
-  });
-  return flags;
+  return left.every(
+    (entry, index) => entryKey(entry) === entryKey(right[index]),
+  );
 }
 
 /**
@@ -941,6 +1693,26 @@ function EmptyDraft({ leagueName }: { leagueName: string }) {
 
 /** Polling interval for draft state refreshes, in milliseconds. */
 const POLL_INTERVAL_MS = 5000;
+
+/** Custom MIME type carrying a pool `pokemon_id` on the drag payload. */
+const DND_POKEMON = "application/x-draft-pokemon-id";
+
+/** Custom MIME type carrying a priority entry key on the drag payload. */
+const DND_ENTRY = "application/x-draft-priority-key";
+
+// Whether the in-flight drag carries a pool Pokemon (copy) rather than a
+// priority card (move). Must match on the source's `effectAllowed`.
+function isPoolDrag(event: React.DragEvent<HTMLElement>): boolean {
+  return Array.from(event.dataTransfer.items).some(
+    (item) => item.kind === "string" && item.type === DND_POKEMON,
+  );
+}
+
+// Whether a cursor point falls inside a CSS rect (used to detect drag-out
+// deletes without dedicated drop targets).
+function pointWithinRect(x: number, y: number, rect: DOMRect): boolean {
+  return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+}
 /** Timer tick cadence, in milliseconds. */
 const TICK_INTERVAL_MS = 1000;
 /** Milliseconds below which the countdown turns urgent. */
@@ -967,9 +1739,17 @@ function DraftArena({ leagueId }: { leagueId: string }) {
     Map<number, { autoPick: boolean; skipPick: boolean }>
   >(new Map());
   const [busyPick, setBusyPick] = useState(false);
+  const [busyReset, setBusyReset] = useState(false);
+  const [busyPause, setBusyPause] = useState(false);
+  // Pokemon id awaiting the pick confirmation dialog, or null when none.
+  const [pendingPickId, setPendingPickId] = useState<string | null>(null);
   const audioRef = useRef<AudioContext | null>(null);
   const prevDeadlineRef = useRef<number | null>(null);
   const warnedRef = useRef(false);
+  // Overall pick number whose timer the client has already asked the engine to
+  // resolve, so the one-second tick cannot re-fire resolve attempts for the
+  // same turn while a refresh is in flight.
+  const resolvingTurnRef = useRef<number | null>(null);
   // Mirror of the priority list so async callbacks (save/poll) never read a
   // stale closure, plus a flag tracking unsaved local edits so server polls
   // don't clobber in-progress add/remove/reorder work.
@@ -980,9 +1760,54 @@ function DraftArena({ leagueId }: { leagueId: string }) {
   const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
   const saveVersionRef = useRef(0);
 
+  // Adopts a freshly loaded server snapshot only when the user has no unsaved
+  // local edits, so the 5s poll cannot undo in-progress changes.
+  const applyServerState = useCallback(
+    (state: {
+      priority: DraftPriorityEntry[];
+      roundFlags: Map<number, { autoPick: boolean; skipPick: boolean }>;
+    }) => {
+      if (priorityDirtyRef.current) return;
+      priorityEntriesRef.current = state.priority;
+      setPriorityEntries(state.priority);
+      setRoundFlags(state.roundFlags);
+    },
+    [],
+  );
+
+  // Reloads the full draft state after a pick, timer resolution, or save, using
+  // the same server-state adoption path as the poll.
+  const refreshGoods = useCallback(async () => {
+    const next = await loadDraftData(leagueId);
+    setGoods(next);
+    applyServerState({
+      priority: next.priority,
+      roundFlags: next.roundFlags,
+    });
+    setError(null);
+  }, [leagueId, applyServerState]);
+
   const slice = useMemo(
     () => (goods ? computeDraftSlice(goods) : null),
     [goods],
+  );
+
+  // The on-turn player's remaining salary (unlimited when costs are disabled).
+  const myRemaining = useMemo(() => {
+    if (!goods?.myTeamId || !goods.settings?.enable_pokemon_costs) {
+      return null;
+    }
+    return getTeamSalary(goods, goods.myTeamId).remaining;
+  }, [goods]);
+
+  // The pool row backing the pending pick confirmation dialog, if any.
+  const pendingPickRow = useMemo(
+    () =>
+      goods && pendingPickId
+        ? (goods.poolRows.find((row) => row.pokemon_id === pendingPickId) ??
+          null)
+        : null,
+    [goods, pendingPickId],
   );
 
   // Refresh draft state on the poll interval, and tick the wall clock.
@@ -995,7 +1820,10 @@ function DraftArena({ leagueId }: { leagueId: string }) {
         const next = await loadDraftData(leagueId);
         if (cancelled) return;
         setGoods(next);
-        applyServerPriority(next.priority);
+        applyServerState({
+          priority: next.priority,
+          roundFlags: next.roundFlags,
+        });
         setError(null);
       } catch (cause) {
         if (cancelled) return;
@@ -1012,7 +1840,7 @@ function DraftArena({ leagueId }: { leagueId: string }) {
       clearInterval(pollTimer);
       clearInterval(tickTimer);
     };
-  }, [leagueId]);
+  }, [leagueId, applyServerState]);
 
   // Seeding of local priority entries happens in the load callbacks alongside
   // setGoods, so the entries stay in sync without a separate sync-in-effect pass.
@@ -1047,9 +1875,107 @@ function DraftArena({ leagueId }: { leagueId: string }) {
     }
   }, [deadline, now]);
 
+  // Pick-flow driver: once the on-clock deadline passes (or the on-turn player
+  // has no salary left with costs enabled), ask the database to resolve the
+  // turn so the timer resets and the pick passes on. The engine handles the
+  // auto-pick/pass decision, the zero-token skip, and completion, so this only
+  // needs to fire once per turn; benign errors (another client advanced the
+  // draft first) clear the guard and retry on the next tick. While the owner
+  // has paused the timer no resolution fires at all.
+  useEffect(() => {
+    if (
+      !goods ||
+      goods.season?.status !== "draft_active" ||
+      goods.season?.draft_paused_at != null ||
+      !slice ||
+      slice.isOver ||
+      slice.overallPick === resolvingTurnRef.current
+    ) {
+      return;
+    }
+
+    const expired = deadline != null && now >= deadline;
+    const outOfTokens =
+      myRemaining != null &&
+      slice.isMyTurn &&
+      goods.settings?.enable_pokemon_costs &&
+      myRemaining <= 0;
+
+    // Round-level flags resolve immediately on my turn: skip-pick passes right
+    // away, and auto-pick fires right away even when the round's priority list
+    // is empty (the engine falls back to the best available pool Pokemon).
+    const myRoundFlag = slice.isMyTurn
+      ? (goods.roundFlags.get(slice.roundNumber) ?? null)
+      : null;
+    const flagImmediate =
+      slice.isMyTurn &&
+      myRoundFlag != null &&
+      (myRoundFlag.skipPick || myRoundFlag.autoPick);
+
+    if (!expired && !outOfTokens && !flagImmediate) {
+      return;
+    }
+
+    // Guard against double-firing for the same turn. This effect re-runs every
+    // tick (now is a dependency), so the guard — not a cleanup — is what keeps
+    // a single in-flight resolve: a cleanup would cancel the just-issued RPC on
+    // the next tick, stranding the guard and freezing the draft at 0:00 until a
+    // manual refresh. Success/error paths release the guard, and a 4s watchdog
+    // force-releases it even if the RPC never settles, so the next tick can
+    // always retry.
+    resolvingTurnRef.current = slice.overallPick;
+    const run = resolveDraftTimeout(goods.league.id, false)
+      .then(async (result) => {
+        if (result.status === "not_due") {
+          return;
+        }
+        await refreshGoods();
+      })
+      .catch(() => {
+        // Transport/DB error: the guard watchdog clears it and the next tick
+        // (or the server heartbeat) retries.
+      });
+    const watchdog = new Promise<void>((resolve) => {
+      const timeout = setTimeout(resolve, 4000);
+      timeout.unref?.();
+    });
+    void Promise.race([run, watchdog]).finally(() => {
+      resolvingTurnRef.current = null;
+    });
+  }, [goods, slice, deadline, now, myRemaining, refreshGoods]);
+
+  // Opens the confirmation dialog for a pending pick, guarded to only when the
+  // Pokemon is a valid, unpicked, affordable choice on the user's turn.
+  function requestPick(pokemonId: string | null) {
+    if (!goods || busyPick || !pokemonId) return;
+    const row = goods.poolRows.find(
+      (candidate) => candidate.pokemon_id === pokemonId,
+    );
+    if (!row) return;
+    const expensesOn = goods.settings?.enable_pokemon_costs;
+    const salary = goods.myTeamId ? getTeamSalary(goods, goods.myTeamId) : null;
+    const affordable =
+      !expensesOn || (salary?.remaining ?? 0) >= row.tier_value;
+    const slice = computeDraftSlice(goods);
+    const alreadyPicked = goods.picks.some(
+      (pick) => pick.pokemon_id === pokemonId,
+    );
+    if (
+      !slice.isMyTurn ||
+      slice.isOver ||
+      alreadyPicked ||
+      !affordable ||
+      goods.userRole === null
+    ) {
+      return;
+    }
+    setPendingPickId(pokemonId);
+  }
+
   async function handlePick(pokemonId: string | null) {
     if (!goods || busyPick) return;
     setBusyPick(true);
+    setPendingPickId(null);
     try {
       await submitDraftPick(goods.league.id, pokemonId);
       await refreshGoods();
@@ -1060,20 +1986,37 @@ function DraftArena({ leagueId }: { leagueId: string }) {
     }
   }
 
-  async function refreshGoods() {
-    const next = await loadDraftData(leagueId);
-    setGoods(next);
-    applyServerPriority(next.priority);
+  async function handleResetDraft() {
+    if (!goods || busyReset) return;
+    const confirmed = window.confirm(
+      "Reset the draft to its pre-draft state? This clears all picks, rosters, and the draft order for the current season.",
+    );
+    if (!confirmed) return;
+    setBusyReset(true);
     setError(null);
+    try {
+      await resetDraft(goods.league.id);
+      await refreshGoods();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to reset the draft.");
+    } finally {
+      setBusyReset(false);
+    }
   }
 
-  // Adopts a freshly loaded server priority snapshot only when the user has no
-  // unsaved local edits, so the 5s poll cannot undo in-progress changes.
-  function applyServerPriority(next: DraftPriorityEntry[]) {
-    if (priorityDirtyRef.current) return;
-    priorityEntriesRef.current = next;
-    setPriorityEntries(next);
-    setRoundFlags(roundFlagsFromEntries(next));
+  async function handleTogglePause() {
+    if (!goods || busyPause) return;
+    setBusyPause(true);
+    setError(null);
+    try {
+      const resuming = goods.season?.draft_paused_at != null;
+      await setDraftPaused(goods.league.id, !resuming);
+      await refreshGoods();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to update the draft timer.");
+    } finally {
+      setBusyPause(false);
+    }
   }
 
   function handleAddToPriority(pokemonId: string, roundNumber: number) {
@@ -1090,8 +2033,12 @@ function DraftArena({ leagueId }: { leagueId: string }) {
         pokemon_id: pokemonId,
         species_name: poolRow?.species_name ?? pokemonId,
         tier_value: poolRow?.tier_value ?? 0,
+        type_primary: poolRow?.type_primary ?? null,
+        type_secondary: poolRow?.type_secondary ?? null,
+        bst: poolRow?.bst ?? null,
         auto_pick: false,
         skip_pick: false,
+        spriteId: poolRow?.spriteId ?? 0,
       },
     ];
     priorityEntriesRef.current = next;
@@ -1100,24 +2047,43 @@ function DraftArena({ leagueId }: { leagueId: string }) {
     void handleSave(next);
   }
 
-
-  function handleMoveWithinRound(key: string, delta: number) {
+  function handleMoveEntry(
+    key: string,
+    targetRound: number,
+    targetIndex: number,
+  ) {
     const current = priorityEntriesRef.current;
-    const [roundNumber, pokemonId] = key.split(":");
-    const round = Number(roundNumber);
-    const group = current.filter((entry) => entry.round_number === round);
-    const idx = group.findIndex((entry) => entry.pokemon_id === pokemonId);
+    const [sourceRoundText] = key.split(":");
+    const sourceRound = Number(sourceRoundText);
+    const group = current.filter((entry) => entry.round_number === sourceRound);
+    const idx = group.findIndex((entry) => entryKey(entry) === key);
     if (idx < 0) return;
-    const to = idx + delta;
-    if (to < 0 || to >= group.length) return;
+
+    // Build the target round's list (minus the moved entry), then splice the
+    // moved entry into the target position (clamped to the list bounds).
     const moved = group[idx];
-    group.splice(idx, 1);
-    group.splice(to, 0, moved);
-    const others = current.filter((entry) => entry.round_number !== round);
-    const next = [...others, ...group];
+    const targetList = current.filter(
+      (entry) => entry.round_number === targetRound && entryKey(entry) !== key,
+    );
+    targetList.splice(
+      Math.max(0, Math.min(targetIndex, targetList.length)),
+      0,
+      {
+        ...moved,
+        round_number: targetRound,
+      },
+    );
+
+    // Reassemble in round order so each round's cards stay contiguous and
+    // ordered for the panel's grouping.
+    const others = current.filter((entry) => entryKey(entry) !== key);
+    const next = others
+      .filter((entry) => entry.round_number !== targetRound)
+      .concat(targetList);
     priorityEntriesRef.current = next;
     setPriorityEntries(next);
     priorityDirtyRef.current = true;
+    void handleSave(next);
   }
 
   function handleRemove(key: string) {
@@ -1127,6 +2093,15 @@ function DraftArena({ leagueId }: { leagueId: string }) {
     priorityEntriesRef.current = next;
     setPriorityEntries(next);
     priorityDirtyRef.current = true;
+    void handleSave(next);
+  }
+
+  function handleClear() {
+    const next: DraftPriorityEntry[] = [];
+    priorityEntriesRef.current = next;
+    setPriorityEntries(next);
+    priorityDirtyRef.current = true;
+    void handleSave(next);
   }
 
   async function handleSetRoundFlags(
@@ -1136,10 +2111,11 @@ function DraftArena({ leagueId }: { leagueId: string }) {
   ) {
     try {
       await setPriorityRoundFlags(leagueId, roundNumber, autoPick, skipPick);
-      setRoundFlags((current) => ({
-        ...current,
-        [roundNumber]: { autoPick, skipPick },
-      }));
+      setRoundFlags((current) => {
+        const next = new Map(current);
+        next.set(roundNumber, { autoPick, skipPick });
+        return next;
+      });
       setPriorityError(null);
     } catch (cause) {
       setPriorityError(
@@ -1166,7 +2142,9 @@ function DraftArena({ leagueId }: { leagueId: string }) {
     let saveError: unknown = null;
     try {
       saveQueueRef.current = saveQueueRef.current
-        .then(() => savePriorityList(goods.league.id, payload).then(() => undefined))
+        .then(() =>
+          savePriorityList(goods.league.id, payload).then(() => undefined),
+        )
         .catch((cause: unknown) => {
           if (version !== saveVersionRef.current) return;
           saveError = cause;
@@ -1229,7 +2207,15 @@ function DraftArena({ leagueId }: { leagueId: string }) {
   return (
     <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
       <div className="mx-auto flex max-w-7xl flex-col gap-6">
-        <DraftHeader goods={goods} now={now} />
+        <DraftHeader
+          goods={goods}
+          now={now}
+          isOwner={goods.league.owner_id === goods.currentUserId}
+          onReset={() => void handleResetDraft()}
+          resetting={busyReset}
+          onTogglePause={() => void handleTogglePause()}
+          pausing={busyPause}
+        />
 
         {error && (
           <div className="rounded-xl border border-red-800 bg-red-950/50 px-4 py-3 text-sm font-medium text-red-300">
@@ -1259,37 +2245,48 @@ function DraftArena({ leagueId }: { leagueId: string }) {
           </div>
         )}
 
-        <PlayersStrip goods={goods} now={now} />
+        <PickBoardGrid goods={goods} now={now} />
 
         <div className="grid min-h-0 flex-1 gap-6 lg:grid-cols-[1.6fr_1fr]">
           <PoolPanel
             goods={goods}
             now={now}
             actions={{
-              onPick: (pokemonId) => void handlePick(pokemonId),
-              onAddToPriority: (pokemonId, roundNumber) =>
-                handleAddToPriority(pokemonId, roundNumber),
+              onPick: (pokemonId) => requestPick(pokemonId),
             }}
           />
-          <PriorityPanel
-            goods={goods}
-            now={now}
-            entries={priorityEntries}
-            error={priorityError}
-            isSaving={isSaving}
-            roundFlags={roundFlags}
-            actions={{
-              onMoveWithinRound: (key, delta) =>
-                handleMoveWithinRound(key, delta),
-              onMoveToRound: () => {},
-              onSetRoundFlags: (roundNumber, autoPick, skipPick) =>
-                void handleSetRoundFlags(roundNumber, autoPick, skipPick),
-              onRemove: (key) => handleRemove(key),
-              onSave: () => void handleSave(),
-              onClearError: () => setPriorityError(null),
-            }}
-          />
+          <div className="lg:sticky lg:top-0 lg:max-h-screen">
+            <PriorityPanel
+              goods={goods}
+              now={now}
+              entries={priorityEntries}
+              error={priorityError}
+              isSaving={isSaving}
+              roundFlags={roundFlags}
+              actions={{
+                onAddToRound: (pokemonId, roundNumber) =>
+                  handleAddToPriority(pokemonId, roundNumber),
+                onMoveEntry: (key, targetRound, targetIndex) =>
+                  handleMoveEntry(key, targetRound, targetIndex),
+                onPick: (pokemonId) => requestPick(pokemonId),
+                onSetRoundFlags: (roundNumber, autoPick, skipPick) =>
+                  void handleSetRoundFlags(roundNumber, autoPick, skipPick),
+                onRemove: (key) => handleRemove(key),
+                onClear: () => handleClear(),
+                onClearError: () => setPriorityError(null),
+              }}
+            />
+          </div>
         </div>
+
+        {pendingPickRow && (
+          <PickConfirm
+            row={pendingPickRow}
+            isSaving={busyPick}
+            onConfirm={() => void handlePick(pendingPickRow.pokemon_id)}
+            onCancel={() => setPendingPickId(null)}
+          />
+        )}
       </div>
     </main>
   );

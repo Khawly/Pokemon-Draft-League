@@ -13,7 +13,6 @@ import {
   loadDraftboardData,
   type DraftboardGoods,
   type DraftboardMember,
-  type DraftboardTeam,
 } from "@/lib/supabase/draftboard";
 import { createLeagueInvite } from "@/lib/supabase/invites";
 
@@ -61,7 +60,6 @@ function DraftBoardPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [goods, setGoods] = useState<DraftboardGoods | null>(null);
-  const [teams, setTeams] = useState<DraftboardTeam[]>([]);
   const [stagedPositions, setStagedPositions] = useState<
     Record<string, number>
   >({});
@@ -112,7 +110,6 @@ function DraftBoardPageContent() {
 
         const loaded = await loadDraftboardData(selectedLeagueId);
         setGoods(loaded);
-        setTeams(loaded.teams);
         setStagedPositions({});
 
         // Ensure the owner always has a shareable link: reuse an existing
@@ -145,51 +142,50 @@ function DraftBoardPageContent() {
     return `${window.location.origin}/invite/${inviteToken}`;
   }, [inviteToken]);
 
-  // The position choice shown for each team overlays staged (unsaved) picks on
-  // top of what is persisted, so checklist validation keeps reading the saved
-  // values while the Players card lets the owner stage edits.
-  const effectiveTeams = useMemo(
+  // The position choice shown for each member overlays staged (unsaved) picks
+  // on top of what is persisted, so checklist validation keeps reading the
+  // saved values while the Players card lets the owner stage edits.
+  const effectiveMembers = useMemo(
     () =>
-      teams.map((team) => ({
-        ...team,
-        draft_position: stagedPositions[team.id] ?? team.draft_position,
-      })),
-    [teams, stagedPositions],
+      goods?.members.map((member) => ({
+        ...member,
+        draft_position:
+          stagedPositions[member.user_id] ?? member.draft_position,
+      })) ?? [],
+    [goods, stagedPositions],
   );
 
   const takenPositions = useMemo(
     () =>
       new Set(
-        effectiveTeams
-          .map((team) => team.draft_position)
+        effectiveMembers
+          .map((member) => member.draft_position)
           .filter((position): position is number => position != null),
       ),
-    [effectiveTeams],
-  );
-
-  const teamByMember = useMemo(
-    () => new Map(effectiveTeams.map((team) => [team.owner_user_id, team])),
-    [effectiveTeams],
+    [effectiveMembers],
   );
 
   const hasPositionChanges = useMemo(
     () =>
       Object.entries(stagedPositions).some(
-        ([teamId, position]) =>
-          teams.find((team) => team.id === teamId)?.draft_position !== position,
+        ([userId, position]) =>
+          goods?.members.find((member) => member.user_id === userId)
+            ?.draft_position !== position,
       ),
-    [stagedPositions, teams],
+    [stagedPositions, goods],
   );
 
-  // The draft can only start once every slot is filled, each team has a
+  // The draft can only start once every slot is filled, each player has a
   // unique draft position, and the pool is set up.
   const slotsFilled =
     !!goods && goods.members.length >= goods.league.number_of_players;
 
   const positionsAssigned =
-    teams.length > 0 &&
-    teams.every((team) => team.draft_position != null) &&
-    new Set(teams.map((team) => team.draft_position)).size === teams.length;
+    !!goods &&
+    goods.members.length > 0 &&
+    goods.members.every((member) => member.draft_position != null) &&
+    new Set(goods.members.map((member) => member.draft_position)).size ===
+      goods.members.length;
 
   const poolComplete = !!goods?.hasInPoolPokemon;
 
@@ -247,38 +243,38 @@ function DraftBoardPageContent() {
   }
 
   /**
-   * Stages a draft position assignment for a team in local state.
+   * Stages a draft position assignment for a member in local state.
    *
    * The change is not written to the database until the owner clicks the Save
    * Changes button in the Players card.
    *
-   * @param teamId - Id of the team receiving the position.
+   * @param userId - Id of the member receiving the position.
    * @param position - Draft pick number to assign.
    */
-  function handleStagePosition(teamId: string, position: number) {
+  function handleStagePosition(userId: string, position: number) {
     if (!goods || isBusy) {
       return;
     }
 
     setStagedPositions((current) => ({
       ...current,
-      [teamId]: position,
+      [userId]: position,
     }));
   }
 
   /**
-   * Randomizes draft positions across all teams as a staged change.
+   * Randomizes draft positions across all current members as a staged change.
    *
    * Generates a uniformly random permutation (Fisher-Yates shuffle) of the
-   * available positions and stages it for every team; nothing is written to
+   * available positions and stages it for every member; nothing is written to
    * the database until the owner saves.
    */
   function handleRandomizePositions() {
-    if (!goods || teams.length === 0) {
+    if (!goods || goods.members.length === 0) {
       return;
     }
 
-    const count = goods.league.number_of_players;
+    const count = goods.members.length;
     const available = Array.from({ length: count }, (_, index) => index + 1);
 
     for (let index = available.length - 1; index > 0; index -= 1) {
@@ -290,7 +286,10 @@ function DraftBoardPageContent() {
     }
 
     const randomized = Object.fromEntries(
-      teams.map((team, index) => [team.id, available[index] ?? 1]),
+      goods.members.map((member, index) => [
+        member.user_id,
+        available[index] ?? 1,
+      ]),
     );
     setStagedPositions((current) => ({ ...current, ...randomized }));
     setError(null);
@@ -302,8 +301,10 @@ function DraftBoardPageContent() {
   /**
    * Persists every staged draft position change to the database.
    *
-   * Writes only the teams whose staged pick differs from their persisted value,
-   * then clears the staged overlay and refreshes the loaded teams.
+   * Writes only the members whose staged pick differs from their persisted
+   * value, then clears the staged overlay and refreshes the loaded members.
+   * Aborts with a clear message if a staged save would leave two members on
+   * the same position, which the per-league uniqueness index already rejects.
    *
    * @returns A promise resolving once the writes complete.
    */
@@ -312,16 +313,31 @@ function DraftBoardPageContent() {
       return;
     }
 
+    const stagedMembers = goods.members.map((member) => ({
+      ...member,
+      draft_position: stagedPositions[member.user_id] ?? member.draft_position,
+    }));
+    const positions = stagedMembers
+      .map((member) => member.draft_position)
+      .filter((position): position is number => position != null);
+    if (new Set(positions).size !== positions.length) {
+      setError(
+        "Each player needs a unique draft position. Two players are on the same pick.",
+      );
+      return;
+    }
+
     const dirtyEntries = Object.entries(stagedPositions)
-      .map(([teamId, position]) => {
-        const team = teams.find((candidate) => candidate.id === teamId);
-        return team && team.draft_position !== position
-          ? { teamId, position }
+      .map(([userId, position]) => {
+        const member = goods.members.find(
+          (candidate) => candidate.user_id === userId,
+        );
+        return member && member.draft_position !== position
+          ? { userId, position }
           : null;
       })
       .filter(
-        (entry): entry is { teamId: string; position: number } =>
-          entry !== null,
+        (entry): entry is { userId: string; position: number } => entry !== null,
       );
 
     if (dirtyEntries.length === 0) {
@@ -335,28 +351,57 @@ function DraftBoardPageContent() {
 
     try {
       const idToPosition = new Map(
-        dirtyEntries.map((entry) => [entry.teamId, entry.position]),
+        dirtyEntries.map((entry) => [entry.userId, entry.position]),
       );
-      const results = await Promise.all(
-        dirtyEntries.map(({ teamId, position }) =>
+
+      // Clear positions first so a swap never transiently holds the same
+      // position twice, which the per-league uniqueness index rejects. The
+      // partial index skips NULLs, so cleared rows cannot collide. Assignments
+      // come second; every target position is distinct and now free.
+      const clearResults = await Promise.all(
+        dirtyEntries.map(({ userId }) =>
           supabase
-            .from("teams")
-            .update({ draft_position: position })
-            .eq("id", teamId),
+            .from("league_members")
+            .update({ draft_position: null })
+            .eq("league_id", goods.league.id)
+            .eq("user_id", userId),
         ),
       );
 
-      const firstError = results.find((result) => result.error)?.error;
-      if (firstError) {
-        throw new Error(firstError.message);
+      const clearError = clearResults.find((result) => result.error)?.error;
+      if (clearError) {
+        throw new Error(clearError.message);
       }
 
-      setTeams((current) =>
-        current.map((team) =>
-          idToPosition.has(team.id)
-            ? { ...team, draft_position: idToPosition.get(team.id)! }
-            : team,
+      const assignResults = await Promise.all(
+        dirtyEntries.map(({ userId, position }) =>
+          supabase
+            .from("league_members")
+            .update({ draft_position: position })
+            .eq("league_id", goods.league.id)
+            .eq("user_id", userId),
         ),
+      );
+
+      const assignError = assignResults.find((result) => result.error)?.error;
+      if (assignError) {
+        throw new Error(assignError.message);
+      }
+
+      setGoods((current) =>
+        current
+          ? {
+              ...current,
+              members: current.members.map((member) =>
+                idToPosition.has(member.user_id)
+                  ? {
+                      ...member,
+                      draft_position: idToPosition.get(member.user_id)!,
+                    }
+                  : member,
+              ),
+            }
+          : current,
       );
       setStagedPositions({});
       setSuccessMessage("Draft positions saved.");
@@ -417,7 +462,8 @@ function DraftBoardPageContent() {
           : current,
       );
 
-      setSuccessMessage("The draft has started. Good luck, Trainers!");
+      // The draft is live: load the arena so picks can begin immediately.
+      router.push(`/draft?leagueId=${goods.league.id}`);
     } catch (caughtError) {
       const message =
         caughtError instanceof Error
@@ -478,7 +524,9 @@ function DraftBoardPageContent() {
                 }
                 className="rounded-xl border border-slate-600 bg-slate-800 px-4 py-2 text-sm font-medium text-slate-100 transition hover:border-slate-500 hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                Preview Draft
+                {goods.season && goods.season.status !== "draft_pending"
+                  ? "View Draft"
+                  : "Preview Draft"}
               </button>
 
               {goods.isOwner && goods.season && (
@@ -540,7 +588,6 @@ function DraftBoardPageContent() {
             {goods.isOwner && goods.season && (
               <ChecklistCard
                 goods={goods}
-                teams={teams}
                 slotsFilled={slotsFilled}
                 positionsAssigned={positionsAssigned}
                 poolComplete={poolComplete}
@@ -556,9 +603,7 @@ function DraftBoardPageContent() {
           <section className="space-y-6">
             <PlayerListCard
               goods={goods}
-              teams={teams}
-              teamByMember={teamByMember}
-              takenPositions={takenPositions}
+              members={effectiveMembers}
               isBusy={isBusy}
               isOwner={goods.isOwner}
               hasPositionChanges={hasPositionChanges}
@@ -657,18 +702,16 @@ function InviteCard({
  * Card listing what must be complete before the draft can start.
  *
  * @param props.goods - Loaded draft board data.
- * @param props.teams - League teams, used to show assigned-position counts.
  * @param props.slotsFilled - Whether all player slots are filled.
- * @param props.positionsAssigned - Whether every team has a unique position.
+ * @param props.positionsAssigned - Whether every member has a unique position.
  * @param props.poolComplete - Whether the draft pool is set up.
  * @param props.checklistComplete - Whether every checklist item passes.
- * @param props.takenPositions - Positions already assigned to a team.
+ * @param props.takenPositions - Positions already assigned to a member.
  * @param props.onOpenDraftSettings - Opens the draft pool page.
  * @returns The draft checklist card markup.
  */
 function ChecklistCard({
   goods,
-  teams,
   slotsFilled,
   positionsAssigned,
   poolComplete,
@@ -677,7 +720,6 @@ function ChecklistCard({
   onOpenDraftSettings,
 }: {
   goods: DraftboardGoods;
-  teams: DraftboardTeam[];
   slotsFilled: boolean;
   positionsAssigned: boolean;
   poolComplete: boolean;
@@ -686,6 +728,9 @@ function ChecklistCard({
   onOpenDraftSettings: () => void;
 }) {
   const reachableSlots = goods.members.length;
+  const assignedCount = goods.members.filter(
+    (member) => member.draft_position != null,
+  ).length;
   const remainingPositions = Array.from(
     { length: goods.league.number_of_players },
     (_, index) => index + 1,
@@ -729,8 +774,7 @@ function ChecklistCard({
             </span>
           ) : (
             <span className="ml-auto shrink-0 text-sm text-slate-400">
-              {teams.filter((team) => team.draft_position != null).length} /{" "}
-              {goods.league.number_of_players} assigned
+              {assignedCount} / {goods.league.number_of_players} assigned
             </span>
           )}
         </ChecklistItem>
@@ -753,7 +797,7 @@ function ChecklistCard({
         </ChecklistItem>
       </ul>
 
-      {remainingPositions.length > 0 && teams.length > 0 && (
+      {remainingPositions.length > 0 && goods.members.length > 0 && (
         <p className="mt-4 text-xs text-slate-500">
           Open positions: {remainingPositions.join(", ")}. Assign them below.
         </p>
@@ -807,26 +851,22 @@ function ChecklistItem({
  * Card listing league players in a table with their draft positions.
  *
  * The owner can stage draft position picks and persist them with the Save
- * Changes button; members only see read-only values. Players without a team
- * show a dash rather than "No team".
+ * Changes button; members only see read-only values. Members without a
+ * position show a dash rather than "No team".
  *
  * @param props.goods - Loaded draft board data.
- * @param props.teams - League teams, keyed for lookup by member.
- * @param props.teamByMember - Map from member user id to their team.
- * @param props.takenPositions - Positions already assigned to a team.
+ * @param props.members - League members with (possibly staged) positions.
  * @param props.isBusy - Disables position controls while a request is in flight.
- * @param props.isOwner - Whether the current user may edit teams and positions.
+ * @param props.isOwner - Whether the current user may edit positions.
  * @param props.hasPositionChanges - Whether any staged pick differs from saved.
- * @param props.onStagePosition - Stages a draft position for a team.
- * @param props.onRandomize - Stages random positions across all teams.
+ * @param props.onStagePosition - Stages a draft position for a member.
+ * @param props.onRandomize - Stages random positions across all members.
  * @param props.onSavePositions - Persists all staged position changes.
  * @returns The players card markup.
  */
 function PlayerListCard({
   goods,
-  teams,
-  teamByMember,
-  takenPositions,
+  members,
   isBusy,
   isOwner,
   hasPositionChanges,
@@ -835,19 +875,17 @@ function PlayerListCard({
   onSavePositions,
 }: {
   goods: DraftboardGoods;
-  teams: DraftboardTeam[];
-  teamByMember: Map<string, DraftboardTeam>;
-  takenPositions: Set<number>;
+  members: DraftboardMember[];
   isBusy: boolean;
   isOwner: boolean;
   hasPositionChanges: boolean;
-  onStagePosition: (teamId: string, position: number) => void;
+  onStagePosition: (userId: string, position: number) => void;
   onRandomize: () => void;
   onSavePositions: () => void;
 }) {
-  const sorted = [...goods.members].sort((a, b) => {
-    const aPos = teamByMember.get(a.user_id)?.draft_position ?? Infinity;
-    const bPos = teamByMember.get(b.user_id)?.draft_position ?? Infinity;
+  const sorted = [...members].sort((a, b) => {
+    const aPos = a.draft_position ?? Infinity;
+    const bPos = b.draft_position ?? Infinity;
     return aPos - bPos;
   });
 
@@ -877,7 +915,7 @@ function PlayerListCard({
             </button>
             <button
               type="button"
-              disabled={isBusy || teams.length === 0}
+              disabled={isBusy || members.length === 0}
               onClick={onRandomize}
               className="shrink-0 rounded-lg border border-slate-600 bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-100 transition hover:border-slate-500 hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
@@ -908,8 +946,7 @@ function PlayerListCard({
             )}
 
             {sorted.map((member) => {
-              const team = teamByMember.get(member.user_id);
-              const position = team?.draft_position ?? null;
+              const position = member.draft_position ?? null;
 
               return (
                 <tr
@@ -948,41 +985,34 @@ function PlayerListCard({
                   </td>
 
                   <td className="px-3 py-3">
-                    {team ? (
-                      isOwner ? (
-                        <select
-                          value={position ?? ""}
-                          disabled={isBusy}
-                          onChange={(event) =>
-                            onStagePosition(team.id, Number(event.target.value))
-                          }
-                          className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none transition focus:border-amber-400 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          <option value="" disabled>
-                            Position
-                          </option>
-                          {Array.from(
-                            { length: goods.league.number_of_players },
-                            (_, positionIndex) => positionIndex + 1,
+                    {isOwner ? (
+                      <select
+                        value={position ?? ""}
+                        disabled={isBusy}
+                        onChange={(event) =>
+                          onStagePosition(
+                            member.user_id,
+                            Number(event.target.value),
                           )
-                            .filter(
-                              (candidate) =>
-                                candidate === position ||
-                                !takenPositions.has(candidate),
-                            )
-                            .map((candidate) => (
-                              <option key={candidate} value={candidate}>
-                                #{candidate}
-                              </option>
-                            ))}
-                        </select>
-                      ) : (
-                        <span className="text-slate-300">
-                          {position != null ? `Pick #${position}` : "—"}
-                        </span>
-                      )
+                        }
+                        className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none transition focus:border-amber-400 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <option value="" disabled>
+                          Position
+                        </option>
+                        {Array.from(
+                          { length: goods.league.number_of_players },
+                          (_, positionIndex) => positionIndex + 1,
+                        ).map((candidate) => (
+                          <option key={candidate} value={candidate}>
+                            #{candidate}
+                          </option>
+                        ))}
+                      </select>
                     ) : (
-                      <span className="text-slate-600">—</span>
+                      <span className="text-slate-300">
+                        {position != null ? `Pick #${position}` : "—"}
+                      </span>
                     )}
                   </td>
                 </tr>

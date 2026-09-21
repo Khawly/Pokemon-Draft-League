@@ -108,6 +108,17 @@ function tierLabel(tier: number): string {
 }
 
 /**
+ * Extracts just the generation number from a label like "Gen 1".
+ *
+ * @param generation - The stored generation label.
+ * @returns The numeric generation or the original label if no number is found.
+ */
+function generationNumber(generation: string): string {
+  const match = /\d+/.exec(generation);
+  return match ? match[0] : generation;
+}
+
+/**
  * Parses a tier input value into a non-negative integer capped at {@link MAX_TIER}.
  *
  * @param value - The raw string from a number input (may be transiently empty).
@@ -1872,7 +1883,7 @@ function PoolPageContent({
                             {row.bst ?? "—"}
                           </td>
                           <td className="px-4 py-3 text-slate-300">
-                            {row.generation ?? "—"}
+                            {row.generation ? generationNumber(row.generation) : "—"}
                           </td>
                           <td className="px-4 py-3">
                             {isOwner ? (
@@ -1915,9 +1926,9 @@ function PoolPageContent({
                                 }
                                 className="w-20 rounded-lg border border-slate-700 bg-slate-900 px-2 py-1.5 text-sm text-slate-100 outline-none focus:border-amber-400"
                               />
-                            ) : (
+) : (
                               <span className="text-slate-300">
-                                {tierLabel(row.tier_value)}
+                                {row.tier_value > 0 ? row.tier_value : "—"}
                               </span>
                             )}
                           </td>

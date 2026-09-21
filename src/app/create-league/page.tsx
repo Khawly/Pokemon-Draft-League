@@ -78,7 +78,7 @@ export default function CreateLeaguePage() {
             <input
               type="number"
               min={2}
-              max={20}
+              max={50}
               value={numberOfPlayers}
               onChange={(event) =>
                 setNumberOfPlayers(Math.max(2, Number(event.target.value) || 2))

@@ -9,7 +9,11 @@
  * or read-only (members). The bottom "Add Pokémon" panel is intentionally
  * absent: the default state already contains every species, so no search/add is
  * needed. CSV import/export round-trips tier/status/notes while skipping
- * species it cannot resolve against the catalog.
+ * species it cannot resolve against the catalog. On the tier list, each card's
+ * ✓ button confirms (persists) a pending tier change for that single Pokémon,
+ * independent of the global Save. The owner can also delete the selected saved
+ * pool, and new/renamed pool names are rejected when they would duplicate an
+ * existing saved pool in the dropdown.
  */
 "use client";
 
@@ -719,6 +723,18 @@ function PoolPageContent({
         return;
       }
 
+      // The dropdown must never carry two pools with the same name: reject a
+      // new pool or a rename that collides with another saved pool in the season.
+      const duplicateName = pools.some(
+        (pool) =>
+          pool.id !== activePoolId &&
+          pool.name.trim().toLowerCase() === trimmedName.toLowerCase(),
+      );
+      if (duplicateName) {
+        setError(`A saved pool named "${trimmedName}" already exists.`);
+        return;
+      }
+
       let targetPoolId = activePoolId;
 
       if (!targetPoolId) {
@@ -909,6 +925,64 @@ function PoolPageContent({
     }
   }
 
+  /**
+   * Deletes the currently selected saved draft pool and its Pokémon rows.
+   *
+   * Confirms with the user first (destructive and discards unsaved changes).
+   * After deletion the selection moves to the next remaining pool, or back to
+   * the unsaved new-pool working state when no pools are left. Only the league
+   * owner may delete.
+   *
+   * @returns A promise resolving once the pool is removed.
+   */
+  async function handleDeletePool() {
+    if (!isOwner || isBusy || !activePoolId) {
+      return;
+    }
+
+    const deletedPoolName = poolName.trim() || "this pool";
+    const confirmed = window.confirm(
+      isDirty
+        ? `Delete "${deletedPoolName}"? Unsaved changes will be discarded and its Pokémon removed.`
+        : `Delete "${deletedPoolName}" and all of its Pokémon?`,
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    setIsBusy(true);
+    setError(null);
+    setSuccessMessage(null);
+
+    try {
+      const { error: deleteError } = await supabase
+        .from("draft_pools")
+        .delete()
+        .eq("id", activePoolId);
+
+      if (deleteError) {
+        throw new Error(deleteError.message || "Unable to delete the pool.");
+      }
+
+      const remaining = pools.filter((pool) => pool.id !== activePoolId);
+      setPools(remaining);
+      setSuccessMessage(`Deleted "${deletedPoolName}".`);
+
+      // The loadPoolPokemon effect reacts to the new selection: the next
+      // remaining pool's rows load, or the default new-pool working set when
+      // nothing is left.
+      setActivePoolId(remaining.length > 0 ? remaining[0].id : null);
+    } catch (caughtError) {
+      setError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Unable to delete the pool.",
+      );
+    } finally {
+      setIsBusy(false);
+    }
+  }
+
   /** Updates a row's tier value (staged until Save). */
   function handleTierChange(rowId: string, nextTier: number) {
     setRows((current) =>
@@ -916,6 +990,93 @@ function PoolPageContent({
         row.key === rowId ? { ...row, tier_value: nextTier } : row,
       ),
     );
+  }
+
+  /**
+   * Confirms a single Pokémon's tier change by persisting it immediately.
+   *
+   * Existing rows are updated by primary key; rows staged without a DB id
+   * (e.g. CSV imports) are upserted on the pool's natural key and adopt the
+   * generated id so they no longer read as pending. Only the owner may confirm.
+   *
+   * @param rowId - The client key of the row whose tier change to confirm.
+   * @returns A promise resolving once the write completes.
+   */
+  async function handleConfirmTier(rowId: string) {
+    if (!isOwner || isBusy) {
+      return;
+    }
+
+    const row = rows.find((candidate) => candidate.key === rowId);
+    if (!row || !activePoolId) {
+      return;
+    }
+
+    setIsBusy(true);
+    setError(null);
+    setSuccessMessage(null);
+
+    try {
+      if (row.id) {
+        const { error: updateError } = await supabase
+          .from("draft_pool_pokemon")
+          .update({ tier_value: row.tier_value })
+          .eq("id", row.id);
+
+        if (updateError) {
+          throw new Error(
+            updateError.message || "Unable to confirm the tier change.",
+          );
+        }
+
+        // Reflect the persisted tier in the saved baseline so this card's
+        // pending state (and the dirty indicator) clears.
+        setSavedRows((current) =>
+          current.map((saved) =>
+            saved.key === rowId
+              ? { ...saved, tier_value: row.tier_value }
+              : saved,
+          ),
+        );
+      } else {
+        const newId = crypto.randomUUID();
+        const { error: upsertError } = await supabase
+          .from("draft_pool_pokemon")
+          .upsert(buildPoolRowPayload(row, activePoolId, newId), {
+            onConflict: "draft_pool_id,pokemon_id",
+          });
+
+        if (upsertError) {
+          throw new Error(
+            upsertError.message || "Unable to confirm the tier change.",
+          );
+        }
+
+        // Adopt the generated id and mirror the row into the saved baseline so
+        // the editor no longer treats this tier as an unconfirmed change.
+        setRows((current) =>
+          current.map((candidate) =>
+            candidate.key === rowId ? { ...candidate, id: newId } : candidate,
+          ),
+        );
+        setSavedRows((current) => [
+          ...current.filter((saved) => saved.pokemon_id !== row.pokemon_id),
+          { ...row, id: newId },
+        ]);
+      }
+
+      setSuccessMessage(
+        `Confirmed ${row.species_name} as ${tierLabel(row.tier_value)}.`,
+      );
+    } catch (caughtError) {
+      setError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Unable to confirm the tier change.",
+      );
+    } finally {
+      setIsBusy(false);
+    }
   }
 
   /** Toggles whether a pool row is available for drafting (staged). */
@@ -1210,14 +1371,27 @@ function PoolPageContent({
     });
   }, [rows, filters, sortKey, sortDir]);
 
+  // A Pokémon's persisted (saved) tier is the "known" value the tier cards
+  // group by; a staged tier change does not move the card until confirmed.
+  const savedTierByKey = useMemo(() => {
+    const tiers = new Map<string, number>();
+    for (const saved of savedRows) {
+      tiers.set(saved.key, saved.tier_value);
+    }
+    return tiers;
+  }, [savedRows]);
+
   const groupedByTier = useMemo(() => {
     const groups = new Map<number, PoolPokemonRow[]>();
     const poolRows = rows.filter((row) => row.is_in_pool);
 
     for (const row of poolRows) {
-      const list = groups.get(row.tier_value) ?? [];
+      // Group by the saved tier so a card stays in place while its tier edit is
+      // still pending; confirming the change moves it into the new group.
+      const tier = savedTierByKey.get(row.key) ?? 0;
+      const list = groups.get(tier) ?? [];
       list.push(row);
-      groups.set(row.tier_value, list);
+      groups.set(tier, list);
     }
 
     // Descending tiers, unranked (0) always last.
@@ -1227,7 +1401,19 @@ function PoolPageContent({
       label: tierLabel(tier),
       rows: groups.get(tier) ?? [],
     }));
-  }, [rows]);
+  }, [rows, savedTierByKey]);
+
+  // Tier-card check marks stay disabled until a row's current tier differs
+  // from the last-saved baseline; rows staged without a saved entry baseline at 0.
+  const pendingTierKeys = useMemo(() => {
+    const pending = new Set<string>();
+    for (const row of rows) {
+      if ((savedTierByKey.get(row.key) ?? 0) !== row.tier_value) {
+        pending.add(row.key);
+      }
+    }
+    return pending;
+  }, [rows, savedTierByKey]);
 
   /** Toggles the sort key/direction when a sortable header is clicked. */
   function handleSort(key: SortKey) {
@@ -1280,126 +1466,155 @@ function PoolPageContent({
           </p>
         )}
 
-        {/* Top bar: Save / Export / Import + Saved Draft Pools dropdown */}
+        {/* Top bar: pool selection + pool management + document actions */}
         <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-xl shadow-slate-950/40">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex flex-1 flex-wrap items-center gap-3">
-              <label className="flex items-center gap-2 text-sm text-slate-300">
-                <span className="whitespace-nowrap">Saved Draft Pools</span>
-                <select
-                  value={activePoolId ?? ""}
-                  onChange={(event) => handlePoolSwitch(event.target.value)}
-                  disabled={pools.length === 0}
-                  className="rounded-xl border border-slate-700 bg-slate-900 px-3 py-2.5 text-sm text-slate-100 outline-none focus:border-amber-400"
-                >
-                  {pools.length === 0 ? (
-                    <option value="">No saved pools</option>
-                  ) : (
-                    <>
-                      <option value="">Start a new pool</option>
-                      {pools.map((pool) => (
-                        <option key={pool.id} value={pool.id}>
-                          {pool.is_active ? `${pool.name} (active)` : pool.name}
-                        </option>
-                      ))}
-                    </>
-                  )}
-                </select>
-              </label>
-
-              {isOwner && (
+          <div className="flex flex-col gap-5">
+            {/* Row 1: saved pool / name, plus the pool management buttons */}
+            <div className="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-center md:justify-between">
+              <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
                 <label className="flex items-center gap-2 text-sm text-slate-300">
-                  <span className="whitespace-nowrap">Name</span>
-                  <input
-                    value={poolName}
-                    onChange={(event) => setPoolName(event.target.value)}
-                    placeholder="Pool name"
-                    maxLength={60}
+                  <span className="whitespace-nowrap">Saved Draft Pools</span>
+                  <select
+                    value={activePoolId ?? ""}
+                    onChange={(event) => handlePoolSwitch(event.target.value)}
+                    disabled={pools.length === 0}
                     className="rounded-xl border border-slate-700 bg-slate-900 px-3 py-2.5 text-sm text-slate-100 outline-none focus:border-amber-400"
-                  />
-                  {selectedPoolIsActive && (
-                    <span className="whitespace-nowrap rounded-full bg-emerald-500/15 px-2.5 py-1 text-xs font-semibold text-emerald-300">
-                      Active
-                    </span>
-                  )}
+                  >
+                    {pools.length === 0 ? (
+                      <option value="">No saved pools</option>
+                    ) : (
+                      <>
+                        <option value="">Start a new pool</option>
+                        {pools.map((pool) => (
+                          <option key={pool.id} value={pool.id}>
+                            {pool.is_active ? `${pool.name} (active)` : pool.name}
+                          </option>
+                        ))}
+                      </>
+                    )}
+                  </select>
                 </label>
-              )}
+
+                {isOwner && (
+                  <label className="flex items-center gap-2 text-sm text-slate-300">
+                    <span className="whitespace-nowrap">Name</span>
+                    <input
+                      value={poolName}
+                      onChange={(event) => setPoolName(event.target.value)}
+                      placeholder="Pool name"
+                      maxLength={60}
+                      className="rounded-xl border border-slate-700 bg-slate-900 px-3 py-2.5 text-sm text-slate-100 outline-none focus:border-amber-400"
+                    />
+                    {selectedPoolIsActive && (
+                      <span className="whitespace-nowrap rounded-full bg-emerald-500/15 px-2.5 py-1 text-xs font-semibold text-emerald-300">
+                        Active
+                      </span>
+                    )}
+                  </label>
+                )}
+              </div>
 
               {isOwner && (
-                <button
-                  type="button"
-                  onClick={startNewPool}
-                  disabled={isBusy}
-                  className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-2.5 text-sm font-medium text-slate-300 transition hover:border-slate-600 disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  New pool
-                </button>
-              )}
-            </div>
-
-            <div className="flex flex-wrap items-center gap-3">
-              {isOwner && (
-                <button
-                  type="button"
-                  onClick={() => void handleSave()}
-                  disabled={isBusy || !isDirty}
-                  className="rounded-xl border border-emerald-500/60 bg-emerald-500/10 px-4 py-2.5 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  {isBusy ? "Saving..." : "Save"}
-                </button>
-              )}
-
-              {isOwner && (
-                <button
-                  type="button"
-                  onClick={() => void handleSetActivePool()}
-                  disabled={isBusy || !activePoolId || isDirty || selectedPoolIsActive}
-                  title={
-                    selectedPoolIsActive
-                      ? "This pool is already the active draft pool"
-                      : isDirty
-                        ? "Save your changes first"
-                        : "Set this pool as the one the draft uses"
-                  }
-                  className="rounded-xl border border-sky-500/60 bg-sky-500/10 px-4 py-2.5 text-sm font-semibold text-sky-200 transition hover:bg-sky-500/20 disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  {selectedPoolIsActive ? "Active Pool" : "Set Pool"}
-                </button>
-              )}
-
-              <button
-                type="button"
-                onClick={handleExportCsv}
-                disabled={rows.length === 0}
-                className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-2.5 text-sm font-medium text-slate-300 transition hover:border-slate-600 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                Export CSV
-              </button>
-
-              {isOwner && (
-                <>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".csv,text/csv"
-                    className="hidden"
-                    onChange={(event) => {
-                      const file = event.target.files?.[0];
-                      if (file) {
-                        void handleImportCsvFile(file);
-                      }
-                    }}
-                  />
+                <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => fileInputRef.current?.click()}
+                    onClick={startNewPool}
                     disabled={isBusy}
                     className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-2.5 text-sm font-medium text-slate-300 transition hover:border-slate-600 disabled:cursor-not-allowed disabled:opacity-40"
                   >
-                    Import CSV
+                    New pool
                   </button>
-                </>
+
+                  {pools.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => void handleDeletePool()}
+                      disabled={isBusy || !activePoolId}
+                      title={
+                        activePoolId
+                          ? "Delete the selected draft pool"
+                          : "Select a saved pool to delete it"
+                      }
+                      className="rounded-xl border border-red-800 bg-red-950/60 px-4 py-2.5 text-sm font-medium text-red-200 transition hover:border-red-700 hover:bg-red-900/60 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      Delete pool
+                    </button>
+                  )}
+                </div>
               )}
+            </div>
+
+            {/* Divider between pool selection and document actions */}
+            <div className="h-px bg-slate-800/60" />
+
+            {/* Row 2: CSV import/export on the left, save / set pool on the right */}
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  onClick={handleExportCsv}
+                  disabled={rows.length === 0}
+                  className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-2.5 text-sm font-medium text-slate-300 transition hover:border-slate-600 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  Export CSV
+                </button>
+
+                {isOwner && (
+                  <>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".csv,text/csv"
+                      className="hidden"
+                      onChange={(event) => {
+                        const file = event.target.files?.[0];
+                        if (file) {
+                          void handleImportCsvFile(file);
+                        }
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={isBusy}
+                      className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-2.5 text-sm font-medium text-slate-300 transition hover:border-slate-600 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      Import CSV
+                    </button>
+                  </>
+                )}
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3">
+                {isOwner && (
+                  <button
+                    type="button"
+                    onClick={() => void handleSetActivePool()}
+                    disabled={isBusy || !activePoolId || isDirty || selectedPoolIsActive}
+                    title={
+                      selectedPoolIsActive
+                        ? "This pool is already the active draft pool"
+                        : isDirty
+                          ? "Save your changes first"
+                          : "Set this pool as the one the draft uses"
+                    }
+                    className="rounded-xl border border-sky-500/60 bg-sky-500/10 px-4 py-2.5 text-sm font-semibold text-sky-200 transition hover:bg-sky-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    {selectedPoolIsActive ? "Active Pool" : "Set Pool"}
+                  </button>
+                )}
+
+                {isOwner && (
+                  <button
+                    type="button"
+                    onClick={() => void handleSave()}
+                    disabled={isBusy || !isDirty}
+                    className="rounded-xl border border-emerald-500/60 bg-emerald-500/10 px-4 py-2.5 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    {isBusy ? "Saving..." : "Save"}
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </section>
@@ -1596,11 +1811,6 @@ function PoolPageContent({
                         <SortHeader label="Gen" column="gen" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
                         <SortHeader label="Status" column="status" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
                         <SortHeader label="Tier" column="tier" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
-                        {isOwner && (
-                          <th scope="col" className="px-4 py-3 text-right">
-                            Actions
-                          </th>
-                        )}
                       </tr>
                     </thead>
                     <tbody>
@@ -1711,17 +1921,6 @@ function PoolPageContent({
                               </span>
                             )}
                           </td>
-                          {isOwner && (
-                            <td className="px-4 py-3 text-right">
-                              <button
-                                type="button"
-                                onClick={() => handleRemovePokemon(row.key)}
-                                className="rounded-lg border border-red-800 bg-red-950/60 px-3 py-1.5 text-xs font-semibold text-red-200 transition hover:bg-red-900/60"
-                              >
-                                Remove
-                              </button>
-                            </td>
-                          )}
                         </tr>
                       ))}
                     </tbody>
@@ -1775,29 +1974,45 @@ function PoolPageContent({
                           </p>
                         </div>
                         {isOwner && (
-                          <input
-                            type="number"
-                            min={0}
-                            max={MAX_TIER}
-                            step={1}
-                            value={row.tier_value}
-                            onChange={(event) =>
-                              handleTierChange(
-                                row.key,
-                                parseTier(event.target.value, row.tier_value),
-                              )
-                            }
-                            className="w-20 rounded-lg border border-slate-700 bg-slate-900 px-2 py-1.5 text-xs text-slate-100 outline-none focus:border-amber-400"
-                          />
-                        )}
-                        {isOwner && (
-                          <button
-                            type="button"
-                            onClick={() => handleRemovePokemon(row.key)}
-                            className="shrink-0 rounded-lg border border-red-800 bg-red-950/60 px-2 py-1 text-xs font-semibold text-red-200 transition hover:bg-red-900/60"
-                          >
-                            Remove
-                          </button>
+                          <div className="flex shrink-0 items-center gap-1.5">
+                            <input
+                              type="number"
+                              min={0}
+                              max={MAX_TIER}
+                              step={1}
+                              value={row.tier_value}
+                              onChange={(event) =>
+                                handleTierChange(
+                                  row.key,
+                                  parseTier(event.target.value, row.tier_value),
+                                )
+                              }
+                              aria-label={`Tier for ${row.species_name}`}
+                              className="w-14 rounded-lg border border-slate-700 bg-slate-900 px-2 py-1.5 text-xs text-slate-100 outline-none focus:border-amber-400"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => void handleConfirmTier(row.key)}
+                              disabled={!pendingTierKeys.has(row.key) || isBusy}
+                              title={
+                                pendingTierKeys.has(row.key)
+                                  ? `Confirm tier ${tierLabel(row.tier_value)}`
+                                  : "Change the tier to enable confirmation"
+                              }
+                              aria-label={`Confirm tier for ${row.species_name}`}
+                              className="shrink-0 rounded-lg border border-emerald-500/60 bg-emerald-500/10 px-2 py-1 text-xs font-bold text-emerald-300 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-emerald-500/10"
+                            >
+                              ✓
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleRemovePokemon(row.key)}
+                              aria-label={`Remove ${row.species_name}`}
+                              className="shrink-0 rounded-lg border border-red-800 bg-red-950/60 px-2 py-1 text-xs font-bold text-red-200 transition hover:bg-red-900/60"
+                            >
+                              X
+                            </button>
+                          </div>
                         )}
                       </div>
                     ))}

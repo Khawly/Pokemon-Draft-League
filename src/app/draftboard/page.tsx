@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Draft board page for a league. The owner prepares the draft here: managing
  * invites and draft positions and starting the draft once the checklist is
  * complete.
@@ -62,6 +62,9 @@ function DraftBoardPageContent() {
   const searchParams = useSearchParams();
   const [goods, setGoods] = useState<DraftboardGoods | null>(null);
   const [teams, setTeams] = useState<DraftboardTeam[]>([]);
+  const [stagedPositions, setStagedPositions] = useState<
+    Record<string, number>
+  >({});
   const [inviteToken, setInviteToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isBusy, setIsBusy] = useState(false);
@@ -110,6 +113,7 @@ function DraftBoardPageContent() {
         const loaded = await loadDraftboardData(selectedLeagueId);
         setGoods(loaded);
         setTeams(loaded.teams);
+        setStagedPositions({});
 
         // Ensure the owner always has a shareable link: reuse an existing
         // invite token or create one on first load.
@@ -141,10 +145,46 @@ function DraftBoardPageContent() {
     return `${window.location.origin}/invite/${inviteToken}`;
   }, [inviteToken]);
 
+  // The position choice shown for each team overlays staged (unsaved) picks on
+  // top of what is persisted, so checklist validation keeps reading the saved
+  // values while the Players card lets the owner stage edits.
+  const effectiveTeams = useMemo(
+    () =>
+      teams.map((team) => ({
+        ...team,
+        draft_position: stagedPositions[team.id] ?? team.draft_position,
+      })),
+    [teams, stagedPositions],
+  );
+
+  const takenPositions = useMemo(
+    () =>
+      new Set(
+        effectiveTeams
+          .map((team) => team.draft_position)
+          .filter((position): position is number => position != null),
+      ),
+    [effectiveTeams],
+  );
+
+  const teamByMember = useMemo(
+    () => new Map(effectiveTeams.map((team) => [team.owner_user_id, team])),
+    [effectiveTeams],
+  );
+
+  const hasPositionChanges = useMemo(
+    () =>
+      Object.entries(stagedPositions).some(
+        ([teamId, position]) =>
+          teams.find((team) => team.id === teamId)?.draft_position !== position,
+      ),
+    [stagedPositions, teams],
+  );
+
   // The draft can only start once every slot is filled, each team has a
   // unique draft position, and the pool is set up.
   const slotsFilled =
-    !!goods && goods.teams.length >= goods.league.number_of_players;
+    !!goods && goods.members.length >= goods.league.number_of_players;
 
   const positionsAssigned =
     teams.length > 0 &&
@@ -160,8 +200,7 @@ function DraftBoardPageContent() {
     goods.season.status === "draft_pending" &&
     checklistComplete;
 
-  const canPreviewDraft =
-    !!goods?.season && goods.season.status === "draft_pending";
+  const canPreviewDraft = !!goods?.league;
 
   /**
    * Copies the invite URL to the clipboard and shows temporary feedback.
@@ -208,94 +247,40 @@ function DraftBoardPageContent() {
   }
 
   /**
-   * Renames a team when its name input loses focus.
+   * Stages a draft position assignment for a team in local state.
    *
-   * @param teamId - Id of the team to rename.
-   * @param nextName - Raw input value; surrounding whitespace is trimmed.
-   */
-  async function handleRenameTeam(teamId: string, nextName: string) {
-    if (!teams.some((team) => team.id === teamId)) {
-      return;
-    }
-
-    const trimmedName = nextName.trim();
-    // Optimistically apply the rename, rolling back to a snapshot on error.
-    const snapshot = teams;
-
-    setTeams((current) =>
-      current.map((team) =>
-        team.id === teamId
-          ? { ...team, team_name: trimmedName || team.team_name }
-          : team,
-      ),
-    );
-
-    if (!trimmedName) {
-      return;
-    }
-
-    const { error: updateError } = await supabase
-      .from("teams")
-      .update({ team_name: trimmedName })
-      .eq("id", teamId);
-
-    if (updateError) {
-      setTeams(snapshot);
-      setError(updateError.message || "Unable to rename the team.");
-    }
-  }
-
-  /**
-   * Assigns a draft position to a team via an optimistic UI update.
+   * The change is not written to the database until the owner clicks the Save
+   * Changes button in the Players card.
    *
    * @param teamId - Id of the team receiving the position.
    * @param position - Draft pick number to assign.
    */
-  async function handleAssignPosition(teamId: string, position: number) {
+  function handleStagePosition(teamId: string, position: number) {
     if (!goods || isBusy) {
       return;
     }
 
-    // Optimistically update the position, rolling back to a snapshot on error.
-    const previous = teams;
-
-    setTeams((current) =>
-      current.map((team) =>
-        team.id === teamId ? { ...team, draft_position: position } : team,
-      ),
-    );
-
-    try {
-      const { error: updateError } = await supabase
-        .from("teams")
-        .update({ draft_position: position })
-        .eq("id", teamId);
-
-      if (updateError) {
-        throw new Error(updateError.message);
-      }
-    } catch (caughtError) {
-      setTeams(previous);
-      const message =
-        caughtError instanceof Error
-          ? caughtError.message
-          : "Unable to assign the draft position.";
-      setError(message);
-    }
+    setStagedPositions((current) => ({
+      ...current,
+      [teamId]: position,
+    }));
   }
 
   /**
-   * Randomizes draft positions across all teams.
+   * Randomizes draft positions across all teams as a staged change.
+   *
+   * Generates a uniformly random permutation (Fisher-Yates shuffle) of the
+   * available positions and stages it for every team; nothing is written to
+   * the database until the owner saves.
    */
-  async function handleRandomizePositions() {
-    if (!goods || isBusy || teams.length === 0) {
+  function handleRandomizePositions() {
+    if (!goods || teams.length === 0) {
       return;
     }
 
     const count = goods.league.number_of_players;
     const available = Array.from({ length: count }, (_, index) => index + 1);
 
-    // Fisher-Yates shuffle so every permutation of positions is equally likely.
     for (let index = available.length - 1; index > 0; index -= 1) {
       const swapIndex = Math.floor(Math.random() * (index + 1));
       [available[index], available[swapIndex]] = [
@@ -304,47 +289,83 @@ function DraftBoardPageContent() {
       ];
     }
 
-    const assignments = teams.map((team, index) => ({
-      id: team.id,
-      position: available[index] ?? 1,
-    }));
+    const randomized = Object.fromEntries(
+      teams.map((team, index) => [team.id, available[index] ?? 1]),
+    );
+    setStagedPositions((current) => ({ ...current, ...randomized }));
+    setError(null);
+    setSuccessMessage(
+      "Draft positions randomized. Click Save Changes to persist them.",
+    );
+  }
+
+  /**
+   * Persists every staged draft position change to the database.
+   *
+   * Writes only the teams whose staged pick differs from their persisted value,
+   * then clears the staged overlay and refreshes the loaded teams.
+   *
+   * @returns A promise resolving once the writes complete.
+   */
+  async function handleSavePositions() {
+    if (!goods || isBusy) {
+      return;
+    }
+
+    const dirtyEntries = Object.entries(stagedPositions)
+      .map(([teamId, position]) => {
+        const team = teams.find((candidate) => candidate.id === teamId);
+        return team && team.draft_position !== position
+          ? { teamId, position }
+          : null;
+      })
+      .filter(
+        (entry): entry is { teamId: string; position: number } =>
+          entry !== null,
+      );
+
+    if (dirtyEntries.length === 0) {
+      setStagedPositions({});
+      return;
+    }
 
     setIsBusy(true);
     setError(null);
     setSuccessMessage(null);
 
     try {
-      for (const assignment of assignments) {
-        const { data: updated, error: updateError } = await supabase
-          .from("teams")
-          .update({ draft_position: assignment.position })
-          .eq("id", assignment.id)
-          .select()
-          .single();
+      const idToPosition = new Map(
+        dirtyEntries.map((entry) => [entry.teamId, entry.position]),
+      );
+      const results = await Promise.all(
+        dirtyEntries.map(({ teamId, position }) =>
+          supabase
+            .from("teams")
+            .update({ draft_position: position })
+            .eq("id", teamId),
+        ),
+      );
 
-        if (updateError) {
-          throw new Error(updateError.message);
-        }
-
-        setTeams((current) =>
-          current.map((team) =>
-            team.id === assignment.id
-              ? {
-                  ...team,
-                  draft_position: (updated as DraftboardTeam).draft_position,
-                }
-              : team,
-          ),
-        );
+      const firstError = results.find((result) => result.error)?.error;
+      if (firstError) {
+        throw new Error(firstError.message);
       }
 
-      setSuccessMessage("Draft positions have been randomized.");
+      setTeams((current) =>
+        current.map((team) =>
+          idToPosition.has(team.id)
+            ? { ...team, draft_position: idToPosition.get(team.id)! }
+            : team,
+        ),
+      );
+      setStagedPositions({});
+      setSuccessMessage("Draft positions saved.");
     } catch (caughtError) {
-      const message =
+      setError(
         caughtError instanceof Error
           ? caughtError.message
-          : "Unable to randomize draft positions.";
-      setError(message);
+          : "Unable to save draft positions.",
+      );
     } finally {
       setIsBusy(false);
     }
@@ -428,14 +449,6 @@ function DraftBoardPageContent() {
     );
   }
 
-  const takenPositions = new Set(
-    teams
-      .map((team) => team.draft_position)
-      .filter((position): position is number => position != null),
-  );
-
-  const teamByMember = new Map(teams.map((team) => [team.owner_user_id, team]));
-
   return (
     <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
       <div className="mx-auto max-w-6xl space-y-6">
@@ -457,6 +470,17 @@ function DraftBoardPageContent() {
             </div>
 
             <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                disabled={!canPreviewDraft}
+                onClick={() =>
+                  router.push(`/draft?leagueId=${goods.league.id}&preview=1`)
+                }
+                className="rounded-xl border border-slate-600 bg-slate-800 px-4 py-2 text-sm font-medium text-slate-100 transition hover:border-slate-500 hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Preview Draft
+              </button>
+
               {goods.isOwner && goods.season && (
                 <>
                   <button
@@ -466,19 +490,6 @@ function DraftBoardPageContent() {
                     className="rounded-xl bg-amber-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {isStarting ? "Starting..." : "Start Draft"}
-                  </button>
-
-                  <button
-                    type="button"
-                    disabled={!canPreviewDraft}
-                    onClick={() =>
-                      router.push(
-                        `/draft?leagueId=${goods.league.id}&preview=1`,
-                      )
-                    }
-                    className="rounded-xl border border-slate-600 bg-slate-800 px-4 py-2 text-sm font-medium text-slate-100 transition hover:border-slate-500 hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    Preview Draft
                   </button>
 
                   <button
@@ -550,9 +561,10 @@ function DraftBoardPageContent() {
               takenPositions={takenPositions}
               isBusy={isBusy}
               isOwner={goods.isOwner}
-              onAssignPosition={handleAssignPosition}
+              hasPositionChanges={hasPositionChanges}
+              onStagePosition={handleStagePosition}
               onRandomize={handleRandomizePositions}
-              onRenameTeam={handleRenameTeam}
+              onSavePositions={handleSavePositions}
             />
           </section>
         </div>
@@ -645,7 +657,7 @@ function InviteCard({
  * Card listing what must be complete before the draft can start.
  *
  * @param props.goods - Loaded draft board data.
- * @param props.teams - League teams, used to show filled slot counts.
+ * @param props.teams - League teams, used to show assigned-position counts.
  * @param props.slotsFilled - Whether all player slots are filled.
  * @param props.positionsAssigned - Whether every team has a unique position.
  * @param props.poolComplete - Whether the draft pool is set up.
@@ -695,18 +707,16 @@ function ChecklistCard({
       <ul className="mt-4 space-y-3">
         <ChecklistItem complete={slotsFilled} label="Fill all Player slots">
           <span className="ml-auto shrink-0 text-sm text-slate-400">
-            {Math.min(teams.length, goods.league.number_of_players)} /{" "}
+            {Math.min(reachableSlots, goods.league.number_of_players)} /{" "}
             {goods.league.number_of_players} filled
           </span>
-          {(reachableSlots < goods.league.number_of_players ||
-            teams.length === 0) &&
-            !slotsFilled && (
-              <p className="mt-2 text-xs text-amber-300">
-                Invite more players — this league needs{" "}
-                {goods.league.number_of_players} Players and currently has{" "}
-                {reachableSlots} members.
-              </p>
-            )}
+          {reachableSlots < goods.league.number_of_players && !slotsFilled && (
+            <p className="mt-2 text-xs text-amber-300">
+              Invite more players — this league needs{" "}
+              {goods.league.number_of_players} Players and currently has{" "}
+              {reachableSlots} members.
+            </p>
+          )}
         </ChecklistItem>
 
         <ChecklistItem
@@ -785,7 +795,7 @@ function ChecklistItem({
         }`}
         aria-hidden="true"
       >
-        {complete ? "✓" : ""}
+        {complete ? "" : ""}
       </span>
       <span className="text-sm text-slate-200">{label}</span>
       {children}
@@ -794,7 +804,11 @@ function ChecklistItem({
 }
 
 /**
- * Card listing league players with their teams and draft position controls.
+ * Card listing league players in a table with their draft positions.
+ *
+ * The owner can stage draft position picks and persist them with the Save
+ * Changes button; members only see read-only values. Players without a team
+ * show a dash rather than "No team".
  *
  * @param props.goods - Loaded draft board data.
  * @param props.teams - League teams, keyed for lookup by member.
@@ -802,9 +816,10 @@ function ChecklistItem({
  * @param props.takenPositions - Positions already assigned to a team.
  * @param props.isBusy - Disables position controls while a request is in flight.
  * @param props.isOwner - Whether the current user may edit teams and positions.
- * @param props.onAssignPosition - Assigns a draft position to a team.
- * @param props.onRandomize - Randomizes all draft positions.
- * @param props.onRenameTeam - Renames a team.
+ * @param props.hasPositionChanges - Whether any staged pick differs from saved.
+ * @param props.onStagePosition - Stages a draft position for a team.
+ * @param props.onRandomize - Stages random positions across all teams.
+ * @param props.onSavePositions - Persists all staged position changes.
  * @returns The players card markup.
  */
 function PlayerListCard({
@@ -814,9 +829,10 @@ function PlayerListCard({
   takenPositions,
   isBusy,
   isOwner,
-  onAssignPosition,
+  hasPositionChanges,
+  onStagePosition,
   onRandomize,
-  onRenameTeam,
+  onSavePositions,
 }: {
   goods: DraftboardGoods;
   teams: DraftboardTeam[];
@@ -824,9 +840,10 @@ function PlayerListCard({
   takenPositions: Set<number>;
   isBusy: boolean;
   isOwner: boolean;
-  onAssignPosition: (teamId: string, position: number) => void;
+  hasPositionChanges: boolean;
+  onStagePosition: (teamId: string, position: number) => void;
   onRandomize: () => void;
-  onRenameTeam: (teamId: string, nextName: string) => void;
+  onSavePositions: () => void;
 }) {
   const sorted = [...goods.members].sort((a, b) => {
     const aPos = teamByMember.get(a.user_id)?.draft_position ?? Infinity;
@@ -836,7 +853,7 @@ function PlayerListCard({
 
   return (
     <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-lg shadow-slate-950/30">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold text-white">Players</h2>
           <p className="mt-1 text-sm text-slate-400">
@@ -844,110 +861,136 @@ function PlayerListCard({
           </p>
         </div>
         {isOwner && (
-          <button
-            type="button"
-            disabled={isBusy || teams.length === 0}
-            onClick={onRandomize}
-            className="shrink-0 rounded-lg border border-slate-600 bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-100 transition hover:border-slate-500 hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            Randomize positions
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              disabled={isBusy || !hasPositionChanges}
+              onClick={onSavePositions}
+              title={
+                hasPositionChanges
+                  ? "Persist the staged draft positions"
+                  : "Change a draft position to enable saving"
+              }
+              className="shrink-0 rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-semibold text-slate-950 transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isBusy ? "Saving..." : "Save Changes"}
+            </button>
+            <button
+              type="button"
+              disabled={isBusy || teams.length === 0}
+              onClick={onRandomize}
+              className="shrink-0 rounded-lg border border-slate-600 bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-100 transition hover:border-slate-500 hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Randomize positions
+            </button>
+          </div>
         )}
       </div>
 
-      <ul className="mt-4 space-y-2">
-        {sorted.map((member) => {
-          const team = teamByMember.get(member.user_id);
+      <div className="mt-4 overflow-x-auto">
+        <table className="min-w-full text-left text-sm">
+          <thead>
+            <tr className="border-b border-slate-800 text-slate-400">
+              <th className="px-3 py-3 font-medium">Player</th>
+              <th className="px-3 py-3 font-medium">Draft Position</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sorted.length === 0 && (
+              <tr>
+                <td
+                  colSpan={2}
+                  className="px-3 py-6 text-center text-slate-400"
+                >
+                  No players in this league yet.
+                </td>
+              </tr>
+            )}
 
-          return (
-            <li
-              key={member.user_id}
-              className="flex flex-col gap-3 rounded-xl border border-slate-800 bg-slate-950/60 px-4 py-3 sm:flex-row sm:items-center"
-            >
-              {member.avatar_url ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={member.avatar_url}
-                  alt=""
-                  className="h-9 w-9 shrink-0 rounded-full border border-slate-700 object-cover"
-                />
-              ) : (
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-800 text-sm font-bold text-amber-300">
-                  {(membersDisplayName(member) || "?").charAt(0).toUpperCase()}
-                </span>
-              )}
+            {sorted.map((member) => {
+              const team = teamByMember.get(member.user_id);
+              const position = team?.draft_position ?? null;
 
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium text-slate-100">
-                  {membersDisplayName(member) || "Unnamed Trainer"}
-                </p>
-                <p className="truncate text-xs text-slate-500">
-                  {member.role === "owner"
-                    ? "Owner"
-                    : member.role === "admin"
-                      ? "Admin"
-                      : "Member"}{" "}
-                  ·{" "}
-                  {team?.draft_position != null
-                    ? `Pick #${team.draft_position}`
-                    : "No pick yet"}
-                </p>
-              </div>
+              return (
+                <tr
+                  key={member.user_id}
+                  className="border-b border-slate-800/80 text-slate-200"
+                >
+                  <td className="px-3 py-3">
+                    <div className="flex items-center gap-3">
+                      {member.avatar_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={member.avatar_url}
+                          alt=""
+                          className="h-9 w-9 shrink-0 rounded-full border border-slate-700 object-cover"
+                        />
+                      ) : (
+                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-800 text-sm font-bold text-amber-300">
+                          {(membersDisplayName(member) || "?")
+                            .charAt(0)
+                            .toUpperCase()}
+                        </span>
+                      )}
+                      <div>
+                        <p className="truncate text-sm font-medium text-slate-100">
+                          {membersDisplayName(member) || "Unnamed Trainer"}
+                        </p>
+                        <p className="truncate text-xs text-slate-500">
+                          {member.role === "owner"
+                            ? "Owner"
+                            : member.role === "admin"
+                              ? "Admin"
+                              : "Member"}
+                        </p>
+                      </div>
+                    </div>
+                  </td>
 
-              {team ? (
-                <div className="flex flex-wrap items-center gap-2">
-                  <input
-                    type="text"
-                    defaultValue={team.team_name}
-                    disabled={!isOwner}
-                    onBlur={(event) =>
-                      onRenameTeam(team.id, event.target.value)
-                    }
-                    placeholder={team.team_name}
-                    className="w-40 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none transition focus:border-amber-400 disabled:cursor-not-allowed disabled:opacity-60"
-                  />
-                  {isOwner && (
-                    <select
-                      value={team.draft_position ?? ""}
-                      disabled={isBusy}
-                      onChange={(event) =>
-                        onAssignPosition(team.id, Number(event.target.value))
-                      }
-                      className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none transition focus:border-amber-400 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      <option value="" disabled>
-                        Position
-                      </option>
-                      {Array.from(
-                        { length: goods.league.number_of_players },
-                        (_, positionIndex) => positionIndex + 1,
-                      )
-                        .filter(
-                          (position) =>
-                            position === team.draft_position ||
-                            !takenPositions.has(position),
-                        )
-                        .map((position) => (
-                          <option key={position} value={position}>
-                            #{position}
+                  <td className="px-3 py-3">
+                    {team ? (
+                      isOwner ? (
+                        <select
+                          value={position ?? ""}
+                          disabled={isBusy}
+                          onChange={(event) =>
+                            onStagePosition(team.id, Number(event.target.value))
+                          }
+                          className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none transition focus:border-amber-400 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          <option value="" disabled>
+                            Position
                           </option>
-                        ))}
-                    </select>
-                  )}
-                </div>
-              ) : (
-                <span className="text-sm text-slate-500">No team</span>
-              )}
-            </li>
-          );
-        })}
-
-        {goods.members.length === 0 && (
-          <li className="rounded-xl border border-slate-800 bg-slate-950/60 px-4 py-3 text-sm text-slate-400">
-            No players in this league yet.
-          </li>
-        )}
-      </ul>
+                          {Array.from(
+                            { length: goods.league.number_of_players },
+                            (_, positionIndex) => positionIndex + 1,
+                          )
+                            .filter(
+                              (candidate) =>
+                                candidate === position ||
+                                !takenPositions.has(candidate),
+                            )
+                            .map((candidate) => (
+                              <option key={candidate} value={candidate}>
+                                #{candidate}
+                              </option>
+                            ))}
+                        </select>
+                      ) : (
+                        <span className="text-slate-300">
+                          {position != null ? `Pick #${position}` : "—"}
+                        </span>
+                      )
+                    ) : (
+                      <span className="text-slate-600">—</span>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

@@ -249,17 +249,19 @@ function MembersSettingsPageContent() {
 
     try {
       // Fire all salary update requests in parallel and check for the first failure.
+      // The RPC updates league_members and mirrors the value onto the member's
+      // team rows so every page (Teams, Pokemon, Draft) reflects the change.
       const updatePromises = members.map((member) => {
         const nextValue =
           typeof member.total_token_salary === "number"
             ? member.total_token_salary
             : defaultTotalTokenSalary;
 
-        return supabase
-          .from("league_members")
-          .update({ total_token_salary: nextValue })
-          .eq("league_id", leagueId)
-          .eq("user_id", member.user_id);
+        return supabase.rpc("update_league_member_salary", {
+          p_league_id: leagueId,
+          p_user_id: member.user_id,
+          p_total_token_salary: nextValue,
+        });
       });
 
       const results = await Promise.all(updatePromises);

@@ -47,7 +47,12 @@ import {
   submitDraftPick,
   DraftPriorityEntry,
 } from "@/lib/supabase/draft";
-import { getDexNumber, getSpriteUrl } from "@/lib/pokeapi";
+import { AbilityTooltip } from "@/components/ability-tooltip";
+import {
+  getDexNumber,
+  getPokemonDetailsBySlug,
+  getSpriteUrl,
+} from "@/lib/pokeapi";
 
 /*
  * Small shared building blocks, mirroring the pool page's sprite/type/tier
@@ -728,14 +733,30 @@ function PickBoardGrid({ goods, now }: ArenaPanelProps) {
  * to a chosen round of the priority list otherwise.
  */
 
-type SortKey = "dex" | "tier" | "bst" | "generation";
+type SortKey =
+  | "dex"
+  | "tier"
+  | "bst"
+  | "generation"
+  | "hp"
+  | "attack"
+  | "defense"
+  | "specialAttack"
+  | "specialDefense"
+  | "speed";
 type SortDir = "asc" | "desc";
 
 const SORT_LABELS: Record<SortKey, string> = {
   dex: "Dex",
   tier: "Tier",
-  bst: "BST",
+  bst: "Total",
   generation: "Gen",
+  hp: "HP",
+  attack: "Atk",
+  defense: "Def",
+  specialAttack: "SpA",
+  specialDefense: "SpD",
+  speed: "Spe",
 };
 
 /**
@@ -794,6 +815,18 @@ function PoolPanel({
         return (b.bst ?? 0) - (a.bst ?? 0);
       }
       if (sortKey === "bst") return ((a.bst ?? 0) - (b.bst ?? 0)) * dir;
+      if (
+        sortKey === "hp" ||
+        sortKey === "attack" ||
+        sortKey === "defense" ||
+        sortKey === "specialAttack" ||
+        sortKey === "specialDefense" ||
+        sortKey === "speed"
+      ) {
+        const aStat = getPokemonDetailsBySlug(a.pokemon_id)?.stats?.[sortKey] ?? -1;
+        const bStat = getPokemonDetailsBySlug(b.pokemon_id)?.stats?.[sortKey] ?? -1;
+        return (aStat - bStat) * dir;
+      }
       return (a.generation ?? "").localeCompare(b.generation ?? "") * dir;
     });
   }, [filteredRows, sortKey, sortDir]);
@@ -933,23 +966,12 @@ function PoolPanel({
 
       {tab === "table" && (
         <div className="min-h-0 flex-1 overflow-auto">
-          <table className="w-full divide-y divide-slate-800 text-sm">
+          <table className="w-full divide-y divide-slate-800 text-center text-sm">
             <thead className="sticky top-0 z-10 bg-slate-900 text-slate-400">
               <tr>
-                <th className="px-4 py-3 text-left">
-                  <button
-                    type="button"
-                    onClick={() => toggleSort("dex")}
-                    className={`inline-flex items-center gap-1 font-semibold ${
-                      sortKey === "dex" ? "text-amber-300" : ""
-                    }`}
-                  >
-                    Dex {sortKey === "dex" && (sortDir === "asc" ? "▲" : "▼")}
-                  </button>
-                </th>
                 <th className="px-4 py-3 text-left font-semibold">Pokémon</th>
-                <th className="px-4 py-3 text-left font-semibold">Type</th>
-                <th className="px-4 py-3 text-left">
+                <th className="px-4 py-3 text-center font-semibold">Type</th>
+                <th className="px-4 py-3 text-center">
                   <button
                     type="button"
                     onClick={() => toggleSort("tier")}
@@ -960,7 +982,8 @@ function PoolPanel({
                     Tier {sortKey === "tier" && (sortDir === "asc" ? "▲" : "▼")}
                   </button>
                 </th>
-                <th className="px-4 py-3 text-right">
+                <th className="px-4 py-3 text-center font-semibold">Abilities</th>
+                <th className="px-2 py-3 text-center">
                   <button
                     type="button"
                     onClick={() => toggleSort("bst")}
@@ -968,28 +991,40 @@ function PoolPanel({
                       sortKey === "bst" ? "text-amber-300" : ""
                     }`}
                   >
-                    BST {sortKey === "bst" && (sortDir === "asc" ? "▲" : "▼")}
+                    Total {sortKey === "bst" && (sortDir === "asc" ? "▲" : "▼")}
                   </button>
                 </th>
-                <th className="px-4 py-3 text-left">
-                  <button
-                    type="button"
-                    onClick={() => toggleSort("generation")}
-                    className={`inline-flex items-center gap-1 font-semibold ${
-                      sortKey === "generation" ? "text-amber-300" : ""
-                    }`}
-                  >
-                    Gen{" "}
-                    {sortKey === "generation" &&
-                      (sortDir === "asc" ? "▲" : "▼")}
-                  </button>
-                </th>
+                {(
+                  [
+                    { label: "HP", column: "hp" },
+                    { label: "Atk", column: "attack" },
+                    { label: "Def", column: "defense" },
+                    { label: "SpA", column: "specialAttack" },
+                    { label: "SpD", column: "specialDefense" },
+                    { label: "Spe", column: "speed" },
+                  ] as const
+                ).map((stat) => (
+                  <th key={stat.column} className="px-2 py-3 text-center">
+                    <button
+                      type="button"
+                      onClick={() => toggleSort(stat.column as SortKey)}
+                      className={`inline-flex items-center gap-1 font-semibold ${
+                        sortKey === stat.column ? "text-amber-300" : ""
+                      }`}
+                    >
+                      {stat.label}{" "}
+                      {sortKey === stat.column && (sortDir === "asc" ? "▲" : "▼")}
+                    </button>
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/80 bg-slate-950/40">
               {rows.map((row) => {
                 const isTaken = picked.has(row.pokemon_id);
                 const canPick = canPickRow(row);
+                const details = getPokemonDetailsBySlug(row.pokemon_id);
+                const stats = details?.stats ?? null;
                 return (
                   <tr
                     key={row.pokemon_id}
@@ -1012,11 +1047,8 @@ function PoolPanel({
                           : "cursor-grab hover:bg-slate-800/50 active:cursor-grabbing"
                     }`}
                   >
-                    <td className="px-4 py-2.5 text-slate-500">
-                      {row.dex > 0 ? `#${row.dex}` : "—"}
-                    </td>
-                    <td className="px-4 py-2.5">
-                      <div className="flex items-center gap-3">
+                    <td className="px-4 py-2.5 text-left">
+                      <div className="flex items-center justify-start gap-3">
                         <Sprite
                           spriteId={row.spriteId}
                           name={row.species_name}
@@ -1028,7 +1060,7 @@ function PoolPanel({
                       </div>
                     </td>
                     <td className="px-4 py-2.5">
-                      <div className="flex flex-wrap gap-1">
+                      <div className="flex flex-wrap justify-center gap-1">
                         {[row.type_primary, row.type_secondary]
                           .filter(Boolean)
                           .map((type) => (
@@ -1047,11 +1079,37 @@ function PoolPanel({
                     <td className="px-4 py-2.5 text-slate-300">
                       {row.tier_value > 0 ? row.tier_value : "—"}
                     </td>
-                    <td className="px-4 py-2.5 text-right tabular-nums text-slate-300">
+                    <td className="max-w-[150px] px-2 py-2.5 text-slate-400">
+                      {details && details.abilities.length > 0 ? (
+                        <span className="flex flex-wrap items-center justify-center gap-1">
+                          {details.abilities.map((ability) => (
+                            <AbilityTooltip key={ability.name} slug={ability.name} />
+                          ))}
+                        </span>
+                      ) : (
+                        "—"
+                      )}
+                    </td>
+                    <td className="px-2 py-2.5 whitespace-nowrap text-center tabular-nums text-slate-300">
                       {row.bst ?? "—"}
                     </td>
-                    <td className="px-4 py-2.5 text-slate-400">
-                      {row.generation ? generationNumber(row.generation) : "—"}
+                    <td className="px-2 py-2.5 whitespace-nowrap text-center tabular-nums text-slate-300">
+                      {stats?.hp ?? "—"}
+                    </td>
+                    <td className="px-2 py-2.5 whitespace-nowrap text-center tabular-nums text-slate-300">
+                      {stats?.attack ?? "—"}
+                    </td>
+                    <td className="px-2 py-2.5 whitespace-nowrap text-center tabular-nums text-slate-300">
+                      {stats?.defense ?? "—"}
+                    </td>
+                    <td className="px-2 py-2.5 whitespace-nowrap text-center tabular-nums text-slate-300">
+                      {stats?.specialAttack ?? "—"}
+                    </td>
+                    <td className="px-2 py-2.5 whitespace-nowrap text-center tabular-nums text-slate-300">
+                      {stats?.specialDefense ?? "—"}
+                    </td>
+                    <td className="px-2 py-2.5 whitespace-nowrap text-center tabular-nums text-slate-300">
+                      {stats?.speed ?? "—"}
                     </td>
                   </tr>
                 );
@@ -1059,7 +1117,7 @@ function PoolPanel({
               {rows.length === 0 && (
                 <tr>
                   <td
-                    colSpan={6}
+                    colSpan={11}
                     className="px-4 py-10 text-center text-slate-500"
                   >
                     No Pokémon match your filters.
@@ -1234,7 +1292,7 @@ function PickConfirm({
             </div>
           </div>
           <div className="text-right">
-            <p className="text-xs text-slate-500">BST</p>
+            <p className="text-xs text-slate-500">Total</p>
             <p className="font-mono text-lg font-bold text-slate-100">
               {row.bst ?? "—"}
             </p>
@@ -2247,7 +2305,7 @@ function DraftArena({ leagueId }: { leagueId: string }) {
 
         <PickBoardGrid goods={goods} now={now} />
 
-        <div className="grid min-h-0 flex-1 gap-6 lg:grid-cols-[1.6fr_1fr]">
+        <div className="grid min-h-0 flex-1 gap-6 lg:grid-cols-[2.2fr_1fr]">
           <PoolPanel
             goods={goods}
             now={now}

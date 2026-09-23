@@ -1,0 +1,31 @@
+# Supabase project configuration for the Pokemon Draft League.
+#
+# `project_id` points the Supabase CLI at the remote project so that
+# `supabase db push` applies the pending migration files under
+# supabase/migrations. The remaining sections mirror the CLI's generated
+# defaults so local commands (start/status) also work if needed.
+project_id = "gxycierqhlhrlktovdsa"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+
+[studio]
+enabled = true
+port = 54323
+
+[inbucket]
+enabled = true
+port = 54324
+
+[storage]
+enabled = true
+
+[auth]
+enabled = true

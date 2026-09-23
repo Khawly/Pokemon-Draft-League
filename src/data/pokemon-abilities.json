@@ -1,0 +1,1254 @@
+[
+  {
+    "slug": "adaptability",
+    "description": "Increases the Same Type Attack Bonus from *1.5 to *2."
+  },
+  {
+    "slug": "aerilate",
+    "description": "Increases the power of Normal-type moves by 20%. It then changes those moves to Flying-type."
+  },
+  {
+    "slug": "aftermath",
+    "description": "The foe that dealt the final hit loses 1/4 of its maximum HP if the move made physical contact."
+  },
+  {
+    "slug": "air-lock",
+    "description": "All weather effects are negated while the Pokémon is on the field."
+  },
+  {
+    "slug": "analytic",
+    "description": "Attack power increases by 30% if the Pokémon is the last Pokémon to attack this turn"
+  },
+  {
+    "slug": "anger-point",
+    "description": "Increases Attack to maximum level upon taking a critical hit."
+  },
+  {
+    "slug": "anger-shell",
+    "description": "When an attack causes its HP to drop to half or less, the Pokémon gets angry. This lowers its Defense and Sp. Def stats but boosts its Attack, Sp. Atk, and Speed stats."
+  },
+  {
+    "slug": "anticipation",
+    "description": "Warns when the foe knows 1-hit KO or super-effective moves."
+  },
+  {
+    "slug": "arena-trap",
+    "description": "The opponent cannot run nor switch. Flying-type Pokémon and Pokémon with the Levitate special ability are unaffected. If this Pokémon switches, the opponent is still trapped for that turn. The opponent may still switch by using Baton Pass."
+  },
+  {
+    "slug": "armor-tail",
+    "description": "The mysterious tail covering the Pokémon's head makes opponents unable to use priority moves against the Pokémon or its allies."
+  },
+  {
+    "slug": "aroma-veil",
+    "description": "Protects itself and its allies from attacks that limit their move choices."
+  },
+  {
+    "slug": "as-one-glastrier",
+    "description": "When the Pokémon knocks out a target, it utters a chilling neigh, which boosts its Attack stat. Prevents the opponent from using Berries"
+  },
+  {
+    "slug": "as-one-spectrier",
+    "description": "When the Pokémon knocks out a target, it utters a terrifying neigh, which boosts its Special Attack stat. Prevents the opponent from using Berries"
+  },
+  {
+    "slug": "aura-break",
+    "description": "The effects of “Aura” Abilities are reversed to lower the power of affected moves."
+  },
+  {
+    "slug": "aura-guard",
+    "description": "A Pokémon with Aura Guard takes half damage from moves that make contact."
+  },
+  {
+    "slug": "bad-dreams",
+    "description": "Reduces the HP of sleeping opposing Pokémon."
+  },
+  {
+    "slug": "ball-fetch",
+    "description": "If the Pokémon is not holding an item, it will fetch the Poké Ball from the first failed throw of the battle."
+  },
+  {
+    "slug": "battery",
+    "description": "Powers up ally Pokémon's special moves.Boosts Ally Pokémon's Special Attack by 30%."
+  },
+  {
+    "slug": "battle-armor",
+    "description": "Opponent’s moves cannot Critical Hit."
+  },
+  {
+    "slug": "battle-bond",
+    "description": "When the user knocks out a target, its Attack, Sp. Attack and Speed stats are boosted by 1 stage once per battle"
+  },
+  {
+    "slug": "beads-of-ruin",
+    "description": "The power of the Pokémon's ruinous beads lowers the Sp. Def stats of all Pokémon except itself by 25%. It is also not affected by other Beads of Ruin abilities."
+  },
+  {
+    "slug": "beast-boost",
+    "description": "Increases the Pokémon's highest stat when it knocks out a Pokémon"
+  },
+  {
+    "slug": "berserk",
+    "description": "Boosts the Pokémon's Sp. Atk stat when it takes a hit that causes its HP to become half or less."
+  },
+  {
+    "slug": "big-pecks",
+    "description": "Protects the Pokémon from Defense-lowering effects."
+  },
+  {
+    "slug": "blaze",
+    "description": "When HP is below 1/3rd its maximum, power of Fire-type moves is increased by 50%."
+  },
+  {
+    "slug": "bulletproof",
+    "description": "Protects the Pokémon from some ball and bomb moves."
+  },
+  {
+    "slug": "cheek-pouch",
+    "description": "Restores HP as well when the Pokémon eats a Berry."
+  },
+  {
+    "slug": "chilling-neigh",
+    "description": "When the Pokémon knocks out a target, it utters a chilling neigh, which boosts its Attack stat."
+  },
+  {
+    "slug": "chlorophyll",
+    "description": "When sunny, the Pokémon’s Speed doubles."
+  },
+  {
+    "slug": "clear-body",
+    "description": "Opponents’ moves which lower this Pokémon’s stats have no effect. However this Pokémon may lower its own stats with its own moves."
+  },
+  {
+    "slug": "cloud-nine",
+    "description": "All weather effects are negated while the Pokémon is on the field."
+  },
+  {
+    "slug": "color-change",
+    "description": "This Pokémon’s type becomes the type of the last damaging move which hit it."
+  },
+  {
+    "slug": "comatose",
+    "description": "It acts as if it is affected by the Sleep status condition. All special effects of moves based on the Sleep status condition affect this Pokémon such as Snore & Sleep Talk working from the Pokémon with Comatose and double damage from Hex & Wake-up Slap , Dream Eater & Nightmare and even abilities such as Bad Dreams will activate. This Pokémon can still attack."
+  },
+  {
+    "slug": "commander",
+    "description": "Tatsugiri will go into Dondozo's mouth and be unable to be damaged from attacks. Dondozo can no longer switch out. Dondozo's stats all raise by 2 stages"
+  },
+  {
+    "slug": "competitive",
+    "description": "Raises Sp. Atk stat by two stages whenever a stat is lowered"
+  },
+  {
+    "slug": "compound-eyes",
+    "description": "Raises the Pokémon’s accuracy by 30%."
+  },
+  {
+    "slug": "contrary",
+    "description": "Moves used on the Pokémon that raise stats lower the stats, while the moves that lower the stats raise the stat"
+  },
+  {
+    "slug": "corrosion",
+    "description": "The Pokémon can poison the target even if it's a Steel or Poison type."
+  },
+  {
+    "slug": "costar",
+    "description": "When the Pokémon enters a battle, it copies an ally's stat changes."
+  },
+  {
+    "slug": "cotton-down",
+    "description": "When the Pokémon is hit by an attack, it scatters cotton fluff around and lowers the Speed stat of all Pokémon except itself."
+  },
+  {
+    "slug": "cud-chew",
+    "description": "When the Pokémon eats a Berry, it will regurgitate that Berry at the end of the next turn and eat it one more time."
+  },
+  {
+    "slug": "curious-medicine",
+    "description": "When the Pokémon is brought into battle, any stat alterations of allies are removed"
+  },
+  {
+    "slug": "cursed-body",
+    "description": "When a move hits the Pokémon, that move has a 30% chance of getting disabled"
+  },
+  {
+    "slug": "cute-charm",
+    "description": "The opponent has a 30% chance of being induced with Attract when using an attack, that requires physical contact, against this Pokémon."
+  },
+  {
+    "slug": "damp",
+    "description": "Explosion, Selfdestruct, Mind Blown & Misty Explosion will not work while the Pokémon is on the field."
+  },
+  {
+    "slug": "dancer",
+    "description": "When another Pokémon uses a dance move, it can use a dance move following it regardless of its Speed."
+  },
+  {
+    "slug": "dark-aura",
+    "description": "Powers up every Pokémon in play's Dark-type moves by 33%"
+  },
+  {
+    "slug": "dauntless-shield",
+    "description": "Boosts the Pokémon's Defense stat the first time that the Pokémon enters a battle."
+  },
+  {
+    "slug": "dazzling",
+    "description": "Prevents the opponent from using moves with increased Speed Priority on this Pokémon and its allies."
+  },
+  {
+    "slug": "defeatist",
+    "description": "The Pokémon's Attack & Special Attack is halved when its Hit Points are below 50% of maximum"
+  },
+  {
+    "slug": "defiant",
+    "description": "Attack is raised by two stages when the Pokémon has its stats lowered. Doesn't work on self inflicted stat drops or drops from allies"
+  },
+  {
+    "slug": "delta-stream",
+    "description": "Creates the Strong Winds weather. This lasts until the Pokémon exits battle, and weakens moves used on Flying-type Pokémon that would be Super Effective"
+  },
+  {
+    "slug": "desolate-land",
+    "description": "Creates the Strong Sun weather. This lasts until the Pokémon exits battle, and renders Water-type moves useless"
+  },
+  {
+    "slug": "disguise",
+    "description": "Once per battle, the Pokémon can withstand one damaging attack without receiving any damage. Damage inflicted through entry hazards, weather or status conditions will not break the disguise. Damage from Confusion will break the Disguise. It causes 1/8th of max Hit Point damage when it breaks"
+  },
+  {
+    "slug": "download",
+    "description": "Attack is increased when the foe’s Defense is lower than its Special Defense or increases Special Attack when the foe’s Special Defense is lower than its Defense."
+  },
+  {
+    "slug": "dragonize",
+    "description": "The Pokémon's Normal-type moves become Dragon-type moves and their power is boosted by 20%."
+  },
+  {
+    "slug": "dragons-maw",
+    "description": "Increases the damage inflicted by Dragon-type moves by 50%"
+  },
+  {
+    "slug": "drizzle",
+    "description": "Weather changes to Heavy Rain when the Pokémon enters the battle. As of X & Y, this lasts 5 turns."
+  },
+  {
+    "slug": "drought",
+    "description": "Weather changes to Intense Sunshine when the Pokémon enters the battle. As of X & Y, this lasts 5 turns."
+  },
+  {
+    "slug": "dry-skin",
+    "description": "HP is restored when hit by Water-type moves or when it is raining but also makes the Pokémon weak to Fire-type moves and reduces HP during strong sunlight."
+  },
+  {
+    "slug": "early-bird",
+    "description": "Sleep conditions lasts for half as long, rounding down. For example, half of three turns is 1.5, which rounds down to one turn. When the number of turns to sleep is one, half of this rounded down is zero, and the Pokémon wakes up instantly."
+  },
+  {
+    "slug": "earth-eater",
+    "description": "The user recovers 25% of its maximum Hit Points when a Ground-type move is used against it"
+  },
+  {
+    "slug": "eelevate",
+    "description": "The Pokémon floats off the ground, making it immune to Ground-type moves, as well as the Spikes, Toxic Spikes, and Sticky Web statuses. When the Pokémon knocks out a target with an attack, its highest stat is boosted by 1 stage."
+  },
+  {
+    "slug": "effect-spore",
+    "description": "The opponent has a 10% chance of being induced by PARALYZE, POISON, or SLEEP when using an attack, that requires physical contact, against this Pokémon."
+  },
+  {
+    "slug": "electric-surge",
+    "description": "Activates Electric Terrain for 5 turns when the Pokémon enters a battle."
+  },
+  {
+    "slug": "electromorphosis",
+    "description": "The Pokémon becomes charged when it takes damage, boosting the power of the next Electric-type move the Pokémon uses."
+  },
+  {
+    "slug": "emergency-exit",
+    "description": "When the Pokémon's Hit Points hit 50% or less, the Pokémon will switch out. Works once per battle. The Pokémon will not switch out if it drops below 50% due to Confusion, Weather, use of Substitute or when the damage inflicted is by a Pokémon with the Sheer Force ability. It will not activate if health is brought back up above 50% due to a hold item"
+  },
+  {
+    "slug": "fairy-aura",
+    "description": "Powers up every Pokémon in play's Fairy-type moves by 33%"
+  },
+  {
+    "slug": "filter",
+    "description": "Damage by super-effective moves is reduced by 25%."
+  },
+  {
+    "slug": "fire-mane",
+    "description": "Boosts the power of the Pokémon's Fire-type moves by 50%."
+  },
+  {
+    "slug": "flame-body",
+    "description": "The opponent has a 30% chance of being induced with Burn when using an attack, that requires physical contact, against this Pokémon."
+  },
+  {
+    "slug": "flare-boost",
+    "description": "Special Attack stat increased by 50% when burned"
+  },
+  {
+    "slug": "flash-fire",
+    "description": "Activates when user is hit by a damaging Fire-type move (including Fire-type Hidden Power). Once activated, user’s Fire-type moves deal 1.5 times damage. While this ability is in effect, this Pokémon is immune to damage from Fire-type attacks and Fire-type Hidden Power (accuracy and effect from these moves are ignored). For Fire-type Pokémon with this ability, Will-O-Wisp activates this ability without having an effect."
+  },
+  {
+    "slug": "flower-gift",
+    "description": "Ally’s Attack and Special Defence are multiplied by 1.5 during strong sunlight."
+  },
+  {
+    "slug": "flower-veil",
+    "description": "Ally Grass-type Pokémon are protected from status conditions and the lowering of their stats."
+  },
+  {
+    "slug": "fluffy",
+    "description": "Halves the damage taken from moves that make direct contact, but doubles that of Fire-type moves."
+  },
+  {
+    "slug": "forecast",
+    "description": "This Pokémon’ changes its form and type if Harsh Sunlight, Heavy Rain or Snow is in effect."
+  },
+  {
+    "slug": "forewarn",
+    "description": "Reveals the foe’s strongest move."
+  },
+  {
+    "slug": "friend-guard",
+    "description": "In Double battles, the damage that ally Pokémon receive from attacks is reduced by 25%."
+  },
+  {
+    "slug": "frisk",
+    "description": "Reveals the foe’s held item."
+  },
+  {
+    "slug": "full-metal-body",
+    "description": "Prevents other Pokémon's moves or Abilities from lowering the Pokémon's stats."
+  },
+  {
+    "slug": "fur-coat",
+    "description": "Halves the damage from physical moves onto this Pokémon."
+  },
+  {
+    "slug": "gale-wings",
+    "description": "All Flying-type moves have their Speed Priority increased by 1 if the Pokémon's Hit Points are at maximum"
+  },
+  {
+    "slug": "galvanize",
+    "description": "Increases the power of Normal-type moves by 20%. It then changes those moves to Electric-type."
+  },
+  {
+    "slug": "gluttony",
+    "description": "The Pokémon will use a berry when its Hit Points are below 50%."
+  },
+  {
+    "slug": "good-as-gold",
+    "description": "A body of pure, solid gold gives the Pokémon full immunity to other Pokémon's status moves."
+  },
+  {
+    "slug": "gooey",
+    "description": "Lowers the opponent's Speed by one stage when it makes physical contact."
+  },
+  {
+    "slug": "gorilla-tactics",
+    "description": "Raises the Pokémon's Attack stat by one stage, but locks the Pokémon into using the first attack it uses after being sent out"
+  },
+  {
+    "slug": "grass-pelt",
+    "description": "Increases Defense by 50% when battling on Grass or if the move Grassy Terrain is in effect"
+  },
+  {
+    "slug": "grassy-surge",
+    "description": "Activates Grassy Terrain for 5 turns when the Pokémon enters a battle."
+  },
+  {
+    "slug": "grim-neigh",
+    "description": "When the Pokémon knocks out a target, it utters a terrifying neigh, which boosts its Special Attack stat."
+  },
+  {
+    "slug": "guard-dog",
+    "description": "Boosts the Pokémon's Attack stat if intimidated. Moves and items that would force the Pokémon to switch out also fail to work."
+  },
+  {
+    "slug": "gulp-missile",
+    "description": "When using Surf or Dive, it will change into Gulping Form if it has over 50% max HP or Gorging Form if it has less than 50% max HP. If hit afterwards, form reverts and it shoots out its prey to attack, doing 1/4th of opponent's maximum HP in damage. If the Cramorant was in Gulping Form, the opponent's Defense is lowered 1 stage. If the Cramorant was in Gorging Form, the opponent is paralyzed."
+  },
+  {
+    "slug": "guts",
+    "description": "Attack is increased by 50% when induced with a status (BURN, PARALYZE, SLEEP, POISON, FREEZE). Burn’s effect of lowering Attack is not applied."
+  },
+  {
+    "slug": "hadron-engine",
+    "description": "Turns the ground into Electric Terrain when the Pokémon enters a battle. The futuristic engine within the Pokémon also boosts its Sp. Atk stat on Electric Terrain."
+  },
+  {
+    "slug": "harvest",
+    "description": "The Pokémon has a 50% chance of restoring a consumed berry. During sunshine, this chance increases to 100%"
+  },
+  {
+    "slug": "healer",
+    "description": "At the end of the turn, there is a 30% chance of either Ally being healed from a status condition"
+  },
+  {
+    "slug": "heatproof",
+    "description": "Damage from Fire-type moves and the Burn status is halved."
+  },
+  {
+    "slug": "heavy-metal",
+    "description": "Doubles the Pokémon's weight."
+  },
+  {
+    "slug": "honey-gather",
+    "description": "May pick up a Honey after battle; the higher the level, the higher the chance."
+  },
+  {
+    "slug": "hospitality",
+    "description": "Heals up to 25% of its partner Pokémon's Maximum Hit Points when it enters battle"
+  },
+  {
+    "slug": "huge-power",
+    "description": "The Pokémon's Attack stat is doubled while it has this ability."
+  },
+  {
+    "slug": "hunger-switch",
+    "description": "The Pokémon changes its form, alternating between its Full Belly Mode and Hangry Mode after the end of each turn."
+  },
+  {
+    "slug": "hustle",
+    "description": "Damage from physical attacks is increased by 50%, but average accuracy is only 80%."
+  },
+  {
+    "slug": "hydration",
+    "description": "All status problems: Burn, Paralysis, Sleep, Frozen and Poison, are healed when raining."
+  },
+  {
+    "slug": "hyper-cutter",
+    "description": "Opponent cannot lower this Pokémon’s Attack value. This Pokémon may still lower its own Attack value using a move of by itself."
+  },
+  {
+    "slug": "ice-body",
+    "description": "HP is restored by 1/16th of maximum HP when its Snowing."
+  },
+  {
+    "slug": "ice-face",
+    "description": "Has a protective barrier that protects against Physical Attacks once and will change form to Noice Face after breaking. Confusion also breaks the barrier. Setting Snow or being sent out during Snow will restore the Ice Face and change form to Ice Face"
+  },
+  {
+    "slug": "ice-scales",
+    "description": "The Pokémon is protected by ice scales, which halve the damage taken from special moves."
+  },
+  {
+    "slug": "illuminate",
+    "description": "By Iluminating its surroundings, the Pokémon prevents its accuracy from being lowered"
+  },
+  {
+    "slug": "illusion",
+    "description": "When sent out into battle, it takes the name and appearance of the last non-fainted Pokémon within your party. It breaks when an attack does damage on the Pokémon but not from Weather Effects or Entry Hazards."
+  },
+  {
+    "slug": "immunity",
+    "description": "The Pokémon cannot be Poisoned while having this ability."
+  },
+  {
+    "slug": "imposter",
+    "description": "When sent into battle, the Pokémon automatically transforms into a random opponent that is on the field."
+  },
+  {
+    "slug": "infiltrator",
+    "description": "The protections and stat boosts caused by the moves Substitute, Reflect, Light Screen and Safeguard by the opponent are ignored."
+  },
+  {
+    "slug": "innards-out",
+    "description": "Damages the attacker landing the finishing hit by the amount equal to its last HP."
+  },
+  {
+    "slug": "inner-focus",
+    "description": "This Pokémon will not flinch. Does not prevent flinching with Focus Punch. Also prevents stats from being lowered by the ability Intimidate"
+  },
+  {
+    "slug": "insomnia",
+    "description": "The Pokémon cannot be put to Sleep while having this ability."
+  },
+  {
+    "slug": "intimidate",
+    "description": "Upon entering battle or receiving the ability, the opponent’s Attack lowers one stage. In a Double Battle, both opponents’ Attack are lowered. Pokémon with the Clear Body, Hyper Cutter, or White Smoke ability are unaffected. In a link battle, if both sides switch on the same turn, and first player sends out a Pokémon with Intimidate, the opponent’s Attack will be lowered before the opponent’s Pokémon switches."
+  },
+  {
+    "slug": "intrepid-sword",
+    "description": "Boosts the Pokémon's Attack stat the first time that the Pokémon enters a battle."
+  },
+  {
+    "slug": "iron-barbs",
+    "description": "If physical contact is made on this Pokémon, the opponent will receive damage equal to 1/8th of its maximum HP."
+  },
+  {
+    "slug": "iron-fist",
+    "description": "The power of punching moves is increased by 20%. This stacks with Punching Glove ."
+  },
+  {
+    "slug": "justified",
+    "description": "Attack is raised by one stage when the Pokémon is hit by a Dark-type move"
+  },
+  {
+    "slug": "keen-eye",
+    "description": "Opponent cannot lower this Pokémon’s accuracy. The Pokémon ignores evasion boosts of the opponent"
+  },
+  {
+    "slug": "klutz",
+    "description": "The Pokémon cannot receive any effect of hold items except those that affect experience, EVs, friendship etc. such as Amulet Coin, Soothe Bell, Lucky Egg, Exp.Share, Macho Brace or the Power Items."
+  },
+  {
+    "slug": "leaf-guard",
+    "description": "Prevents the Pokémon from being afflicted by status conditions during strong sunlight."
+  },
+  {
+    "slug": "levitate",
+    "description": "Damage dealing Ground-type moves have no effect on this Pokémon. Cannot be trapped by Arena Trap ability. Takes no damage from Spikes."
+  },
+  {
+    "slug": "libero",
+    "description": "Before the Pokémon uses a move, it becomes a pure Pokémon of that type. This only works once per switch in."
+  },
+  {
+    "slug": "light-metal",
+    "description": "Halves the Pokémon's weight."
+  },
+  {
+    "slug": "lightning-rod",
+    "description": "Electric-type moves are drawn to this Pokémon. Electric-type moves will do no damage and the Pokémon's SP ATK is raised one stage."
+  },
+  {
+    "slug": "limber",
+    "description": "The Pokémon cannot be Paralysed while having this ability."
+  },
+  {
+    "slug": "lingering-aroma",
+    "description": "Contact with the Pokémon changes the attacker's Ability to Lingering Aroma."
+  },
+  {
+    "slug": "liquid-ooze",
+    "description": "When the opponent absorbs Hit Points from this Pokémon, the opponent instead loses Hit Points."
+  },
+  {
+    "slug": "liquid-voice",
+    "description": "All sound-based moves become Water-type moves."
+  },
+  {
+    "slug": "long-reach",
+    "description": "The Pokémon uses its moves without making contact with the target."
+  },
+  {
+    "slug": "magic-bounce",
+    "description": "Reflects non-attacking moves used on the Pokémon back to the attacking Pokémon"
+  },
+  {
+    "slug": "magic-guard",
+    "description": "Prevents all no damage except from direct-attack moves, excluding damage self inflicted from Substitute, Belly Drum, Curse & Pain Split."
+  },
+  {
+    "slug": "magician",
+    "description": "The Pokémon steals the held item of a Pokémon it hits with a move."
+  },
+  {
+    "slug": "magma-armor",
+    "description": "This Pokémon cannot be Frozen while having this ability."
+  },
+  {
+    "slug": "magnet-pull",
+    "description": "Steel types cannot run nor switch while this Pokémon is in battle. Because the opponent’s switching is blocked, the opponent cannot switch on the turn this Pokémon switches out of battle. The opponent may still switch with Baton Pass."
+  },
+  {
+    "slug": "marvel-scale",
+    "description": "Defense is increased by 50% when induced with a status (BURN, PARALYZE, SLEEP, POISON, FREEZE)."
+  },
+  {
+    "slug": "mega-launcher",
+    "description": "Increases the power of Aura and Pulse moves by 50%"
+  },
+  {
+    "slug": "mega-sol",
+    "description": "Even when the sunlight has not turned harsh, the Pokémon can use its moves as if the weather were harsh sunlight."
+  },
+  {
+    "slug": "merciless",
+    "description": "The Pokémon's attacks become critical hits if the target is poisoned."
+  },
+  {
+    "slug": "mimicry",
+    "description": "Changes to Electric-type in Electric Terrain, Psychic-type in Psychic Terrain, Grass-type in Grassy Terrain and Fairy type in Fairy-terrain. The type reverts to normal when the terrain ends."
+  },
+  {
+    "slug": "minds-eye",
+    "description": "The Pokémon ignores changes to opponents' evasiveness, its accuracy can't be lowered, and it can hit Ghost types with Normal- and Fighting-type moves."
+  },
+  {
+    "slug": "minus",
+    "description": "When battling with Plus or Minus, Special Attack increases by 50%."
+  },
+  {
+    "slug": "mirror-armor",
+    "description": "Bounces back only the stat-lowering effects that the Pokémon receives."
+  },
+  {
+    "slug": "misty-surge",
+    "description": "Activates Misty Terrain for 5 turns when the Pokémon enters a battle."
+  },
+  {
+    "slug": "mold-breaker",
+    "description": "The Pokémon's moves are not affected by foe’s abilities during battle"
+  },
+  {
+    "slug": "moody",
+    "description": "At the end of every turn, a random stat (except Accuracy and Evasion) is raised by two stages while another is lowered by one stage."
+  },
+  {
+    "slug": "motor-drive",
+    "description": "The Pokémon takes no damage from Electric-type attacks and Speed raises by one level."
+  },
+  {
+    "slug": "moxie",
+    "description": "Attack is raised by one stage when the Pokémon knocks out another Pokémon"
+  },
+  {
+    "slug": "multiscale",
+    "description": "Reduces damage afflicted to the Pokémon by 50% if at maximum HP"
+  },
+  {
+    "slug": "multitype",
+    "description": "Changes the Pokémon's type to match the Plate or Z-Crystal it holds."
+  },
+  {
+    "slug": "mummy",
+    "description": "Contact with the Pokémon changes the attacker's Ability to Mummy."
+  },
+  {
+    "slug": "mycelium-might",
+    "description": "If the Pokémon uses a Status move, it will move last in the Speed bracket, but its moves aren't affected by the Ability of the target"
+  },
+  {
+    "slug": "natural-cure",
+    "description": "The Pokémon’s status (BURN, PARALYZE, SLEEP, POISON, FREEZE) is healed when withdrawn from battle."
+  },
+  {
+    "slug": "neuroforce",
+    "description": "Increases the power of Super Effective moves used by this Pokémon by 25%"
+  },
+  {
+    "slug": "neutralizing-gas",
+    "description": "If the Pokémon with Neutralizing Gas is in the battle, the effects of all Pokémon's Abilities will be nullified or will not be triggered."
+  },
+  {
+    "slug": "no-guard",
+    "description": "The accuracy of all moves known by this Pokémon and all Pokémon targeting this Pokémon raises to 100%"
+  },
+  {
+    "slug": "normalize",
+    "description": "All moves known by the Pokémon turn into Normal-type and have a boost in power of 20%."
+  },
+  {
+    "slug": "oblivious",
+    "description": "The Pokémon cannot be under the Attract condition, Intimidated, or be taunted, while having this ability."
+  },
+  {
+    "slug": "opportunist",
+    "description": "If an opponent's stat is boosted, the Pokémon seizes the opportunity to boost the same stat for itself."
+  },
+  {
+    "slug": "orichalcum-pulse",
+    "description": "Turns the sunlight harsh when the Pokémon enters a battle. The ancient pulse thrumming through the Pokémon also boosts its Attack stat in harsh sunlight."
+  },
+  {
+    "slug": "overcoat",
+    "description": "Protects Pokémon from Weather Effects and Powder moves such as Sleep Powder, Poison Powder etc."
+  },
+  {
+    "slug": "overgrow",
+    "description": "When HP is below 1/3rd its maximum, power of Grass-type moves is increased by 50%."
+  },
+  {
+    "slug": "own-tempo",
+    "description": "The Pokémon cannot be Confused while having this ability. Blocks Intimidate"
+  },
+  {
+    "slug": "parental-bond",
+    "description": "Every move used by the Pokémon will hit twice. The damage inflicted by the second hit is reduced to 25%. If the move used is a damaging move, each hit is capable of afflicting Secondary Effects and Critical Hits"
+  },
+  {
+    "slug": "pastel-veil",
+    "description": "Protects the Pokémon and its ally Pokémon from being poisoned."
+  },
+  {
+    "slug": "perish-body",
+    "description": "When hit by a move that makes direct contact, the Pokémon and the attacker will faint after three turns unless they switch out of battle."
+  },
+  {
+    "slug": "pickpocket",
+    "description": "When a Pokémon makes physical contact with the Pokémon, the item of the opponent is stolen."
+  },
+  {
+    "slug": "pickup",
+    "description": "Has a 10% chance of finding and holding an item after battle. Will not work if this Pokémon is already holding an item. From Black & White, it allows for the user to pick up the item of its opponent or ally if they used up the item in battle."
+  },
+  {
+    "slug": "piercing-drill",
+    "description": "When the Pokémon uses contact moves, it can hit even targets that are protecting themselves, dealing 1/4 of the damage that the move would otherwise deal. Everything aside from the target's protective effects is still triggered."
+  },
+  {
+    "slug": "pixilate",
+    "description": "Increases the power of Normal-type moves by 20%. It then changes those moves to Fairy-type."
+  },
+  {
+    "slug": "plus",
+    "description": "When battling with Plus or Minus, Special Attack increases by 50%."
+  },
+  {
+    "slug": "poison-heal",
+    "description": "HP is restored by 1/8th the maximum HP every turn while the Pokémon has the Poison condition."
+  },
+  {
+    "slug": "poison-point",
+    "description": "The opponent has a 30% chance of being induced with Poison when using an attack, that requires physical contact, against this Pokémon."
+  },
+  {
+    "slug": "poison-puppeteer",
+    "description": "Pokémon poisoned by Pecharunt's moves will also become confused."
+  },
+  {
+    "slug": "poison-touch",
+    "description": "When the Pokémon attacks its opponents with a move that causes Physical Contact, there is a 30% chance that the target is Poisoned."
+  },
+  {
+    "slug": "power-construct",
+    "description": "Other Cells gather to aid when its HP becomes half or less. Then the Pokémon changes its form to Complete Forme."
+  },
+  {
+    "slug": "power-of-alchemy",
+    "description": "The Pokémon copies the Ability of a defeated ally."
+  },
+  {
+    "slug": "power-spot",
+    "description": "Increases the power of Ally Pokémon's attacks by 30%"
+  },
+  {
+    "slug": "prankster",
+    "description": "Status category moves have their Speed Priority increased by 1. Moves increased by this that are used on Dark-type opponents will fail."
+  },
+  {
+    "slug": "pressure",
+    "description": "When this Pokémon is hit by a move, the opponent’s PP lowers by 2 rather than 1."
+  },
+  {
+    "slug": "primordial-sea",
+    "description": "Creates the Heavy Rain weather. This lasts until the Pokémon exits battle, and renders Fire-type moves useless"
+  },
+  {
+    "slug": "prism-armor",
+    "description": "Reduces the power of Super Effective moves used against this Pokémon by 25%"
+  },
+  {
+    "slug": "propeller-tail",
+    "description": "Ignores the effects of opposing Pokémon's Abilities and moves that draw in moves."
+  },
+  {
+    "slug": "protean",
+    "description": "Before the Pokémon uses a move, it becomes a pure Pokémon of that type. This only works once per switch in."
+  },
+  {
+    "slug": "protosynthesis",
+    "description": "Increases the user's highest stat by 30% (or 50% for Speed) while Sunny Day is activated or if the Booster Energy is attached"
+  },
+  {
+    "slug": "psychic-surge",
+    "description": "Activates Psychic Terrain for 5 turns when the Pokémon enters a battle."
+  },
+  {
+    "slug": "punk-rock",
+    "description": "Increases the damage of Sound based moves by 30%. Reduces damage taken by this Pokémon by Sound based moves by 50%."
+  },
+  {
+    "slug": "pure-power",
+    "description": "The Pokémon’s Attack stat is doubled in battle while having this ability."
+  },
+  {
+    "slug": "purifying-salt",
+    "description": "The Pokémon's pure salt protects it from status conditions and halves the damage taken from Ghost-type moves."
+  },
+  {
+    "slug": "quark-drive",
+    "description": "Increases the user's highest stat by 30% (or 50% for Speed) while Electric Terrain is activated or if the Booster Energy is attached"
+  },
+  {
+    "slug": "queenly-majesty",
+    "description": "Prevents the opponent from using moves with increased Speed Priority on this Pokémon or its allies."
+  },
+  {
+    "slug": "quick-draw",
+    "description": "At the start of each turn, this Pokémon has a 30% chance of moving first in the Speed Priority Bracket"
+  },
+  {
+    "slug": "quick-feet",
+    "description": "Speed is increased by 50% when induced with a status (Burn, Poison, Sleep, Frozen & Paralysis). If Paralysed, the speed drop is ignored."
+  },
+  {
+    "slug": "rain-dish",
+    "description": "If Heavy Rain weather is in effect, recovers 1/16th max Hit Points at the end of the turn."
+  },
+  {
+    "slug": "rattled",
+    "description": "Speed is raised by one stage when the Pokémon is hit by a Bug-type, Ghost-type or Dark-type move or is Intimidated"
+  },
+  {
+    "slug": "receiver",
+    "description": "The Pokémon copies the Ability of a defeated ally."
+  },
+  {
+    "slug": "reckless",
+    "description": "The power of moves that have recoil damage is increased by 20%."
+  },
+  {
+    "slug": "refrigerate",
+    "description": "Increases the power of Normal-type moves by 20%. It then changes those moves to Ice-type."
+  },
+  {
+    "slug": "regenerator",
+    "description": "When the Pokémon switches out of battle, up to 33.3% of its maximum Hit Points are restored"
+  },
+  {
+    "slug": "ripen",
+    "description": "Ripens Berries and doubles their effect."
+  },
+  {
+    "slug": "rivalry",
+    "description": "Attack & Special Attack is increased by 25% if the foe is of the same gender; Attack & Special Attack is decreased by 25% if the foe is of the opposite gender."
+  },
+  {
+    "slug": "rks-system",
+    "description": "Changes the Pokémon's type to match the memory disc it holds."
+  },
+  {
+    "slug": "rock-head",
+    "description": "Does not receive recoil damage from recoil-causing damages."
+  },
+  {
+    "slug": "rocky-payload",
+    "description": "Increases the power of Rock-type moves used by this Pokémon by 50%"
+  },
+  {
+    "slug": "rough-skin",
+    "description": "The opponent is hurt by 1/8th of his maxium Hit Points of recoil when using an attack, that requires physical contact, against this Pokémon."
+  },
+  {
+    "slug": "run-away",
+    "description": "Except for trainer battles, can always run from battle. It still cannot switch during Mean Look or Block. (Main Series) Enables the Pokémon to ignore any effects that would usually prevent it from switching out of battle and being replaced by another party Pokémon. (Champions)"
+  },
+  {
+    "slug": "sand-force",
+    "description": "Ground-type, Rock-type & Steel-type moves have their power increased by 30% in a Sandstorm and will not receive damage"
+  },
+  {
+    "slug": "sand-rush",
+    "description": "Speed is doubled within a sandstorm"
+  },
+  {
+    "slug": "sand-spit",
+    "description": "The Pokémon creates a sandstorm when it's hit by an attack."
+  },
+  {
+    "slug": "sand-stream",
+    "description": "Sandstorm blows when the Pokémon enters battle. As of X & Y, this lasts 5 turns."
+  },
+  {
+    "slug": "sand-veil",
+    "description": "Raises the Pokémon’s evasion during a sandstorm by one level."
+  },
+  {
+    "slug": "sap-sipper",
+    "description": "Attack is raised by one stage when the Pokémon is hit by a Grass-type move. User receives no damage from Grass-type attacks."
+  },
+  {
+    "slug": "schooling",
+    "description": "Changes the Pokémon's form when it is Level 20 and has more than 25% Hit Points. When Hit Points drop below 25%, it changes back to Solo Form"
+  },
+  {
+    "slug": "scrappy",
+    "description": "Allows the Pokémon to hit Ghost-type Pokémon with Normal-type and Fighting-type moves. Blocks Intimidate"
+  },
+  {
+    "slug": "screen-cleaner",
+    "description": "When the Pokémon enters a battle, the effects of Light Screen, Reflect, and Aurora Veil are nullified for both opposing and ally Pokémon."
+  },
+  {
+    "slug": "seed-sower",
+    "description": "Turns the ground into Grassy Terrain when the Pokémon is hit by an attack."
+  },
+  {
+    "slug": "serene-grace",
+    "description": "The chances of a move having a secondary effect is doubled."
+  },
+  {
+    "slug": "shadow-shield",
+    "description": "Reduces damage inflicted on this Pokémon when at max Hit Points by 50%. It is not affected by moves or abilities that would ignore the ability such as Mold Breaker, Moongeist Beam or Sunsteel Strike"
+  },
+  {
+    "slug": "shadow-tag",
+    "description": "The opponent cannot run nor switch while this Pokémon is in play. The opponent may still switch by using Baton Pass, U-turn or Volt Switch, if it is holding a Shed Shell or is a Ghost-type."
+  },
+  {
+    "slug": "sharpness",
+    "description": "Increases the power of Slicing moves used by this Pokémon by 50%"
+  },
+  {
+    "slug": "shed-skin",
+    "description": "Every turn, it has a 1 in 3 chance of healing from a status condition (BURN, PARALYZE, SLEEP, POISON, FREEZE)."
+  },
+  {
+    "slug": "sheer-force",
+    "description": "Moves with a secondary effect are increased in power by 30% but lose their secondary effect"
+  },
+  {
+    "slug": "shell-armor",
+    "description": "Opponent’s moves cannot Critical Hit."
+  },
+  {
+    "slug": "shield-dust",
+    "description": "Damaging moves used by the opponent will not have an additional effect."
+  },
+  {
+    "slug": "shields-down",
+    "description": "Changes the Pokémon into its Core form when its Hit Points drop below 50%. Before then, it cannot be affected by Status Conditions such as Burn or Paralysis"
+  },
+  {
+    "slug": "simple",
+    "description": "The effectiveness of all stat modifications is doubled."
+  },
+  {
+    "slug": "skill-link",
+    "description": "Moves that attack 2-5 times always hit 5 times."
+  },
+  {
+    "slug": "slow-start",
+    "description": "Attack and Speed is halved during the first five turns since sent out."
+  },
+  {
+    "slug": "slush-rush",
+    "description": "Doubles the Pokémon's Speed when Snow is in effect"
+  },
+  {
+    "slug": "sniper",
+    "description": "Power of critical-hit moves is increased to 225% rather than 150%."
+  },
+  {
+    "slug": "snow-cloak",
+    "description": "Raises the Pokémon’s evasion during a Snowstorm by one level."
+  },
+  {
+    "slug": "snow-warning",
+    "description": "Snowstorm blows when the Pokémon enters battle. As of X & Y, this lasts 5 turns."
+  },
+  {
+    "slug": "solar-power",
+    "description": "During sunshine, the Pokémon’s Special Attack raises to 1.5 times but HP decreases by 1/8th the maximum HP every turn."
+  },
+  {
+    "slug": "solid-rock",
+    "description": "Damage by super-effective moves is reduced by 25%."
+  },
+  {
+    "slug": "soul-heart",
+    "description": "Boosts its Sp. Atk stat every time a Pokémon faints."
+  },
+  {
+    "slug": "soundproof",
+    "description": "Unaffected by sound moves. If this Pokémon switches out with Baton Pass, Perish Song against the switched out will not be nullified."
+  },
+  {
+    "slug": "speed-boost",
+    "description": "Speed increases by one stage at the end of each turn."
+  },
+  {
+    "slug": "spicy-spray",
+    "description": "When the Pokémon takes damage from a move, it burns the attacker."
+  },
+  {
+    "slug": "stakeout",
+    "description": "Doubles the damage dealt to the target's replacement if the target switches out."
+  },
+  {
+    "slug": "stall",
+    "description": "The Pokémon always attacks last."
+  },
+  {
+    "slug": "stalwart",
+    "description": "Ignores the effects of opposing Pokémon's Abilities and moves that draw in moves."
+  },
+  {
+    "slug": "stamina",
+    "description": "Boosts the Defense stat when hit by an attack."
+  },
+  {
+    "slug": "stance-change",
+    "description": "The Pokémon changes its form to Blade Forme when it uses an attack move, and changes to Shield Forme when it uses King's Shield."
+  },
+  {
+    "slug": "static",
+    "description": "The opponent has a 30% chance of being induced with PARALYZE when using an attack, that requires physical contact, against this Pokémon."
+  },
+  {
+    "slug": "steadfast",
+    "description": "Speed raises by one level every time the Pokémon flinches."
+  },
+  {
+    "slug": "steam-engine",
+    "description": "When this Pokémon is hit by a Fire-type or Water-type move, its Speed is increased by 6 stages"
+  },
+  {
+    "slug": "steelworker",
+    "description": "Increases the power of Steel-type moves used by this Pokémon by 50%"
+  },
+  {
+    "slug": "steely-spirit",
+    "description": "Increases the power of Steel-type moves used by the user or any Ally Pokémon by 50%"
+  },
+  {
+    "slug": "stench",
+    "description": "If the Pokémon uses a move that deals damage on the opponent, there is a chance the opponent flinches"
+  },
+  {
+    "slug": "sticky-hold",
+    "description": "This Pokémon’s item cannot be taken."
+  },
+  {
+    "slug": "storm-drain",
+    "description": "Water-type moves are drawn to this Pokémon. Water-type moves will do no damage and the Pokémon's SP ATK is raised one stage"
+  },
+  {
+    "slug": "strong-jaw",
+    "description": "Increases the power of biting moves by 50%"
+  },
+  {
+    "slug": "sturdy",
+    "description": "The Pokémon will remain with 1 HP if it was going to be knocked out by a move when at full Hit Points, and it is immune to One Hit KO moves."
+  },
+  {
+    "slug": "suction-cups",
+    "description": "Negates moves that force switching out."
+  },
+  {
+    "slug": "super-luck",
+    "description": "Raises the critical-hit ratio of moves by one level."
+  },
+  {
+    "slug": "supersweet-syrup",
+    "description": "Lowers the evasion of opposing Pokémon by 1 stage when first sent into battle"
+  },
+  {
+    "slug": "supreme-overlord",
+    "description": "When the Pokémon enters a battle, its Attack and Sp. Atk stats are boosted by 10% for each of the allies in its party that have already been defeated."
+  },
+  {
+    "slug": "surge-surfer",
+    "description": "Doubles the Pokémon's Speed stat on Electric Terrain."
+  },
+  {
+    "slug": "swarm",
+    "description": "When HP is below 1/3rd its maximum, power of Bug-type moves is increased by 50%."
+  },
+  {
+    "slug": "sweet-veil",
+    "description": "Prevents itself and ally Pokémon from falling asleep."
+  },
+  {
+    "slug": "swift-swim",
+    "description": "When rainy, The Pokémon’s Speed doubles."
+  },
+  {
+    "slug": "sword-of-ruin",
+    "description": "The power of the Pokémon's ruinous sword lowers the Defense stats of all Pokémon except itself by 25%. It is also not affected by other Sword of Ruin abilities."
+  },
+  {
+    "slug": "symbiosis",
+    "description": "Passes the Pokémon's hold item to its adjacent ally when that ally consumes its hold item"
+  },
+  {
+    "slug": "synchronize",
+    "description": "When this Pokémon becomes Poisoned, Paralyzed, or Burned, so does the opponent. However, Fire-type and Water Veil ability Pokémon cannot be Burned, Poison-type and Steel-type and Immunity ability Pokémon cannot be Poisoned, and Limber ability Pokémon cannot be Paralyzed."
+  },
+  {
+    "slug": "tablets-of-ruin",
+    "description": "The power of the Pokémon's ruinous wooden tablets lowers the Attack stats of all Pokémon except itself by 25%. It is also not affected by other Tablets of Ruin abilities."
+  },
+  {
+    "slug": "tangled-feet",
+    "description": "Pokémon’s evasion raises one level when Confused."
+  },
+  {
+    "slug": "tangling-hair",
+    "description": "Lowers opponent's Speed by 1 stage when the opponent makes physical contact with the Pokémon"
+  },
+  {
+    "slug": "technician",
+    "description": "Moves with a base power of 60 or less are boosted in power by 50%"
+  },
+  {
+    "slug": "telepathy",
+    "description": "Prevents damage from team-mates during Double battles"
+  },
+  {
+    "slug": "tera-shell",
+    "description": "The Pokémon's shell contains the powers of each type. All damage-dealing moves that hit the Pokémon when its HP is full will not be very effective."
+  },
+  {
+    "slug": "tera-shift",
+    "description": "When the Pokémon enters a battle, it absorbs the energy around itself and transforms into its Terastal Form."
+  },
+  {
+    "slug": "teraform-zero",
+    "description": "When Terapagos changes into its Stellar Form, it uses its hidden powers to eliminate all effects of weather and terrain, reducing them to zero."
+  },
+  {
+    "slug": "teravolt",
+    "description": "Moves can be used on the target regardless of its Abilities."
+  },
+  {
+    "slug": "thermal-exchange",
+    "description": "Boosts the Attack stat when the Pokémon is hit by a Fire-type move. The Pokémon also cannot be burned."
+  },
+  {
+    "slug": "thick-fat",
+    "description": "Fire and Ice-type moves deal 50% damage."
+  },
+  {
+    "slug": "tinted-lens",
+    "description": "The power of “not very effective” moves is doubled."
+  },
+  {
+    "slug": "torrent",
+    "description": "When HP is below 1/3rd its maximum, power of Water-type moves is increased by 50%."
+  },
+  {
+    "slug": "tough-claws",
+    "description": "Increases the power of moves that make physical contact by 30%"
+  },
+  {
+    "slug": "toxic-boost",
+    "description": "Attack stat increased by 50% when Poisoned"
+  },
+  {
+    "slug": "toxic-chain",
+    "description": "The power of the Pokémon's toxic chain may badly poison any target the Pokémon hits with a move."
+  },
+  {
+    "slug": "toxic-debris",
+    "description": "Scatters poison spikes at the feet of the opposing team when the Pokémon takes damage from physical moves."
+  },
+  {
+    "slug": "trace",
+    "description": "Ability becomes the same as that of the opponent. Switching this Pokémon out of battle restores its original ability. In a Double Battle, a random opponent’s ability will be copied."
+  },
+  {
+    "slug": "transistor",
+    "description": "Increases the damage inflicted by Electric-type moves by 30%"
+  },
+  {
+    "slug": "triage",
+    "description": "Healing moves have +3 Priority when used by this Pokémon."
+  },
+  {
+    "slug": "truant",
+    "description": "The Pokémon cannot use a move in the turn following one where it used a move, even if that move failed."
+  },
+  {
+    "slug": "turboblaze",
+    "description": "Moves can be used on the target regardless of its Abilities."
+  },
+  {
+    "slug": "unaware",
+    "description": "Foe’s stat modifications are ignored."
+  },
+  {
+    "slug": "unburden",
+    "description": "Speed is doubled once the held item is consumed."
+  },
+  {
+    "slug": "unnerve",
+    "description": "The opponent Pokémon will never use their held Berry while the Pokémon is in battle."
+  },
+  {
+    "slug": "unseen-fist",
+    "description": "The Pokémon can deal damage with moves that make physical contact, even if the target is protected. This damage is reduced to 25%"
+  },
+  {
+    "slug": "vessel-of-ruin",
+    "description": "The power of the Pokémon's ruinous vessel lowers the Sp. Atk stats of all Pokémon except itself by 25%. It is also not affected by other Vessel of Ruin abilities."
+  },
+  {
+    "slug": "victory-star",
+    "description": "Accuracy for the Pokémon and Allys is raised by 10%"
+  },
+  {
+    "slug": "vital-spirit",
+    "description": "The Pokémon cannot be Asleep while having this ability."
+  },
+  {
+    "slug": "volt-absorb",
+    "description": "The Pokémon heals up to 1/4 of its maximum Hit Points when hit with Electric-type moves."
+  },
+  {
+    "slug": "wandering-spirit",
+    "description": "The Pokémon exchanges Abilities with a Pokémon that hits it with a move that makes direct contact."
+  },
+  {
+    "slug": "water-absorb",
+    "description": "The Pokémon heals up to 1/4 of its maximum Hit Points when hit with Water-type moves."
+  },
+  {
+    "slug": "water-bubble",
+    "description": "Decreases Fire-type move power on the Pokémon by 50%. Increases power of Water-type moves used by the Pokémon by 100% before adding STAB. Prevents Burn"
+  },
+  {
+    "slug": "water-compaction",
+    "description": "Increases Defense by 2 stages every time it is hit by a Water-type move"
+  },
+  {
+    "slug": "water-veil",
+    "description": "This Pokémon cannot be Burned while having this ability."
+  },
+  {
+    "slug": "weak-armor",
+    "description": "When hit by an attack, the Pokémon's Defense is lowered by one stage but Speed is increased by two stages."
+  },
+  {
+    "slug": "well-baked-body",
+    "description": "This Pokémon receives no damage when hit by Fire-type moves and boosts its Defense stat by 2 stages"
+  },
+  {
+    "slug": "white-smoke",
+    "description": "Opponents’ moves which lower this Pokémon’s stats have no effect. However this Pokémon may lower its own stats with its own moves."
+  },
+  {
+    "slug": "wimp-out",
+    "description": "When the Pokémon's Hit Points hit 50% or less, the Pokémon will switch out. Works once per battle. The Pokémon will not switch out if it drops below 50% due to Confusion, Weather, use of Substitute or when the damage inflicted is by a Pokémon with the Sheer Force ability. It will not activate if health is brought back up above 50% due to a hold item"
+  },
+  {
+    "slug": "wind-power",
+    "description": "The Pokémon becomes charged when it is hit by a wind move, boosting the power of the next Electric-type move the Pokémon uses."
+  },
+  {
+    "slug": "wind-rider",
+    "description": "Boosts the Pokémon's Attack stat if Tailwind takes effect or if the Pokémon is hit by a wind move. The Pokémon also takes no damage from wind moves."
+  },
+  {
+    "slug": "wonder-guard",
+    "description": "The Pokémon is only harmed by Super Effective damage, weather effects and condition effects."
+  },
+  {
+    "slug": "wonder-skin",
+    "description": "Makes non-damaging moves that are targeted at this Pokémon have the accuracy of 50%."
+  },
+  {
+    "slug": "zen-mode",
+    "description": "When Hit Points get to 50% of maximum, the Pokémon changes form. The Pokémon reverts back to its standard form if it loses this ability or returns to over 50% of its Hit Points"
+  },
+  {
+    "slug": "zero-to-hero",
+    "description": "The Pokémon transforms into its Hero Form when it switches out."
+  }
+]

@@ -7,7 +7,7 @@
  */
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 
@@ -92,6 +92,26 @@ function TopNavContent() {
   >([]);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isReady, setIsReady] = useState(false);
+  const settingsMenuRef = useRef<HTMLDivElement>(null);
+
+  // Close the settings menu when a click lands outside of it.
+  useEffect(() => {
+    if (!isMenuOpen) {
+      return;
+    }
+
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        settingsMenuRef.current &&
+        !settingsMenuRef.current.contains(event.target as Node)
+      ) {
+        setIsMenuOpen(false);
+      }
+    }
+
+    document.addEventListener("click", handleClickOutside);
+    return () => document.removeEventListener("click", handleClickOutside);
+  }, [isMenuOpen]);
 
   useEffect(() => {
     async function loadLeagueOptions() {
@@ -291,7 +311,7 @@ function TopNavContent() {
           </label>
         </div>
 
-        <div className="relative">
+        <div className="relative" ref={settingsMenuRef}>
           <button
             type="button"
             onClick={() => setIsMenuOpen((current) => !current)}

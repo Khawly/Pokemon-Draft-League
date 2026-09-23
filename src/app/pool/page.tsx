@@ -22,11 +22,14 @@ import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import {
+  FORMS_DATA,
+  getPokemonDetailsBySlug,
   getPokemonEntryBySlug,
   getSpriteUrl,
   matchPokemonName,
   POKEMON_DATA,
 } from "@/lib/pokeapi";
+import { AbilityTooltip } from "@/components/ability-tooltip";
 
 /** A named, saved draft pool for a league season. */
 type PoolSummary = {
@@ -69,7 +72,20 @@ type PoolPokemonRow = {
 };
 
 /** Sortable table columns, including the national-dex default ordering. */
-type SortKey = "dex" | "name" | "type" | "bst" | "gen" | "status" | "tier";
+type SortKey =
+  | "dex"
+  | "name"
+  | "type"
+  | "bst"
+  | "gen"
+  | "status"
+  | "tier"
+  | "hp"
+  | "attack"
+  | "defense"
+  | "specialAttack"
+  | "specialDefense"
+  | "speed";
 
 /** Maximum tier value allowed by the tier inputs (hard cap for now). */
 const MAX_TIER = 50;
@@ -170,13 +186,16 @@ function parseCsvLine(line: string): string[] {
 }
 
 /**
- * Builds the default working-state rows: the full national dex, by number,
- * every species "Off Pool" and unranked.
+ * Builds the default working-state rows: the full national dex plus every
+ * distinct alternate form (regionals, Rotom appliances, Deoxys formes, etc.),
+ * by number, every entry "Off Pool" and unranked. The alternate forms carry
+ * their own slug, sprite id, typing, and stats so they can be toggled into the
+ * pool independently of their base species.
  *
  * @returns The default rows for an unsaved pool.
  */
 function buildDefaultRows(): PoolPokemonRow[] {
-  return POKEMON_DATA.map((entry) => ({
+  const species = POKEMON_DATA.map((entry) => ({
     key: `default-${entry.slug}`,
     id: null,
     dex: entry.dexNumber,
@@ -191,6 +210,22 @@ function buildDefaultRows(): PoolPokemonRow[] {
     generation: entry.generation,
     notes: null,
   }));
+  const forms = FORMS_DATA.map((form) => ({
+    key: `default-${form.slug}`,
+    id: null,
+    dex: form.dexNumber,
+    spriteId: form.spriteId,
+    pokemon_id: form.slug,
+    species_name: form.name,
+    tier_value: 0,
+    is_in_pool: false,
+    type_primary: form.types[0] ?? null,
+    type_secondary: form.types[1] ?? null,
+    bst: form.bst,
+    generation: form.generation,
+    notes: null,
+  }));
+  return [...species, ...forms];
 }
 
 /**
@@ -309,6 +344,8 @@ function SortHeader({
   sortKey,
   sortDir,
   onSort,
+  center,
+  left,
 }: {
   /** Visible header label. */
   label: string;
@@ -320,12 +357,17 @@ function SortHeader({
   sortDir: "asc" | "desc";
   /** Called with the column key when the header is clicked. */
   onSort: (column: SortKey) => void;
+  /** When true, centers the header text (for numeric summary columns). */
+  center?: boolean;
+  /** When true, left-aligns the header text. */
+  left?: boolean;
 }) {
   const active = sortKey === column;
+  const align = center ? "text-center" : left ? "text-left" : "";
   return (
     <th
       scope="col"
-      className="cursor-pointer select-none whitespace-nowrap px-4 py-3 hover:text-slate-300"
+      className={`cursor-pointer select-none whitespace-nowrap px-4 py-3 hover:text-slate-300 ${align}`}
       onClick={() => onSort(column)}
       title={`Sort by ${label}`}
     >
@@ -1378,6 +1420,16 @@ function PoolPageContent({
           return (Number(a.is_in_pool) - Number(b.is_in_pool)) * direction;
         case "tier":
           return (a.tier_value - b.tier_value) * direction;
+        case "hp":
+        case "attack":
+        case "defense":
+        case "specialAttack":
+        case "specialDefense":
+        case "speed":
+          return (
+            (getPokemonDetailsBySlug(a.pokemon_id)?.stats?.[sortKey] ?? -1) -
+            (getPokemonDetailsBySlug(b.pokemon_id)?.stats?.[sortKey] ?? -1)
+          ) * direction;
       }
     });
   }, [rows, filters, sortKey, sortDir]);
@@ -1448,7 +1500,7 @@ function PoolPageContent({
 
   return (
     <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
-      <div className="mx-auto max-w-6xl space-y-8">
+      <div className="mx-auto max-w-7xl space-y-8">
         <header className="space-y-2">
           <h1 className="text-2xl font-bold text-white">{leagueName} Pool</h1>
         </header>
@@ -1779,7 +1831,7 @@ function PoolPageContent({
                 </div>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left text-sm">
+                  <table className="w-full text-center text-sm">
                     <thead className="border-b border-slate-800 bg-slate-950/60 text-xs uppercase tracking-wider text-slate-500">
                       <tr>
                         {isOwner && (
@@ -1816,16 +1868,28 @@ function PoolPageContent({
                           </th>
                         )}
                         <SortHeader label="Dex" column="dex" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
-                        <SortHeader label="Pokémon" column="name" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
-                        <SortHeader label="Type" column="type" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
-                        <SortHeader label="BST" column="bst" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
                         <SortHeader label="Gen" column="gen" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
-                        <SortHeader label="Status" column="status" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                        <SortHeader label="Pokémon" column="name" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} left />
+                        <SortHeader label="Type" column="type" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
                         <SortHeader label="Tier" column="tier" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                        <th className="px-4 py-3 font-semibold">
+                          Abilities
+                        </th>
+                        <SortHeader label="Total" column="bst" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} center />
+                        <SortHeader label="HP" column="hp" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                        <SortHeader label="Atk" column="attack" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                        <SortHeader label="Def" column="defense" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                        <SortHeader label="SpA" column="specialAttack" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                        <SortHeader label="SpD" column="specialDefense" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                        <SortHeader label="Spe" column="speed" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                        <SortHeader label="Status" column="status" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredRows.map((row) => (
+                      {filteredRows.map((row) => {
+                      const details = getPokemonDetailsBySlug(row.pokemon_id);
+                      const stats = details?.stats ?? null;
+                      return (
                         <tr
                           key={row.key}
                           className="border-b border-slate-800/60 last:border-b-0"
@@ -1844,8 +1908,11 @@ function PoolPageContent({
                           <td className="px-4 py-3 text-slate-500">
                             {row.dex > 0 ? `#${row.dex}` : "—"}
                           </td>
-                          <td className="px-4 py-3">
-                            <div className="flex items-center gap-3">
+                          <td className="px-4 py-3 text-slate-300">
+                            {row.generation ? generationNumber(row.generation) : "—"}
+                          </td>
+                          <td className="px-4 py-3 text-left">
+                            <div className="flex items-center justify-start gap-3">
                               <Sprite spriteId={row.spriteId} name={row.species_name} size={40} />
                               <span className="font-medium text-slate-100">
                                 {row.species_name}
@@ -1853,7 +1920,7 @@ function PoolPageContent({
                             </div>
                           </td>
                           <td className="px-4 py-3">
-                            <div className="flex flex-wrap items-center gap-1.5">
+                            <div className="flex flex-wrap items-center justify-center gap-1.5">
                               {row.type_primary && (
                                 <span
                                   className={`rounded px-1.5 py-0.5 text-xs font-semibold ${
@@ -1879,11 +1946,61 @@ function PoolPageContent({
                               )}
                             </div>
                           </td>
-                          <td className="px-4 py-3 text-slate-300">
+                          <td className="px-4 py-3 text-center">
+                            {!row.is_in_pool ? (
+                              <span className="text-slate-600">—</span>
+                            ) : isOwner ? (
+                              <input
+                                type="number"
+                                min={0}
+                                max={MAX_TIER}
+                                step={1}
+                                value={row.tier_value}
+                                onChange={(event) =>
+                                  handleTierChange(
+                                    row.key,
+                                    parseTier(event.target.value, row.tier_value),
+                                  )
+                                }
+                                className="w-20 rounded-lg border border-slate-700 bg-slate-900 px-2 py-1.5 text-sm text-slate-100 outline-none focus:border-amber-400"
+                              />
+                            ) : (
+                              <span className="text-slate-300">
+                                {row.tier_value > 0 ? row.tier_value : "—"}
+                              </span>
+                            )}
+                          </td>
+                          <td className="max-w-[160px] px-4 py-3 text-slate-300">
+                            {details && details.abilities.length > 0 ? (
+                              <span className="flex flex-wrap items-center justify-center gap-1">
+                                {details.abilities.map((ability) => (
+                                  <AbilityTooltip key={ability.name} slug={ability.name} />
+                                ))}
+                              </span>
+                            ) : (
+                              "—"
+                            )}
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap text-center tabular-nums text-slate-300">
                             {row.bst ?? "—"}
                           </td>
-                          <td className="px-4 py-3 text-slate-300">
-                            {row.generation ? generationNumber(row.generation) : "—"}
+                          <td className="px-4 py-3 whitespace-nowrap tabular-nums text-slate-300">
+                            {stats?.hp ?? "—"}
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap tabular-nums text-slate-300">
+                            {stats?.attack ?? "—"}
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap tabular-nums text-slate-300">
+                            {stats?.defense ?? "—"}
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap tabular-nums text-slate-300">
+                            {stats?.specialAttack ?? "—"}
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap tabular-nums text-slate-300">
+                            {stats?.specialDefense ?? "—"}
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap tabular-nums text-slate-300">
+                            {stats?.speed ?? "—"}
                           </td>
                           <td className="px-4 py-3">
                             {isOwner ? (
@@ -1908,32 +2025,9 @@ function PoolPageContent({
                               </span>
                             )}
                           </td>
-                          <td className="px-4 py-3">
-                            {!row.is_in_pool ? (
-                              <span className="text-slate-600">—</span>
-                            ) : isOwner ? (
-                              <input
-                                type="number"
-                                min={0}
-                                max={MAX_TIER}
-                                step={1}
-                                value={row.tier_value}
-                                onChange={(event) =>
-                                  handleTierChange(
-                                    row.key,
-                                    parseTier(event.target.value, row.tier_value),
-                                  )
-                                }
-                                className="w-20 rounded-lg border border-slate-700 bg-slate-900 px-2 py-1.5 text-sm text-slate-100 outline-none focus:border-amber-400"
-                              />
-) : (
-                              <span className="text-slate-300">
-                                {row.tier_value > 0 ? row.tier_value : "—"}
-                              </span>
-                            )}
-                          </td>
                         </tr>
-                      ))}
+                      );
+                    })}
                     </tbody>
                   </table>
                 </div>

@@ -10,7 +10,20 @@ import { useRouter } from "next/navigation";
 import { signOut } from "@/lib/supabase/auth";
 
 /** Navigation tab labels displayed in the league header. */
-const tabs = ["Overview", "Draft Board", "Teams", "Schedule"];
+const tabs = ["Overview", "Draft Board", "Teams", "Pokémon", "Schedule"];
+
+/** Maps the navigable header tabs to their route slugs (leagueId is appended). */
+const TAB_ROUTES: Record<string, string> = {
+  "Draft Board": "draftboard",
+  Teams: "teams",
+  "Pokémon": "pokemon",
+  Schedule: "schedule",
+};
+
+/** Builds the route for a tab slug using the selected league id. */
+function routeFor(slug: string, leagueId?: string | null): string {
+  return leagueId ? `/${slug}?leagueId=${leagueId}` : `/${slug}`;
+}
 
 /** Hard-coded standings data — will be replaced by a database query. */
 const standings = [
@@ -52,8 +65,8 @@ export interface DashboardShellProps {
  * Full dashboard layout for a selected league.
  *
  * Displays league metadata, summary stat cards, standings, schedule,
- * notifications, and the current team roster. Provides navigation to
- * the draft board and settings pages.
+ * notifications, and the current team roster. Provides navigation to the
+ * draft board, teams, Pokémon (free agent) and settings pages.
  *
  * @param props - {@link DashboardShellProps}
  * @returns A grid-based dashboard layout.
@@ -104,16 +117,13 @@ export function DashboardShell({
             <button
               key={tab}
               type="button"
-              onClick={
-                tab === "Draft Board"
-                  ? () =>
-                      router.push(
-                        leagueId
-                          ? `/draftboard?leagueId=${leagueId}`
-                          : "/draftboard",
-                      )
-                  : undefined
-              }
+              onClick={() => {
+                const route = TAB_ROUTES[tab];
+                if (!route) {
+                  return;
+                }
+                router.push(routeFor(route, leagueId));
+              }}
               className={`rounded-full px-3.5 py-2 text-sm font-medium transition ${
                 index === 0
                   ? "bg-amber-500 text-slate-950"
@@ -213,6 +223,7 @@ export function DashboardShell({
             </p>
             <button
               type="button"
+              onClick={() => router.push(routeFor("schedule", leagueId))}
               className="mt-4 w-full rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-amber-400"
             >
               Open matchup
@@ -251,6 +262,7 @@ export function DashboardShell({
             </div>
             <button
               type="button"
+              onClick={() => router.push(routeFor("schedule", leagueId))}
               className="rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-sm font-medium text-slate-100 transition hover:border-slate-500 hover:bg-slate-700"
             >
               Manage calendar

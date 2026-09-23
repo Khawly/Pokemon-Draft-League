@@ -520,7 +520,7 @@ The team stats table should show:
   - Delete (Owner/Admin only)
 - Sorted by earliest date/time first.
 
-## 10. League Page
+## 10. Schedule Page
 
 ### 10.1 Schedule creation
 

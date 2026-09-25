@@ -22,7 +22,8 @@ import { Suspense } from "react";
 import { AbilityTooltip } from "@/components/ability-tooltip";
 import { supabase } from "@/lib/supabase/client";
 import { getSpriteUrl } from "@/lib/pokeapi";
-import { TYPE_LIST, getDefensiveMatchup, getMatchupColor } from "@/lib/typechart";
+import { formatSeasonLabel } from "@/lib/supabase/seasons";
+import { TYPE_LIST, getDefensiveMatchup, getEmphasisGlow, getMatchupColor, type PokemonType } from "@/lib/typechart";
 import {
   deleteMatch,
   dropRosterPokemon,
@@ -487,13 +488,81 @@ function TeamStatsTable({
 }
 
 /**
+ * Per-attacking-type totals for a roster: how many Pokémon are weak to each type
+ * and how many resist it.
+ *
+ * A weakness is any multiplier above 1 (single 2x and double 4x both count).
+ * A resist is any multiplier below 1; immunities (0) count as resists because
+ * they likewise mean the team takes reduced damage from that type.
+ */
+function buildDefensiveSummary(roster: TeamRosterPokemon[]): {
+  weaknesses: Record<PokemonType, number>;
+  resists: Record<PokemonType, number>;
+} {
+  const weaknesses = {} as Record<PokemonType, number>;
+  const resists = {} as Record<PokemonType, number>;
+
+  for (const type of TYPE_LIST) {
+    weaknesses[type] = 0;
+    resists[type] = 0;
+  }
+
+  for (const pokemon of roster) {
+    for (const type of TYPE_LIST) {
+      const multiplier = getDefensiveMatchup(pokemon.types, type);
+
+      if (multiplier > 1) {
+        weaknesses[type] += 1;
+      } else if (multiplier < 1) {
+        resists[type] += 1;
+      }
+    }
+  }
+
+  return { weaknesses, resists };
+}
+
+/**
+ * Shade a summary cell using the same value scale as the per-Pokémon cells.
+ *
+ * A count of 0 is black, a count of 1 carries no color, and counts climb
+ * through the muted and then the emphasized (glowing) red or green, so the
+ * columns the roster handles worst stand out.
+ */
+function getSummaryCellColor(
+  count: number,
+  kind: "weakness" | "resist",
+): string {
+  if (count === 0) {
+    return "bg-slate-950 text-white";
+  }
+
+  // A lone weak or resisted Pokémon matches its single-cell color.
+  if (count === 1) {
+    return "";
+  }
+
+  if (count === 2) {
+    return kind === "weakness"
+      ? "bg-red-700 text-white"
+      : "bg-green-700 text-white";
+  }
+
+  return kind === "weakness"
+    ? `bg-red-500 text-white ${getEmphasisGlow("red")}`
+    : `bg-green-500 text-white ${getEmphasisGlow("green")}`;
+}
+
+/**
  * The §9.3 defensive typing grid.
  *
  * Rows are the team's Pokémon and columns the 18 attacking types; each cell is
  * the damage multiplier that attacking type deals against the Pokémon's own
  * defensive typing (e.g. a Gyarados shows 4 vs Electric, 0 vs Ground). Cells
  * are colored defensively — resistances green, weaknesses red, immunities
- * black — and the attacking-type columns use the signature type colors.
+ * black — and the attacking-type columns use the signature type colors. Two
+ * footer rows total the columns: Weaknesses counts the roster Pokémon taking
+ * more than 1x from that type, Resists counts those taking less than 1x.
  */
 function DefensiveTypingGrid({
   teamName,
@@ -504,6 +573,8 @@ function DefensiveTypingGrid({
   /** Roster Pokémon to evaluate. */
   roster: TeamRosterPokemon[];
 }) {
+  const summary = useMemo(() => buildDefensiveSummary(roster), [roster]);
+
   return (
     <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-lg shadow-slate-950/30">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -513,29 +584,29 @@ function DefensiveTypingGrid({
           </p>
           <h2 className="mt-1 text-xl font-bold text-white">{teamName}</h2>
         </div>
-        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-300">
-          <span className="flex items-center gap-1.5">
-            <span className="inline-block h-3 w-3 rounded-sm bg-red-700 text-center text-[9px] leading-3 text-white">4</span>
+        <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-slate-300">
+          <span className="flex items-center gap-2">
+            <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-sm bg-red-500 px-1.5 text-[11px] font-bold leading-none text-white shadow-[0_0_10px_rgba(239,68,68,0.9)]">4</span>
             Double weakness
           </span>
-          <span className="flex items-center gap-1.5">
-            <span className="inline-block h-3 w-3 rounded-sm bg-red-500 text-center text-[9px] leading-3 text-white">2</span>
+          <span className="flex items-center gap-2">
+            <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-sm bg-red-700 px-1.5 text-[11px] font-bold leading-none text-white">2</span>
             Weakness
           </span>
-          <span className="flex items-center gap-1.5">
-            <span className="inline-block h-3 w-3 rounded-sm bg-slate-800 text-center text-[9px] leading-3 text-slate-200">1</span>
+          <span className="flex items-center gap-2">
+            <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-sm border border-slate-700 px-1.5 text-[11px] font-bold leading-none text-slate-200">1</span>
             Neutral
           </span>
-          <span className="flex items-center gap-1.5">
-            <span className="inline-block h-3 w-3 rounded-sm bg-green-700 text-center text-[9px] leading-3 text-white">0.5</span>
+          <span className="flex items-center gap-2">
+            <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-sm bg-green-700 px-1.5 text-[11px] font-bold leading-none text-white">0.5</span>
             Resisted
           </span>
-          <span className="flex items-center gap-1.5">
-            <span className="inline-block h-3 w-3 rounded-sm bg-green-500 text-center text-[9px] leading-3 text-white">0.25</span>
+          <span className="flex items-center gap-2">
+            <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-sm bg-green-500 px-1.5 text-[11px] font-bold leading-none text-white shadow-[0_0_10px_rgba(34,197,94,0.75)]">0.25</span>
             Strongly resisted
           </span>
-          <span className="flex items-center gap-1.5">
-            <span className="inline-block h-3 w-3 rounded-sm bg-slate-950 text-center text-[9px] leading-3 text-slate-400">0</span>
+          <span className="flex items-center gap-2">
+            <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-sm bg-slate-950 px-1.5 text-[11px] font-bold leading-none text-white">0</span>
             Immune
           </span>
         </div>
@@ -594,14 +665,63 @@ function DefensiveTypingGrid({
                 </tr>
               ))}
             </tbody>
+            <tfoot className="divide-y divide-slate-700 border-t-2 border-slate-700 bg-slate-900">
+              <tr>
+                <th
+                  scope="row"
+                  className="sticky left-0 bg-slate-900 px-2 py-1.5 text-left text-xs font-semibold uppercase tracking-wider text-red-300"
+                >
+                  Weaknesses
+                </th>
+                {TYPE_LIST.map((type) => (
+                  <td
+                    key={type}
+                    className={`px-1 py-1 text-center text-xs font-bold ${getSummaryCellColor(summary.weaknesses[type], "weakness")}`}
+                    title={`${summary.weaknesses[type]} of ${roster.length} take more than 1x from ${type}-type attacks`}
+                    aria-label={`${summary.weaknesses[type]} of ${roster.length} are weak to ${type}-type attacks`}
+                  >
+                    {summary.weaknesses[type]}
+                  </td>
+                ))}
+              </tr>
+              <tr>
+                <th
+                  scope="row"
+                  className="sticky left-0 bg-slate-900 px-2 py-1.5 text-left text-xs font-semibold uppercase tracking-wider text-green-300"
+                >
+                  Resists
+                </th>
+                {TYPE_LIST.map((type) => (
+                  <td
+                    key={type}
+                    className={`px-1 py-1 text-center text-xs font-bold ${getSummaryCellColor(summary.resists[type], "resist")}`}
+                    title={`${summary.resists[type]} of ${roster.length} take less than 1x from ${type}-type attacks`}
+                    aria-label={`${summary.resists[type]} of ${roster.length} resist ${type}-type attacks`}
+                  >
+                    {summary.resists[type]}
+                  </td>
+                ))}
+              </tr>
+            </tfoot>
           </table>
         </div>
       )}
+
+      <p className="mt-3 text-xs text-slate-500">
+        Weaknesses totals roster Pokémon taking more than 1x damage; Resists
+        totals those taking less than 1x, which includes immunities.
+      </p>
     </section>
   );
 }
 
-/** The §9.4 match history table for a selected team. */
+/**
+ * The §9.4 match history table for a selected team.
+ *
+ * Each row is prefixed with the season week the match was scheduled for, so
+ * playoff rounds (which continue the week numbering past the regular season)
+ * stay in sequence with the regular-season rows.
+ */
 function MatchHistory({
   teamName,
   matches,
@@ -634,6 +754,9 @@ function MatchHistory({
             <thead className="bg-slate-950 text-slate-300">
               <tr>
                 <th scope="col" className="px-4 py-3 font-semibold">
+                  Week
+                </th>
+                <th scope="col" className="px-4 py-3 font-semibold">
                   Matchup
                 </th>
                 <th scope="col" className="px-4 py-3 font-semibold">
@@ -651,6 +774,9 @@ function MatchHistory({
             <tbody className="divide-y divide-slate-800 bg-slate-900">
               {matches.map((match) => (
                 <tr key={match.id} className="hover:bg-slate-800/80">
+                  <td className="whitespace-nowrap px-4 py-3 font-medium text-slate-200">
+                    Week {match.week_number}
+                  </td>
                   <td className="px-4 py-3 font-medium text-slate-100">
                     <span className="whitespace-nowrap">
                       {match.player_1_name} vs {match.player_2_name}
@@ -954,7 +1080,7 @@ function TeamsPageContent({
             <div>
               <h2 className="text-3xl font-bold text-white">{goods.league.name}</h2>
               <p className="mt-1 text-sm text-slate-400">
-                Season {goods.season?.season_number ?? "—"} • Team overview
+                {formatSeasonLabel(goods.season)} • Team overview
               </p>
             </div>
 

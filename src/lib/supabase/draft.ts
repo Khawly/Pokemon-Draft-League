@@ -8,6 +8,7 @@
  * pick deadline, per-team salary, and picked status.
  */
 import { supabase } from "@/lib/supabase/client";
+import { loadLatestSeason } from "@/lib/supabase/seasons";
 import { getPokemonEntryBySlug } from "@/lib/pokeapi";
 
 /** Lifecycle status of a season's draft. */
@@ -30,6 +31,7 @@ export type DraftSeason = {
   id: string;
   season_number: number;
   status: DraftStatus;
+  name: string | null;
   draft_started_at: string | null;
   draft_completed_at: string | null;
   draft_pick_started_at: string | null;
@@ -218,15 +220,10 @@ export async function loadDraftData(leagueId: string): Promise<DraftGoods> {
     throw new Error("This league could not be loaded.");
   }
 
-  const { data: seasonRow, error: seasonError } = await supabase
-    .from("seasons")
-    .select(
-      "id, season_number, status, draft_started_at, draft_completed_at, draft_pick_started_at, draft_paused_at",
-    )
-    .eq("league_id", leagueId)
-    .order("season_number", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  const { data: seasonRow, error: seasonError } = await loadLatestSeason<DraftSeason>(
+    leagueId,
+    "id, season_number, status, name, draft_started_at, draft_completed_at, draft_pick_started_at, draft_paused_at",
+  );
 
   if (seasonError) {
     throw new Error("This league's season could not be loaded.");

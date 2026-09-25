@@ -9,6 +9,7 @@
  * by RLS), plus the salary derivation the UI shows per team.
  */
 import { supabase } from "@/lib/supabase/client";
+import { loadLatestSeason } from "@/lib/supabase/seasons";
 import {
   getPokemonDetailsBySlug,
   getPokemonEntryBySlug,
@@ -28,6 +29,7 @@ export type TeamSeason = {
   id: string;
   season_number: number;
   status: TeamSeasonStatus;
+  name: string | null;
 };
 
 /** Per-season cost/salary configuration read from league_settings. */
@@ -176,13 +178,10 @@ export async function loadTeamPageData(
     throw new Error("This league could not be loaded.");
   }
 
-  const { data: seasonRow, error: seasonError } = await supabase
-    .from("seasons")
-    .select("id, season_number, status")
-    .eq("league_id", leagueId)
-    .order("season_number", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  const { data: seasonRow, error: seasonError } = await loadLatestSeason<TeamSeason>(
+    leagueId,
+    "id, season_number, status, name",
+  );
 
   if (seasonError) {
     throw new Error("This league's season could not be loaded.");

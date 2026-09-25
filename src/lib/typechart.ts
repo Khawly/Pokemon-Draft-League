@@ -7,8 +7,9 @@
  * typing, columns across the 18 types) and its offensive matchups (what its own
  * attacks deal to a defender type). Both multiply their type values and reduce
  * to the multiplier set (0, 0.25, 0.5, 1, 2, 4). For the defensive grid,
- * `getMatchupColor` shades resistances green, weaknesses red, and immunities
- * black.
+ * `getMatchupColor` leaves neutral uncolored, shades immunities black,
+ * resistances green, and weaknesses red, emphasizing the most severe step of
+ * each family with a neon glow.
  */
 
 /** All 18 types in a stable display order (chart columns/rows). */
@@ -225,9 +226,28 @@ export function getDefensiveMatchup(
 }
 
 /**
- * Tailwind classes for a defensive matchup cell value: immune attacks are black,
- * resisted hits shade green (these are good for the defending Pokémon), neutral
- * is slate, and weaknesses shade red (bad for the defending Pokémon).
+ * Neon glow class for the emphasized step of a color family.
+ *
+ * The emphasized steps of the defensive grid (double weaknesses, strong
+ * resists, and their roster totals) share this so the glow reads the same in
+ * every place the chart uses it.
+ *
+ * @param color - The color family to glow.
+ * @returns The box-shadow utility classes.
+ */
+export function getEmphasisGlow(color: "red" | "green"): string {
+  return color === "red"
+    ? "shadow-[0_0_12px_rgba(239,68,68,0.9)]"
+    : "shadow-[0_0_12px_rgba(34,197,94,0.75)]";
+}
+
+/**
+ * Tailwind classes for a defensive matchup cell value: neutral hits get no
+ * shading, immunities are black, resisted hits shade green (these are good for
+ * the defending Pokémon), and weaknesses shade red (bad for the defending
+ * Pokémon). Within each family the plain step is the muted shade and the
+ * strongest step is the vivid one, emphasized with a neon glow. Every value
+ * keeps white text so only the cell fill carries meaning.
  *
  * 0.25 strongly resisted, 0.5 resisted, 1 neutral, 2 weak, 4 double weak.
  *
@@ -236,25 +256,24 @@ export function getDefensiveMatchup(
  */
 export function getMatchupColor(multiplier: number): string {
   if (multiplier === 0) {
-    return "bg-slate-950 text-slate-400";
+    return "bg-slate-950 text-white";
   }
-  // The stronger resist (0.25) carries the brighter green; the plain resist
-  // (0.5) is a darker green.
+  // The strong resist (0.25) is the vivid, glowing green; the plain resist
+  // (0.5) steps down to a darker green.
   if (multiplier === 0.25) {
-    return "bg-green-500 text-white";
+    return `bg-green-500 text-white ${getEmphasisGlow("green")}`;
   }
   if (multiplier === 0.5) {
     return "bg-green-700 text-white";
   }
+  // Neutral takes no color at all so the colored cells read at a glance.
   if (multiplier === 1) {
-    return "bg-slate-800 text-slate-200";
+    return "";
   }
-  // Double weaknesses stay one shade darker so they read more severe than a
-  // straight weakness.
-  if (multiplier === 4) {
+  // Weaknesses follow the same shape: a straight weakness steps down to a
+  // darker red and anything worse is the vivid, glowing red.
+  if (multiplier === 2) {
     return "bg-red-700 text-white";
   }
-  // Covers 2 (and any > 2 fallback) as a straight weakness, one step brighter
-  // than the double weakness red.
-  return "bg-red-500 text-white";
+  return `bg-red-500 text-white ${getEmphasisGlow("red")}`;
 }

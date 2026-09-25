@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Live draft arena for the Pokemon Draft League.
  *
  * A single-page orchestration of the season's draft: the pick-order strip on
@@ -28,6 +28,7 @@
 import Image from "next/image";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { formatSeasonLabel } from "@/lib/supabase/seasons";
 import {
   DraftGoods,
   DraftTeam,
@@ -374,7 +375,7 @@ function DraftHeader({
         <div>
           <h1 className="text-2xl font-bold text-white">{goods.league.name}</h1>
           <p className="mt-1 text-sm text-slate-400">
-            Season {goods.season?.season_number ?? "—"}
+            {formatSeasonLabel(goods.season)}
             {" · "}
             {goods.settings?.total_rounds ?? "—"} rounds
             {goods.settings?.draft_format === "snake"
@@ -2389,7 +2390,7 @@ function DraftPageContent() {
             No league selected for the draft.
           </p>
           <p className="mt-2">
-            Open a league from the dashboard and choose ΓÇ£Draft BoardΓ· to
+            Open a league from the dashboard and choose “Draft Board” to
             start the arena.
           </p>
         </div>

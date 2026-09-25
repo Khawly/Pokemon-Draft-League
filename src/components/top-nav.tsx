@@ -297,7 +297,7 @@ function TopNavContent() {
               aria-label="League dropdown"
             >
               {leagueOptions.length === 0 && (
-                <option value="create-league">Create New League</option>
+                <option value="create-league">+ Create New League</option>
               )}
 
               {leagueOptions.map((league) => (
@@ -306,7 +306,7 @@ function TopNavContent() {
                 </option>
               ))}
 
-              <option value="create-league">Create New League</option>
+              <option value="create-league">+ Create New League</option>
             </select>
           </label>
         </div>

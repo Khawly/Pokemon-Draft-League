@@ -8,11 +8,22 @@
  * current-week/matchup selector and a matchup card (avatars and names, game
  * record like 2-1) where participants can schedule/reschedule a match, submit
  * one result per game with a replay link (`Link already submitted` on
- * duplicates), forfeit, and where owners/admins can correct results; upcoming
- * matches are listed with the user's matches first. Standings shows rank /
+ * duplicates), forfeit, and where owners/admins can correct results. A "Filter"
+ * checkbox (on by default) covers the matchup card's spoilers with black
+ * rectangles: the match winner, the per-game winners, and each game's surviving
+ * Pokemon count. A best-of-3 decided in two also shows a mirrored third game
+ * that copies game 2, rendered only and never submitted, so it adds no
+ * differential. A "Read replay"
+ * button pulls the winner and surviving Pokemon count out of the
+ * Showdown battle log for a pasted link, and the form shows the resulting KO
+ * differential read-only so nobody has to type a signed number into the
+ * unsigned count box. Upcoming matches are listed with the user's matches
+ * first. Standings shows rank /
  * player / W-L / KO Diff, Playoffs renders the seeded bracket (single or
  * double elimination, advanced round by round by the owner), and History lists
- * every posted game newest first.
+ * every posted game newest first. Opening the page also nudges the weekly
+ * deadline sweep so a week whose deadline passed while the app server was idle
+ * is settled and the playoff bracket opened before the schedule renders.
  */
 "use client";
 
@@ -20,6 +31,9 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { supabase } from "@/lib/supabase/client";
+import { readReplaySummary } from "@/lib/replay-summary";
+import { runWeekDeadlineSweep } from "@/lib/supabase/week-deadline";
+import { formatSeasonLabel } from "@/lib/supabase/seasons";
 import { deleteMatch } from "@/lib/supabase/teams";
 import {
   forfeitMatch,
@@ -49,6 +63,176 @@ const TABS = [
 ] as const;
 
 type Tab = (typeof TABS)[number];
+
+/**
+ * Progress of the "Read replay" lookup for the report form: idle before it is
+ * requested, then either the read outcome or an error to show under the field.
+ */
+type ReplayReadState =
+  | { status: "idle" }
+  | { status: "loading" }
+  | { status: "done"; note: string | null; winnerResolved: boolean };
+
+/**
+ * One row in the matchup card's Games list.
+ *
+ * `mirrored` marks the synthetic row shown for the third game of a best-of-3
+ * that was decided in two. It copies game 2 so the card reads consistently, but
+ * it is only ever rendered: nothing is submitted for it, so it contributes no
+ * differential of its own to the season standings.
+ */
+type GameRow = {
+  /** The game being rendered; a mirror reuses game 2's row with a new key. */
+  result: ScheduleMatchResult;
+  /** Whether this row is the synthetic third game. */
+  mirrored: boolean;
+};
+
+/**
+ * Builds the Games rows for a match, appending a mirrored third game when a
+ * best-of-3 was decided in two. The mirror reuses game 2's winner, survivor
+ * count and replay link; it is display-only, so unlike a submitted game it never
+ * reaches season_standings and cannot skew the season differential.
+ *
+ * @param match - The match to list games for.
+ * @param matchFormat - The match's format, which decides whether a third game
+ *   can exist at all.
+ * @returns The real game rows, plus the mirror when one applies.
+ */
+function buildGameRows(
+  match: ScheduleMatch,
+  matchFormat: "single" | "best_of_3" | null,
+): GameRow[] {
+  const rows: GameRow[] = match.results
+    .slice()
+    .sort((a, b) => a.game_number - b.game_number)
+    .map((result) => ({ result, mirrored: false }));
+
+  const hasThirdGame = rows.some((row) => row.result.game_number === 3);
+  const secondGame = rows.find((row) => row.result.game_number === 2);
+  if (matchFormat === "best_of_3" && rows.length === 2 && !hasThirdGame && secondGame) {
+    rows.push({
+      result: {
+        ...secondGame.result,
+        id: `${secondGame.result.id}-mirrored-game-3`,
+        game_number: 3,
+      },
+      mirrored: true,
+    });
+  }
+
+  return rows;
+}
+
+/**
+ * A read-only matchup card for a completed match, used by the match history
+ * panel. Mirrors the Matchup section's layout and honours the spoiler filter, but
+ * carries none of its action buttons; selecting the card loads the match into the
+ * Matchup section above instead.
+ */
+function MatchupHistoryCard({
+  match,
+  matchFormat,
+  hideSpoilers,
+  selected,
+  onSelect,
+}: {
+  /** The completed match to render. */
+  match: ScheduleMatch;
+  /** The match's format, used to decide whether a mirrored third game applies. */
+  matchFormat: "single" | "best_of_3" | null;
+  /** Whether the spoiler filter should mask the result details. */
+  hideSpoilers: boolean;
+  /** Whether this is the match currently loaded in the Matchup section. */
+  selected: boolean;
+  /** Loads this match into the Matchup section. */
+  onSelect: () => void;
+}) {
+  const rows = buildGameRows(match, matchFormat);
+  const winnerSide = (teamId: string) =>
+    !hideSpoilers && match.winner_team_id === teamId;
+
+  const side = (teamId: string, name: string, avatarUrl: string | null) => (
+    <div className="flex flex-1 flex-col items-center gap-1 text-center">
+      <Avatar name={name} avatarUrl={avatarUrl} size={40} winner={winnerSide(teamId)} />
+      <span className="font-semibold text-slate-100">{name}</span>
+      {gameRecord(match, teamId) && (
+        <Spoiler hidden={hideSpoilers}>
+          <span className="text-sm text-slate-400">{gameRecord(match, teamId)}</span>
+        </Spoiler>
+      )}
+    </div>
+  );
+
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      className={`w-full rounded-xl border p-4 text-left transition ${
+        selected
+          ? "border-amber-500/60 bg-slate-800/80"
+          : "border-slate-800 bg-slate-950/60 hover:bg-slate-900"
+      }`}
+    >
+      <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+        {match.is_playoff ? "Postseason" : `Week ${match.week_number}`}
+        {match.scheduled_at ? ` • ${formatDateTime(match.scheduled_at)}` : ""}
+      </p>
+
+      <div className="flex w-full items-center justify-between gap-3">
+        {side(match.player_1_team_id, match.player_1_name, match.player_1_avatar_url)}
+        <div className="flex flex-col items-center gap-1">
+          <span className="rounded-full bg-slate-800 px-3 py-1 text-xs font-semibold text-slate-300">
+            {matchFormat === "single" ? "Single" : "Best of 3"}
+          </span>
+          <StatusBadge status={match.status} />
+        </div>
+        {side(match.player_2_team_id, match.player_2_name, match.player_2_avatar_url)}
+      </div>
+
+      {rows.length > 0 && (
+        <div className="mt-3 space-y-1.5 border-t border-slate-800 pt-3">
+          {rows.map(({ result }) => {
+            const winnerName =
+              result.winner_team_id === match.player_1_team_id
+                ? match.player_1_name
+                : match.player_2_name;
+            return (
+              <div key={result.id} className="flex items-center justify-between gap-3 text-sm">
+                <div className="flex items-center gap-2">
+                  <span className="rounded-full bg-slate-800 px-2 py-0.5 text-xs font-semibold text-slate-300">
+                    Game {result.game_number}
+                  </span>
+                  <Spoiler hidden={hideSpoilers}>
+                    <span className="font-semibold text-emerald-300">{winnerName} wins</span>
+                  </Spoiler>
+                  {result.pokemon_left_alive != null && (
+                    <Spoiler hidden={hideSpoilers}>
+                      <span className="text-slate-400">• {result.pokemon_left_alive} alive</span>
+                    </Spoiler>
+                  )}
+                </div>
+                {result.replay_url && (
+                  <span
+                    role="link"
+                    tabIndex={-1}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      window.open(result.replay_url ?? "", "_blank", "noreferrer");
+                    }}
+                    className="text-sky-400 underline decoration-sky-700 hover:text-sky-300"
+                  >
+                    Replay
+                  </span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </button>
+  );
+}
 
 /** Match status badge colors. */
 const STATUS_STYLES: Record<string, string> = {
@@ -137,6 +321,38 @@ function StatusBadge({ status }: { status: ScheduleMatch["status"] }) {
       }`}
     >
       {status}
+    </span>
+  );
+}
+
+/**
+ * Masks a result while the spoiler filter is on.
+ *
+ * A solid black rectangle covers the text: the content is kept in the DOM at its
+ * natural width so the card does not reflow when the filter is toggled, but the
+ * text is made transparent, unselectable, and hidden from assistive tech.
+ *
+ * The transparent colour is forced onto descendants rather than set on this
+ * element alone, because the masked values carry their own colour classes
+ * (`text-emerald-300`, `text-slate-400`) and a specified colour on a child beats
+ * one inherited from a parent, which would leave the text readable on black.
+ */
+function Spoiler({
+  hidden,
+  children,
+}: {
+  /** Whether the spoiler filter is currently masking this value. */
+  hidden: boolean;
+  /** The result text to mask. */
+  children: React.ReactNode;
+}) {
+  if (!hidden) {
+    return <>{children}</>;
+  }
+
+  return (
+    <span className="select-none rounded-sm bg-black [&_*]:!text-transparent" aria-hidden="true">
+      {children}
     </span>
   );
 }
@@ -230,6 +446,11 @@ function SchedulePageContent({
   const [reportWinner, setReportWinner] = useState("");
   const [reportUrl, setReportUrl] = useState("");
   const [reportAlive, setReportAlive] = useState("");
+  const [replayRead, setReplayRead] = useState<ReplayReadState>({ status: "idle" });
+
+  // Spoiler filter: on by default so the matchup card never reveals a result
+  // until the viewer asks to see it.
+  const [hideSpoilers, setHideSpoilers] = useState(true);
 
   const [editingResultId, setEditingResultId] = useState<string | null>(null);
   const [editWinner, setEditWinner] = useState("");
@@ -331,6 +552,14 @@ function SchedulePageContent({
           return;
         }
 
+        // Nudge the weekly deadline sweep so a week that closed while the app
+        // server was idle is settled before the schedule renders.
+        try {
+          await runWeekDeadlineSweep();
+        } catch {
+          // Best effort: the server heartbeat retries it.
+        }
+
         const next = await refresh(selectedLeagueId);
         if (!cancelled) {
           setGoods(next);
@@ -405,6 +634,38 @@ function SchedulePageContent({
     [goods, selectedMatch, myMatch],
   );
 
+  /*
+   * The signed contribution this game will make to the signed-in user's
+   * differential, mirroring season_standings: the winning team adds the
+   * survivor count and the losing team subtracts it. Shown read-only so the
+   * sign is visible without anyone typing a negative count by hand.
+   */
+  const reportDifferential = useMemo(() => {
+    if (!selectedMatch || !reportWinner || !reportAlive.trim()) {
+      return null;
+    }
+    // Only meaningful for a participant; owners viewing a match are neither side.
+    if (
+      goods?.myTeamId !== selectedMatch.player_1_team_id &&
+      goods?.myTeamId !== selectedMatch.player_2_team_id
+    ) {
+      return null;
+    }
+    const count = Number(reportAlive);
+    if (!Number.isInteger(count) || count < 0 || count > 6) {
+      return null;
+    }
+    return reportWinner === goods.myTeamId ? count : -count;
+  }, [selectedMatch, reportWinner, reportAlive, goods]);
+
+  // Per-player game records for the matchup card, e.g. "2-1". Both are spoilers.
+  const playerOneRecord = selectedMatch
+    ? gameRecord(selectedMatch, selectedMatch.player_1_team_id)
+    : null;
+  const playerTwoRecord = selectedMatch
+    ? gameRecord(selectedMatch, selectedMatch.player_2_team_id)
+    : null;
+
   const matchFormat = useMemo(() => {
     if (!goods?.settings || !selectedMatch) {
       return null;
@@ -413,6 +674,35 @@ function SchedulePageContent({
       ? goods.settings.playoff_match_format
       : goods.settings.match_format;
   }, [goods, selectedMatch]);
+
+  /*
+   * Games to list for the card: the real results, plus a mirrored third game
+   * when a best-of-3 was decided in two. Shared with the match history panel so
+   * both render a sweep the same way.
+   */
+  const gameRows = useMemo<GameRow[]>(
+    () => (selectedMatch ? buildGameRows(selectedMatch, matchFormat) : []),
+    [selectedMatch, matchFormat],
+  );
+
+  /** Format for any match, which differs for playoff rounds. */
+  const formatFor = useCallback(
+    (match: ScheduleMatch) =>
+      match.is_playoff
+        ? (goods?.settings?.playoff_match_format ?? null)
+        : (goods?.settings?.match_format ?? null),
+    [goods?.settings],
+  );
+
+  /** Completed matches, newest week last, for the match history panel. */
+  const completedMatches = useMemo(
+    () =>
+      (goods?.matches ?? []).filter(
+        (match) =>
+          match.status === "completed" || match.status === "forfeit",
+      ),
+    [goods?.matches],
+  );
 
   const upcomingMatches = useMemo(() => {
     if (!goods) {
@@ -594,6 +884,42 @@ function SchedulePageContent({
     setReportWinner("");
     setReportUrl("");
     setReportAlive("");
+    setReplayRead({ status: "idle" });
+  }
+
+  /**
+   * Reads the pasted replay link and fills in the winner and survivor count.
+   *
+   * The count is written unsigned and the winner carries the sign, matching what
+   * `season_standings` expects; a negative value here would flip both teams'
+   * differentials.
+   */
+  async function handleReadReplay() {
+    if (!selectedMatch || !reportUrl.trim()) {
+      return;
+    }
+    setReplayRead({ status: "loading" });
+    try {
+      const summary = await readReplaySummary(reportUrl.trim(), selectedMatch.id);
+      if (summary.winnerTeamId) {
+        setReportWinner(summary.winnerTeamId);
+      }
+      if (summary.pokemonLeftAlive != null) {
+        setReportAlive(String(summary.pokemonLeftAlive));
+      }
+      setReplayRead({
+        status: "done",
+        note: summary.note,
+        winnerResolved: Boolean(summary.winnerTeamId),
+      });
+    } catch (error) {
+      setNotice(
+        error instanceof Error
+          ? error.message
+          : "That replay could not be read.",
+      );
+      setReplayRead({ status: "idle" });
+    }
   }
 
   async function handleSubmitResult() {
@@ -701,7 +1027,7 @@ function SchedulePageContent({
             <div>
               <h1 className="text-3xl font-bold text-white">{goods.league.name}</h1>
               <p className="mt-1 text-sm text-slate-400">
-                Schedule • Season {goods.season?.season_number ?? "—"}
+                Schedule • {formatSeasonLabel(goods.season)}
                 {currentWeek != null ? ` • Current week ${currentWeek}` : " • Postseason"}
               </p>
             </div>
@@ -848,29 +1174,43 @@ function SchedulePageContent({
             <SectionCard
               title="Matchup"
               action={
-                <label className="flex items-center gap-2 text-sm text-slate-400">
-                  <span className="hidden sm:inline">Week / matchup</span>
-                  <select
-                    value={selectedMatchId ?? ""}
-                    onChange={(event) => {
-                      setSelectedMatchId(event.target.value || null);
-                      setSchedulingMatchId(null);
-                      setReportingMatchId(null);
-                      setEditingResultId(null);
-                    }}
-                    className="rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-500"
+                <div className="flex flex-wrap items-center gap-3">
+                  <label
+                    className="flex items-center gap-2 text-sm text-slate-400"
+                    title="Hide the match winner, the per-game winners, and each game's KO differential"
                   >
-                    {!selectedMatch && <option value="">Select a match</option>}
-                    {goods.matches.map((match) => (
-                      <option key={match.id} value={match.id}>
-                        {match.is_playoff
-                          ? "Postseason"
-                          : `Week ${match.week_number}`}{" "}
-                        • {match.player_1_name} vs {match.player_2_name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                    <input
+                      type="checkbox"
+                      checked={hideSpoilers}
+                      onChange={(event) => setHideSpoilers(event.target.checked)}
+                      className="size-4 accent-amber-500"
+                    />
+                    <span>Filter</span>
+                  </label>
+                  <label className="flex items-center gap-2 text-sm text-slate-400">
+                    <span className="hidden sm:inline">Week / matchup</span>
+                    <select
+                      value={selectedMatchId ?? ""}
+                      onChange={(event) => {
+                        setSelectedMatchId(event.target.value || null);
+                        setSchedulingMatchId(null);
+                        setReportingMatchId(null);
+                        setEditingResultId(null);
+                      }}
+                      className="rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-500"
+                    >
+                      {!selectedMatch && <option value="">Select a match</option>}
+                      {goods.matches.map((match) => (
+                        <option key={match.id} value={match.id}>
+                          {match.is_playoff
+                            ? "Postseason"
+                            : `Week ${match.week_number}`}{" "}
+                          • {match.player_1_name} vs {match.player_2_name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
               }
             >
               {!selectedMatch ? (
@@ -887,17 +1227,20 @@ function SchedulePageContent({
                           avatarUrl={selectedMatch.player_1_avatar_url}
                           size={44}
                           winner={
+                            !hideSpoilers &&
                             selectedMatch.winner_team_id ===
-                            selectedMatch.player_1_team_id
+                              selectedMatch.player_1_team_id
                           }
                         />
                         <span className="font-semibold text-slate-100">
                           {selectedMatch.player_1_name}
                         </span>
-                        {gameRecord(selectedMatch, selectedMatch.player_1_team_id) && (
-                          <span className="text-sm text-slate-400">
-                            {gameRecord(selectedMatch, selectedMatch.player_1_team_id)}
-                          </span>
+                        {playerOneRecord && (
+                          <Spoiler hidden={hideSpoilers}>
+                            <span className="text-sm text-slate-400">
+                              {playerOneRecord}
+                            </span>
+                          </Spoiler>
                         )}
                       </div>
                       <div className="flex flex-col items-center gap-1">
@@ -912,17 +1255,20 @@ function SchedulePageContent({
                           avatarUrl={selectedMatch.player_2_avatar_url}
                           size={44}
                           winner={
+                            !hideSpoilers &&
                             selectedMatch.winner_team_id ===
-                            selectedMatch.player_2_team_id
+                              selectedMatch.player_2_team_id
                           }
                         />
                         <span className="font-semibold text-slate-100">
                           {selectedMatch.player_2_name}
                         </span>
-                        {gameRecord(selectedMatch, selectedMatch.player_2_team_id) && (
-                          <span className="text-sm text-slate-400">
-                            {gameRecord(selectedMatch, selectedMatch.player_2_team_id)}
-                          </span>
+                        {playerTwoRecord && (
+                          <Spoiler hidden={hideSpoilers}>
+                            <span className="text-sm text-slate-400">
+                              {playerTwoRecord}
+                            </span>
+                          </Spoiler>
                         )}
                       </div>
                     </div>
@@ -1043,25 +1389,74 @@ function SchedulePageContent({
                           </option>
                         </select>
                       </Field>
-                      <Field label="Replay link (optional)">
+                      <Field
+                        label="Replay link (optional)"
+                        hint={
+                          replayRead.status === "loading"
+                            ? "Reading the battle log..."
+                            : null
+                        }
+                      >
                         <input
                           type="url"
                           value={reportUrl}
                           placeholder="https://replay.pokemonshowdown.com/..."
-                          onChange={(event) => setReportUrl(event.target.value)}
+                          onChange={(event) => {
+                            setReportUrl(event.target.value);
+                            setReplayRead({ status: "idle" });
+                          }}
                           className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-500"
                         />
                       </Field>
-                      <Field label="Winner&apos;s surviving Pokemon (optional)">
+                      <Field
+                        label="Winner&apos;s surviving Pokemon (optional)"
+                        hint={
+                          reportDifferential == null
+                            ? null
+                            : `Your KO differential for this game: ${reportDifferential > 0 ? "+" : ""}${reportDifferential}`
+                        }
+                      >
                         <input
                           type="number"
                           min={0}
                           max={6}
                           value={reportAlive}
-                          onChange={(event) => setReportAlive(event.target.value)}
+                          onChange={(event) =>
+                            setReportAlive(event.target.value.replace(/[^0-9]/g, ""))
+                          }
                           className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-500"
                         />
                       </Field>
+                      <div className="flex flex-wrap items-center gap-2 md:col-span-2">
+                        <button
+                          type="button"
+                          onClick={handleReadReplay}
+                          disabled={
+                            isBusy ||
+                            !reportUrl.trim() ||
+                            replayRead.status === "loading"
+                          }
+                          className="rounded-xl border border-amber-500/60 px-3.5 py-2 text-sm font-semibold text-amber-300 transition hover:border-amber-400 hover:text-amber-200 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          Read replay
+                        </button>
+                        {replayRead.status === "done" &&
+                        (replayRead.note ? (
+                          <span className="text-xs text-amber-300">
+                            {replayRead.note}
+                          </span>
+                        ) : replayRead.winnerResolved ? (
+                          <span className="text-xs text-emerald-300">
+                            Filled in the winner and surviving Pokemon from the
+                            replay. Check them before submitting.
+                          </span>
+                        ) : (
+                          <span className="text-xs text-amber-300">
+                            Winner could not be matched to a team. Set it
+                            manually.
+                          </span>
+                        ))}
+                      </div>
                       <div className="flex gap-2 md:col-span-2">
                         <button
                           type="button"
@@ -1082,16 +1477,13 @@ function SchedulePageContent({
                     </div>
                   )}
 
-                  {selectedMatch.results.length > 0 && (
+                  {gameRows.length > 0 && (
                     <div>
                       <h3 className="mb-2 text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">
                         Games
                       </h3>
                       <div className="space-y-2">
-                        {selectedMatch.results
-                          .slice()
-                          .sort((a, b) => a.game_number - b.game_number)
-                          .map((result) => {
+                        {gameRows.map(({ result, mirrored }) => {
                             const winnerName =
                               result.winner_team_id ===
                               selectedMatch.player_1_team_id
@@ -1136,7 +1528,9 @@ function SchedulePageContent({
                                       max={6}
                                       value={editAlive}
                                       onChange={(event) =>
-                                        setEditAlive(event.target.value)
+                                        setEditAlive(
+                                          event.target.value.replace(/[^0-9]/g, ""),
+                                        )
                                       }
                                       className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-500"
                                     />
@@ -1170,13 +1564,17 @@ function SchedulePageContent({
                                   <span className="rounded-full bg-slate-800 px-2 py-0.5 text-xs font-semibold text-slate-300">
                                     Game {result.game_number}
                                   </span>
-                                  <span className="font-semibold text-emerald-300">
-                                    {winnerName} wins
-                                  </span>
-                                  {result.pokemon_left_alive != null && (
-                                    <span className="text-slate-400">
-                                      • {result.pokemon_left_alive} alive
+                                  <Spoiler hidden={hideSpoilers}>
+                                    <span className="font-semibold text-emerald-300">
+                                      {winnerName} wins
                                     </span>
+                                  </Spoiler>
+                                  {result.pokemon_left_alive != null && (
+                                    <Spoiler hidden={hideSpoilers}>
+                                      <span className="text-slate-400">
+                                        • {result.pokemon_left_alive} alive
+                                      </span>
+                                    </Spoiler>
                                   )}
                                 </div>
                                 <div className="flex items-center gap-2">
@@ -1190,7 +1588,8 @@ function SchedulePageContent({
                                       Replay
                                     </a>
                                   )}
-                                  {goods.isStaff && (
+                                  {/* A mirrored game has no stored result to correct. */}
+                                  {goods.isStaff && !mirrored && (
                                     <button
                                       type="button"
                                       disabled={isBusy}
@@ -1240,6 +1639,32 @@ function SchedulePageContent({
                       </div>
                       <StatusBadge status={match.status} />
                     </button>
+                  ))}
+                </div>
+              )}
+            </SectionCard>
+
+            <SectionCard title="Match history">
+              {completedMatches.length === 0 ? (
+                <p className="text-sm text-slate-400">
+                  No completed matchups yet.
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {completedMatches.map((match) => (
+                    <MatchupHistoryCard
+                      key={match.id}
+                      match={match}
+                      matchFormat={formatFor(match)}
+                      hideSpoilers={hideSpoilers}
+                      selected={selectedMatchId === match.id}
+                      onSelect={() => {
+                        setSelectedMatchId(match.id);
+                        setSchedulingMatchId(null);
+                        setReportingMatchId(null);
+                        setEditingResultId(null);
+                      }}
+                    />
                   ))}
                 </div>
               )}
@@ -1484,10 +1909,13 @@ function SchedulePageContent({
 /** A labeled form field wrapper used across the schedule page forms. */
 function Field({
   label,
+  hint,
   children,
 }: {
   /** Field label text. */
   label: string;
+  /** Optional helper or validation text shown under the control. */
+  hint?: React.ReactNode;
   /** The form control. */
   children: React.ReactNode;
 }) {
@@ -1497,6 +1925,7 @@ function Field({
         {label}
       </span>
       {children}
+      {hint ? <span className="mt-1 block text-xs text-slate-400">{hint}</span> : null}
     </label>
   );
 }

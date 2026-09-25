@@ -10,6 +10,7 @@
  * forfeiting a match.
  */
 import { supabase } from "@/lib/supabase/client";
+import { loadLatestSeason } from "@/lib/supabase/seasons";
 
 /** Lifecycle status of a season (subset used by the schedule page). */
 export type ScheduleSeasonStatus =
@@ -23,6 +24,7 @@ export type ScheduleSeason = {
   id: string;
   season_number: number;
   status: ScheduleSeasonStatus;
+  name: string | null;
 };
 
 /** Per-season schedule/cost configuration read from league_settings. */
@@ -164,13 +166,10 @@ export async function loadSchedulePageData(
     throw new Error("This league could not be loaded.");
   }
 
-  const { data: seasonRow, error: seasonError } = await supabase
-    .from("seasons")
-    .select("id, season_number, status")
-    .eq("league_id", leagueId)
-    .order("season_number", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  const { data: seasonRow, error: seasonError } = await loadLatestSeason<ScheduleSeason>(
+    leagueId,
+    "id, season_number, status, name",
+  );
 
   if (seasonError) {
     throw new Error("This league's season could not be loaded.");

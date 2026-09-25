@@ -1,8 +1,9 @@
 /*
  * Dashboard page for the Pokemon Draft League.
  *
- * Verifies the signed-in user's session, resolves the active league name, and
- * renders the dashboard shell with the user's profile and league context.
+ * Verifies the signed-in user's session, resolves the active league, and
+ * renders the dashboard shell with the user's profile plus the league's live
+ * season data (standings, schedule, pool, roster, trades, notifications).
  */
 
 "use client";
@@ -11,6 +12,7 @@ import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { supabase } from "@/lib/supabase/client";
+import { loadDashboardData, type DashboardGoods } from "@/lib/supabase/dashboard";
 
 /**
  * Streams the dashboard content behind a Suspense loading fallback so the
@@ -45,6 +47,8 @@ function DashboardPageContent() {
     avatarUrl: string | null;
   } | null>(null);
   const [leagueName, setLeagueName] = useState<string | null>(null);
+  const [goods, setGoods] = useState<DashboardGoods | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -78,7 +82,14 @@ function DashboardPageContent() {
       });
     }
 
-    async function loadLeagueName() {
+    /**
+     * Resolves the active league, then loads every season value the dashboard
+     * renders (standings, schedule, pool, roster, trades, notifications).
+     *
+     * The current season is the latest one belonging to the resolved league,
+     * matching the lookup used by the other league pages.
+     */
+    async function loadLeague() {
       const {
         data: { user },
         error: userError,
@@ -86,6 +97,7 @@ function DashboardPageContent() {
 
       if (userError || !user) {
         setLeagueName("League Name");
+        setGoods(null);
         return;
       }
 
@@ -114,12 +126,34 @@ function DashboardPageContent() {
 
       if (error || !data || data.length === 0) {
         setLeagueName("League Name");
+        setGoods(null);
         return;
       }
 
       const nextLeagueName = (data[0] as { leagues?: { name?: string | null } })
         .leagues?.name;
       setLeagueName(nextLeagueName || "League Name");
+
+      const resolvedLeagueId = (data[0] as { league_id?: string | null })
+        .league_id;
+
+      if (!resolvedLeagueId) {
+        setGoods(null);
+        return;
+      }
+
+      try {
+        const next = await loadDashboardData(resolvedLeagueId, user.id);
+        setGoods(next);
+        setError(null);
+      } catch (loadError) {
+        setGoods(null);
+        setError(
+          loadError instanceof Error
+            ? loadError.message
+            : "The league could not be loaded.",
+        );
+      }
     }
 
     async function loadSession() {
@@ -127,7 +161,7 @@ function DashboardPageContent() {
         data: { session },
       } = await supabase.auth.getSession();
       await syncSessionUser(session);
-      await loadLeagueName();
+      await loadLeague();
       setIsLoading(false);
     }
 
@@ -137,7 +171,7 @@ function DashboardPageContent() {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (_event, session) => {
       await syncSessionUser(session);
-      await loadLeagueName();
+      await loadLeague();
     });
 
     const handleProfileUpdated = async () => {
@@ -145,7 +179,7 @@ function DashboardPageContent() {
         data: { session },
       } = await supabase.auth.getSession();
       await syncSessionUser(session);
-      await loadLeagueName();
+      await loadLeague();
     };
 
     window.addEventListener("profile-updated", handleProfileUpdated);
@@ -166,6 +200,16 @@ function DashboardPageContent() {
     );
   }
 
+  if (error || !goods) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-slate-950 px-4 py-10 text-slate-100">
+        <div className="max-w-md rounded-2xl border border-red-900 bg-red-950/40 px-6 py-4 text-center text-sm text-red-200 shadow-lg shadow-slate-950/40">
+          {error ?? "This league is not available."}
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
       <div className="mx-auto max-w-6xl">
@@ -175,6 +219,7 @@ function DashboardPageContent() {
           avatarUrl={sessionUser.avatarUrl}
           leagueName={leagueName}
           leagueId={searchParams.get("leagueId") ?? null}
+          goods={goods}
         />
       </div>
     </main>

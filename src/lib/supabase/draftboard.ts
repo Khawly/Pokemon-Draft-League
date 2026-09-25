@@ -6,6 +6,7 @@
  * Draft order positions live on each league member, not on teams.
  */
 import { supabase } from "@/lib/supabase/client";
+import { loadLatestSeason } from "@/lib/supabase/seasons";
 
 /**
  * A league member with resolved profile display name, avatar, and their
@@ -17,6 +18,14 @@ export type DraftboardMember = {
   display_name: string | null;
   avatar_url: string | null;
   draft_position: number | null;
+};
+
+/** Season row for the draft board. */
+export type DraftboardSeason = {
+  id: string;
+  season_number: number;
+  status: string;
+  name: string | null;
 };
 
 /**
@@ -31,11 +40,7 @@ export type DraftboardGoods = {
     owner_id: string;
     number_of_players: number;
   };
-  season: {
-    id: string;
-    season_number: number;
-    status: string;
-  } | null;
+  season: DraftboardSeason | null;
   members: DraftboardMember[];
   hasInPoolPokemon: boolean;
   inviteToken: string | null;
@@ -88,24 +93,16 @@ export async function loadDraftboardData(
     throw new Error("This league could not be loaded.");
   }
 
-  const { data: seasonRow, error: seasonError } = await supabase
-    .from("seasons")
-    .select("id, season_number, status")
-    .eq("league_id", leagueId)
-    .order("season_number", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  const { data: seasonRow, error: seasonError } = await loadLatestSeason<DraftboardSeason>(
+    leagueId,
+    "id, season_number, status, name",
+  );
 
   if (seasonError) {
     throw new Error(seasonError.message || "This league's season could not be loaded.");
   }
 
-  const season =
-    (seasonRow as {
-      id: string;
-      season_number: number;
-      status: string;
-    } | null) ?? null;
+  const season = seasonRow;
 
   // Members only apply once a season exists; otherwise skip those queries
   // instead of erroring.

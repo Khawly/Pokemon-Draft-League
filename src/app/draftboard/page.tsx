@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Draft board page for a league. The owner prepares the draft here: managing
  * invites and draft positions and starting the draft once the checklist is
  * complete.
@@ -15,6 +15,7 @@ import {
   type DraftboardMember,
 } from "@/lib/supabase/draftboard";
 import { createLeagueInvite } from "@/lib/supabase/invites";
+import { formatSeasonLabel } from "@/lib/supabase/seasons";
 
 /**
  * Entry point for the draft board route.
@@ -508,7 +509,7 @@ function DraftBoardPageContent() {
                 {goods.league.name}
               </h1>
               <p className="mt-1 text-sm text-slate-400">
-                Season {goods.season?.season_number ?? "—"} ·{" "}
+                {formatSeasonLabel(goods.season)} ·{" "}
                 {goods.season
                   ? (statusLabel[goods.season.status] ?? goods.season.status)
                   : "No season available"}

@@ -17,7 +17,16 @@
  */
 "use client";
 
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Suspense,
+  memo,
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
@@ -378,6 +387,173 @@ function SortHeader({
     </th>
   );
 }
+
+/** Props for a single memoized `PoolTableRow`. */
+type PoolTableRowProps = {
+  /** The pool row to render; identity is stable until that row is edited. */
+  row: PoolPokemonRow;
+  /** Whether the signed-in user owns the pool and may edit rows. */
+  isOwner: boolean;
+  /** Whether this row is part of the bulk-action selection. */
+  selected: boolean;
+  /** Toggles the row's bulk-action selection. */
+  onToggleSelection: (rowId: string) => void;
+  /** Stages a new tier value for the row. */
+  onTierChange: (rowId: string, nextTier: number) => void;
+  /** Stages whether the row counts as available for drafting. */
+  onToggleInPool: (rowId: string) => void;
+};
+
+/**
+ * Renders one pool table row.
+ *
+ * Memoized because the table lists the entire pool (well over a thousand rows),
+ * and every keystroke in the name filter re-renders this component's parent. The
+ * callbacks are passed by row key rather than as per-row closures, so React can
+ * skip re-rendering rows whose data did not change and only pay for the rows the
+ * filter actually adds or removes.
+ */
+const PoolTableRow = memo(function PoolTableRow({
+  row,
+  isOwner,
+  selected,
+  onToggleSelection,
+  onTierChange,
+  onToggleInPool,
+}: PoolTableRowProps) {
+  const details = getPokemonDetailsBySlug(row.pokemon_id);
+  const stats = details?.stats ?? null;
+  return (
+    <tr className="border-b border-slate-800/60 last:border-b-0">
+      {isOwner && (
+        <td className="px-4 py-3">
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={() => onToggleSelection(row.key)}
+            aria-label={`Select ${row.species_name}`}
+            className="h-4 w-4 accent-emerald-500"
+          />
+        </td>
+      )}
+      <td className="px-4 py-3 text-slate-500">
+        {row.dex > 0 ? `#${row.dex}` : "—"}
+      </td>
+      <td className="px-4 py-3 text-slate-300">
+        {row.generation ? generationNumber(row.generation) : "—"}
+      </td>
+      <td className="px-4 py-3 text-left">
+        <div className="flex items-center justify-start gap-3">
+          <Sprite spriteId={row.spriteId} name={row.species_name} size={40} />
+          <span className="font-medium text-slate-100">
+            {row.species_name}
+          </span>
+        </div>
+      </td>
+      <td className="px-4 py-3">
+        <div className="flex flex-wrap items-center justify-center gap-1.5">
+          {row.type_primary && (
+            <span
+              className={`rounded px-1.5 py-0.5 text-xs font-semibold ${
+                TYPE_STYLES[row.type_primary] ?? "bg-slate-700 text-slate-200"
+              }`}
+            >
+              {row.type_primary.charAt(0).toUpperCase() +
+                row.type_primary.slice(1)}
+            </span>
+          )}
+          {row.type_secondary && (
+            <span
+              className={`rounded px-1.5 py-0.5 text-xs font-semibold ${
+                TYPE_STYLES[row.type_secondary] ?? "bg-slate-700 text-slate-200"
+              }`}
+            >
+              {row.type_secondary.charAt(0).toUpperCase() +
+                row.type_secondary.slice(1)}
+            </span>
+          )}
+          {!row.type_primary && <span className="text-slate-600">—</span>}
+        </div>
+      </td>
+      <td className="px-4 py-3 text-center">
+        {!row.is_in_pool ? (
+          <span className="text-slate-600">—</span>
+        ) : isOwner ? (
+          <input
+            type="number"
+            min={0}
+            max={MAX_TIER}
+            step={1}
+            value={row.tier_value}
+            onChange={(event) =>
+              onTierChange(row.key, parseTier(event.target.value, row.tier_value))
+            }
+            className="w-20 rounded-lg border border-slate-700 bg-slate-900 px-2 py-1.5 text-sm text-slate-100 outline-none focus:border-amber-400"
+          />
+        ) : (
+          <span className="text-slate-300">
+            {row.tier_value > 0 ? row.tier_value : "—"}
+          </span>
+        )}
+      </td>
+      <td className="max-w-[160px] px-4 py-3 text-slate-300">
+        {details && details.abilities.length > 0 ? (
+          <span className="flex flex-wrap items-center justify-center gap-1">
+            {details.abilities.map((ability) => (
+              <AbilityTooltip key={ability.name} slug={ability.name} />
+            ))}
+          </span>
+        ) : (
+          "—"
+        )}
+      </td>
+      <td className="px-4 py-3 whitespace-nowrap text-center tabular-nums text-slate-300">
+        {row.bst ?? "—"}
+      </td>
+      <td className="px-4 py-3 whitespace-nowrap tabular-nums text-slate-300">
+        {stats?.hp ?? "—"}
+      </td>
+      <td className="px-4 py-3 whitespace-nowrap tabular-nums text-slate-300">
+        {stats?.attack ?? "—"}
+      </td>
+      <td className="px-4 py-3 whitespace-nowrap tabular-nums text-slate-300">
+        {stats?.defense ?? "—"}
+      </td>
+      <td className="px-4 py-3 whitespace-nowrap tabular-nums text-slate-300">
+        {stats?.specialAttack ?? "—"}
+      </td>
+      <td className="px-4 py-3 whitespace-nowrap tabular-nums text-slate-300">
+        {stats?.specialDefense ?? "—"}
+      </td>
+      <td className="px-4 py-3 whitespace-nowrap tabular-nums text-slate-300">
+        {stats?.speed ?? "—"}
+      </td>
+      <td className="px-4 py-3">
+        {isOwner ? (
+          <button
+            type="button"
+            onClick={() => onToggleInPool(row.key)}
+            className={`rounded-lg px-2 py-1 text-xs font-semibold ${
+              row.is_in_pool
+                ? "bg-emerald-500/10 text-emerald-200"
+                : "bg-slate-800 text-slate-400"
+            }`}
+          >
+            {row.is_in_pool ? "In" : "Off"}
+          </button>
+        ) : (
+          <span
+            className={`text-xs font-semibold ${
+              row.is_in_pool ? "text-emerald-300" : "text-slate-500"
+            }`}
+          >
+            {row.is_in_pool ? "In pool" : "Off pool"}
+          </span>
+        )}
+      </td>
+    </tr>
+  );
+});
 
 /** Raw shape of a `draft_pool_pokemon` row as returned by the select below. */
 type PoolRowRecord = {
@@ -1036,14 +1212,19 @@ function PoolPageContent({
     }
   }
 
-  /** Updates a row's tier value (staged until Save). */
-  function handleTierChange(rowId: string, nextTier: number) {
+  /**
+   * Updates a row's tier value (staged until Save).
+   *
+   * Stable identity so the memoized table rows can skip re-rendering when an
+   * unrelated control changes.
+   */
+  const handleTierChange = useCallback((rowId: string, nextTier: number) => {
     setRows((current) =>
       current.map((row) =>
         row.key === rowId ? { ...row, tier_value: nextTier } : row,
       ),
     );
-  }
+  }, []);
 
   /**
    * Confirms a single Pokémon's tier change by persisting it immediately.
@@ -1133,13 +1314,13 @@ function PoolPageContent({
   }
 
   /** Toggles whether a pool row is available for drafting (staged). */
-  function handleToggleInPool(rowId: string) {
+  const handleToggleInPool = useCallback((rowId: string) => {
     setRows((current) =>
       current.map((row) =>
         row.key === rowId ? { ...row, is_in_pool: !row.is_in_pool } : row,
       ),
     );
-  }
+  }, []);
 
   /** Stages removal of a Pokémon from the pool (persisted on Save). */
   function handleRemovePokemon(rowId: string) {
@@ -1148,8 +1329,13 @@ function PoolPageContent({
     );
   }
 
-  /** Toggles a row's selection for bulk actions. */
-  function toggleSelection(rowId: string) {
+  /**
+   * Toggles a row's selection for bulk actions.
+   *
+   * Stable identity so the memoized table rows can skip re-rendering when an
+   * unrelated control changes.
+   */
+  const toggleSelection = useCallback((rowId: string) => {
     setSelectedIds((current) => {
       const next = new Set(current);
       if (next.has(rowId)) {
@@ -1159,7 +1345,7 @@ function PoolPageContent({
       }
       return next;
     });
-  }
+  }, []);
 
   /** Applies a bulk status change to all selected rows. */
   function handleBulkStatus(nextInPool: boolean) {
@@ -1373,8 +1559,14 @@ function PoolPageContent({
     return [...gens].sort();
   }, [rows]);
 
+  // The name box is the only control that changes on every keystroke, so it is
+  // deferred: the input stays controlled by the live value while the table
+  // re-filters against the previous one at a lower priority, keeping typing
+  // responsive even though the table lists the entire pool.
+  const deferredNameFilter = useDeferredValue(filters.name);
+
   const filteredRows = useMemo(() => {
-    const query = filters.name.trim().toLowerCase();
+    const query = deferredNameFilter.trim().toLowerCase();
     const next = rows.filter((row) => {
       if (filters.status === "in" && !row.is_in_pool) {
         return false;
@@ -1432,7 +1624,7 @@ function PoolPageContent({
           ) * direction;
       }
     });
-  }, [rows, filters, sortKey, sortDir]);
+  }, [rows, filters, deferredNameFilter, sortKey, sortDir]);
 
   // A Pokémon's persisted (saved) tier is the "known" value the tier cards
   // group by; a staged tier change does not move the card until confirmed.
@@ -1886,148 +2078,17 @@ function PoolPageContent({
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredRows.map((row) => {
-                      const details = getPokemonDetailsBySlug(row.pokemon_id);
-                      const stats = details?.stats ?? null;
-                      return (
-                        <tr
+                      {filteredRows.map((row) => (
+                        <PoolTableRow
                           key={row.key}
-                          className="border-b border-slate-800/60 last:border-b-0"
-                        >
-                          {isOwner && (
-                            <td className="px-4 py-3">
-                              <input
-                                type="checkbox"
-                                checked={selectedIds.has(row.key)}
-                                onChange={() => toggleSelection(row.key)}
-                                aria-label={`Select ${row.species_name}`}
-                                className="h-4 w-4 accent-emerald-500"
-                              />
-                            </td>
-                          )}
-                          <td className="px-4 py-3 text-slate-500">
-                            {row.dex > 0 ? `#${row.dex}` : "—"}
-                          </td>
-                          <td className="px-4 py-3 text-slate-300">
-                            {row.generation ? generationNumber(row.generation) : "—"}
-                          </td>
-                          <td className="px-4 py-3 text-left">
-                            <div className="flex items-center justify-start gap-3">
-                              <Sprite spriteId={row.spriteId} name={row.species_name} size={40} />
-                              <span className="font-medium text-slate-100">
-                                {row.species_name}
-                              </span>
-                            </div>
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="flex flex-wrap items-center justify-center gap-1.5">
-                              {row.type_primary && (
-                                <span
-                                  className={`rounded px-1.5 py-0.5 text-xs font-semibold ${
-                                    TYPE_STYLES[row.type_primary] ?? "bg-slate-700 text-slate-200"
-                                  }`}
-                                >
-                                  {row.type_primary.charAt(0).toUpperCase() +
-                                    row.type_primary.slice(1)}
-                                </span>
-                              )}
-                              {row.type_secondary && (
-                                <span
-                                  className={`rounded px-1.5 py-0.5 text-xs font-semibold ${
-                                    TYPE_STYLES[row.type_secondary] ?? "bg-slate-700 text-slate-200"
-                                  }`}
-                                >
-                                  {row.type_secondary.charAt(0).toUpperCase() +
-                                    row.type_secondary.slice(1)}
-                                </span>
-                              )}
-                              {!row.type_primary && (
-                                <span className="text-slate-600">—</span>
-                              )}
-                            </div>
-                          </td>
-                          <td className="px-4 py-3 text-center">
-                            {!row.is_in_pool ? (
-                              <span className="text-slate-600">—</span>
-                            ) : isOwner ? (
-                              <input
-                                type="number"
-                                min={0}
-                                max={MAX_TIER}
-                                step={1}
-                                value={row.tier_value}
-                                onChange={(event) =>
-                                  handleTierChange(
-                                    row.key,
-                                    parseTier(event.target.value, row.tier_value),
-                                  )
-                                }
-                                className="w-20 rounded-lg border border-slate-700 bg-slate-900 px-2 py-1.5 text-sm text-slate-100 outline-none focus:border-amber-400"
-                              />
-                            ) : (
-                              <span className="text-slate-300">
-                                {row.tier_value > 0 ? row.tier_value : "—"}
-                              </span>
-                            )}
-                          </td>
-                          <td className="max-w-[160px] px-4 py-3 text-slate-300">
-                            {details && details.abilities.length > 0 ? (
-                              <span className="flex flex-wrap items-center justify-center gap-1">
-                                {details.abilities.map((ability) => (
-                                  <AbilityTooltip key={ability.name} slug={ability.name} />
-                                ))}
-                              </span>
-                            ) : (
-                              "—"
-                            )}
-                          </td>
-                          <td className="px-4 py-3 whitespace-nowrap text-center tabular-nums text-slate-300">
-                            {row.bst ?? "—"}
-                          </td>
-                          <td className="px-4 py-3 whitespace-nowrap tabular-nums text-slate-300">
-                            {stats?.hp ?? "—"}
-                          </td>
-                          <td className="px-4 py-3 whitespace-nowrap tabular-nums text-slate-300">
-                            {stats?.attack ?? "—"}
-                          </td>
-                          <td className="px-4 py-3 whitespace-nowrap tabular-nums text-slate-300">
-                            {stats?.defense ?? "—"}
-                          </td>
-                          <td className="px-4 py-3 whitespace-nowrap tabular-nums text-slate-300">
-                            {stats?.specialAttack ?? "—"}
-                          </td>
-                          <td className="px-4 py-3 whitespace-nowrap tabular-nums text-slate-300">
-                            {stats?.specialDefense ?? "—"}
-                          </td>
-                          <td className="px-4 py-3 whitespace-nowrap tabular-nums text-slate-300">
-                            {stats?.speed ?? "—"}
-                          </td>
-                          <td className="px-4 py-3">
-                            {isOwner ? (
-                              <button
-                                type="button"
-                                onClick={() => handleToggleInPool(row.key)}
-                                className={`rounded-lg px-2 py-1 text-xs font-semibold ${
-                                  row.is_in_pool
-                                    ? "bg-emerald-500/10 text-emerald-200"
-                                    : "bg-slate-800 text-slate-400"
-                                }`}
-                              >
-                                {row.is_in_pool ? "In" : "Off"}
-                              </button>
-                            ) : (
-                              <span
-                                className={`text-xs font-semibold ${
-                                  row.is_in_pool ? "text-emerald-300" : "text-slate-500"
-                                }`}
-                              >
-                                {row.is_in_pool ? "In pool" : "Off pool"}
-                              </span>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
+                          row={row}
+                          isOwner={isOwner}
+                          selected={selectedIds.has(row.key)}
+                          onToggleSelection={toggleSelection}
+                          onTierChange={handleTierChange}
+                          onToggleInPool={handleToggleInPool}
+                        />
+                      ))}
                     </tbody>
                   </table>
                 </div>

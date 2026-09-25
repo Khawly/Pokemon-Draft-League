@@ -19,6 +19,7 @@ import { Suspense } from "react";
 import { supabase } from "@/lib/supabase/client";
 import { AbilityTooltip } from "@/components/ability-tooltip";
 import { getSpriteUrl } from "@/lib/pokeapi";
+import { formatSeasonLabel } from "@/lib/supabase/seasons";
 import {
   getPickupCost,
   canAffordPickup,
@@ -1109,7 +1110,7 @@ function PokemonPageContent({
                 {goods.league.name}
               </h2>
               <p className="mt-1 text-sm text-slate-400">
-                Season {goods.season?.season_number ?? "—"} • Free agent pool
+                {formatSeasonLabel(goods.season)} • Free agent pool
               </p>
             </div>
 

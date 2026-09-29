@@ -75,6 +75,31 @@ export type PokemonPoolRow = {
   abilities: PokemonAbility[] | null;
 };
 
+/**
+ * Every source the ledger's `transactions_source_check` constraint allows.
+ *
+ * Declared here as the single source of truth for the TypeScript side of a
+ * contract that actually lives in SQL. The Pokemon page filters the league feed
+ * with `.neq("source", "draft_pick")`, so if the constraint and this list ever
+ * disagree the feed does not error; it quietly starts showing every draft pick
+ * again. Keeping the vocabulary in one greppable place makes that mismatch
+ * findable, and deriving the type from it means a value added here cannot be
+ * forgotten in the type.
+ */
+export const TRANSACTION_SOURCES = [
+  /** Added by the draft engine. The only source the league feed excludes. */
+  "draft_pick",
+  /** Added from the free agent pool. */
+  "free_agent_pickup",
+  /** Moved by a completed trade, in either direction. */
+  "trade",
+  /** Dropped from a roster. */
+  "release",
+] as const;
+
+/** What caused a roster move, as classified by the ledger's source column. */
+export type TransactionSource = (typeof TRANSACTION_SOURCES)[number];
+
 /** A roster move from the ledger, enriched with a display name and sprite id. */
 export type PokemonTransaction = {
   id: string;
@@ -87,6 +112,12 @@ export type PokemonTransaction = {
   /** The mover's display name, when their profile has one set. */
   playerName: string | null;
   action: "added" | "dropped" | "trade_in" | "trade_out";
+  /**
+   * What caused the move. Null only for a row written before the column existed
+   * and read before the backfill, which the panel treats as unknown rather than
+   * assuming.
+   */
+  source: TransactionSource | null;
   cost_delta: number;
   note: string | null;
   created_at: string;
@@ -109,14 +140,29 @@ export type PokemonGoods = {
   rosterCount: number;
   /** My team's token spend, including sunk transaction costs. */
   spent: number;
-  /** My team's transaction history, newest first. */
+  /** My team's transaction history, newest first. Drives the salary ledger. */
   transactions: PokemonTransaction[];
+  /**
+   * League-wide roster moves after the draft: free agent pickups and releases,
+   * and trades once any complete. Newest first, and capped, so it reads as recent
+   * activity rather than a season-long audit log.
+   */
+  leagueActivity: PokemonTransaction[];
   currentUserId: string;
   userRole: "owner" | "admin" | "member" | null;
 };
 
 /** One pool row page; the API caps responses, so the loader pages through. */
 const POKEMON_PAGE_SIZE = 1000;
+
+/**
+ * How many league-wide roster moves the Pokemon page's history panel shows.
+ *
+ * Capped because the panel is headed "Recent moves" and every team contributes to
+ * it, so an uncapped list would grow without bound across a season and push the
+ * member's own recent activity off the bottom.
+ */
+const LEAGUE_ACTIVITY_LIMIT = 25;
 
 type PoolRowRecord = {
   pokemon_id: string;
@@ -140,6 +186,7 @@ type TransactionRow = {
   user_id: string;
   profiles?: { display_name?: string | null } | null;
   action: "added" | "dropped" | "trade_in" | "trade_out";
+  source?: TransactionSource | null;
   cost_delta: number;
   note: string | null;
   created_at: string;
@@ -204,6 +251,7 @@ export async function loadPokemonPageData(
     rosterCount: 0,
     spent: 0,
     transactions: [],
+    leagueActivity: [],
     currentUserId: user.id,
     userRole: null,
   };
@@ -375,7 +423,7 @@ export async function loadPokemonPageData(
     const { data: transactionRows, error: transactionsError } = await supabase
       .from("transactions")
       .select(
-        "id, pokemon_id, user_id, action, cost_delta, note, created_at, profiles: user_id (display_name)",
+        "id, pokemon_id, user_id, action, source, cost_delta, note, created_at, profiles: user_id (display_name)",
       )
       .eq("team_id", myTeam.id)
       .order("created_at", { ascending: false });
@@ -384,19 +432,34 @@ export async function loadPokemonPageData(
       throw new Error("Transaction history could not be loaded.");
     }
 
-    transactions = ((transactionRows ?? []) as TransactionRow[]).map((row) => ({
-      id: row.id,
-      pokemon_id: row.pokemon_id,
-      name: getPokemonEntryBySlug(row.pokemon_id)?.name ?? row.pokemon_id,
-      spriteId: getPokemonEntryBySlug(row.pokemon_id)?.spriteId ?? 0,
-      userId: row.user_id,
-      playerName: row.profiles?.display_name ?? null,
-      action: row.action,
-      cost_delta: row.cost_delta,
-      note: row.note,
-      created_at: row.created_at,
-    }));
+    transactions = mapTransactionRows(transactionRows ?? []);
   }
+
+  /*
+   * The league's roster moves since the draft, across every team. Held apart from
+   * `transactions` above on purpose: that list is the member's whole ledger
+   * including their draft picks, because summing its cost_delta is what the
+   * salary is calculated from. Widening it to the league would make every member
+   * rich. This one drops the draft so the panel shows what has happened to the
+   * rosters since the draft finished, and the source column is what makes that
+   * distinction reliable rather than a guess from the note text.
+   */
+  const { data: activityRows, error: activityError } = await supabase
+    .from("transactions")
+    .select(
+      "id, pokemon_id, user_id, action, source, cost_delta, note, created_at, profiles: user_id (display_name)",
+    )
+    .eq("league_id", leagueId)
+    .eq("season_id", season.id)
+    .neq("source", "draft_pick")
+    .order("created_at", { ascending: false })
+    .limit(LEAGUE_ACTIVITY_LIMIT);
+
+  if (activityError) {
+    throw new Error("Transaction history could not be loaded.");
+  }
+
+  const leagueActivity = mapTransactionRows(activityRows ?? []);
 
   // Token spend is the ledger sum: draft/added rows carry tier + any transaction
   // fee, and dropped rows carry a negative refund, so the net equals the current
@@ -423,6 +486,7 @@ export async function loadPokemonPageData(
     rosterCount,
     spent,
     transactions,
+    leagueActivity,
     userRole:
       members.find((member) => member.user_id === user.id)?.role ?? null,
   };
@@ -479,6 +543,41 @@ export function getPickupCost(
     ? (goods.settings.transaction_cost ?? 0)
     : 0;
   return { tierCost, transactionCost, total: tierCost + transactionCost };
+}
+
+/**
+ * Resolves a raw ledger row into a displayable roster move.
+ *
+ * Shared by the member's own ledger and the league-wide feed so a Pokémon is
+ * named and sprited identically wherever it appears, rather than the two lists
+ * drifting apart on the catalog lookup.
+ *
+ * @param rows - Raw rows as returned by the transactions table.
+ * @returns The rows enriched with a display name and sprite id.
+ */
+function mapTransactionRows(rows: unknown[]): PokemonTransaction[] {
+  /*
+   * The `profiles: user_id (...)` embed is inferred as an array even though the
+   * relationship is to-one, so the cast is unavoidable. It lives here rather than
+   * at each call site so there is one place that knows the shape.
+   */
+  return (rows as TransactionRow[]).map((row) => {
+    const entry = getPokemonEntryBySlug(row.pokemon_id);
+
+    return {
+      id: row.id,
+      pokemon_id: row.pokemon_id,
+      name: entry?.name ?? row.pokemon_id,
+      spriteId: entry?.spriteId ?? 0,
+      userId: row.user_id,
+      playerName: row.profiles?.display_name ?? null,
+      action: row.action,
+      source: row.source ?? null,
+      cost_delta: row.cost_delta,
+      note: row.note,
+      created_at: row.created_at,
+    };
+  });
 }
 
 /**

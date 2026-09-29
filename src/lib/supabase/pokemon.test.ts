@@ -10,6 +10,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   ALL_POKEMON_TYPES,
+  TRANSACTION_SOURCES,
   poolTypeCounts,
   sortPoolByType,
   type PokemonPoolRow,
@@ -283,5 +284,35 @@ describe("sortPoolByType", () => {
 
   it("handles an empty pool", () => {
     expect(sortPoolByType([], "fire")).toEqual([]);
+  });
+});
+
+describe("TRANSACTION_SOURCES", () => {
+  it("lists exactly the values the ledger's check constraint allows", () => {
+    // Mirrors transactions_source_check in
+    // 20261033_transaction_source.sql. The feed filters on `draft_pick` with a
+    // plain inequality, so a rename on either side would not throw; it would
+    // quietly put every draft pick back into the panel. This is the one place
+    // that mismatch would be visible from.
+    expect([...TRANSACTION_SOURCES]).toEqual([
+      "draft_pick",
+      "free_agent_pickup",
+      "trade",
+      "release",
+    ]);
+  });
+
+  it("names draft_pick, the one source the league feed excludes", () => {
+    expect(TRANSACTION_SOURCES).toContain("draft_pick");
+  });
+
+  it("covers every post-draft move the panel is specified to show", () => {
+    for (const source of ["free_agent_pickup", "release", "trade"]) {
+      expect(TRANSACTION_SOURCES).toContain(source);
+    }
+  });
+
+  it("has no duplicates", () => {
+    expect(new Set(TRANSACTION_SOURCES).size).toBe(TRANSACTION_SOURCES.length);
   });
 });

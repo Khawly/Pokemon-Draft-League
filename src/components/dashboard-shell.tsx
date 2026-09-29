@@ -375,16 +375,26 @@ export function DashboardShell({
                 Notifications
               </p>
               {/*
-               * Hidden rather than disabled on an empty list: a control that
-               * cannot do anything should not sit next to the heading competing
-               * with it, and "you have no notifications" already says the state.
+               * Always rendered, and disabled rather than hidden on an empty
+               * list. Hiding it meant a member whose panel was empty had no
+               * visible way to clear anything and no way to tell the control
+               * existed, which reads as the feature being missing. Disabled
+               * still says there is nothing to do, while the panel keeps
+               * offering the option the moment something arrives.
                */}
-              {goods.notifications.length > 0 && onClearNotifications && (
+              {onClearNotifications && (
                 <button
                   type="button"
-                  disabled={isClearingNotifications}
+                  disabled={
+                    isClearingNotifications || goods.notifications.length === 0
+                  }
                   onClick={onClearNotifications}
-                  className="rounded-lg border border-slate-700 px-2.5 py-1 text-xs font-medium text-slate-300 transition hover:border-rose-800 hover:text-rose-300 disabled:opacity-50"
+                  title={
+                    goods.notifications.length === 0
+                      ? "There are no notifications to clear"
+                      : "Clear every notification for this league"
+                  }
+                  className="rounded-lg border border-slate-700 px-2.5 py-1 text-xs font-medium text-slate-300 transition hover:border-rose-800 hover:text-rose-300 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-slate-700 disabled:hover:text-slate-300"
                 >
                   {isClearingNotifications ? "Clearing..." : "Clear all"}
                 </button>

@@ -243,6 +243,7 @@ The following entities are required. Their exact schema can evolve, but these ar
   - cost_delta
   - note
   - created_at
+  - source: NOT NULL, CHECK (`draft_pick`, `free_agent_pickup`, `trade`, `release`), naming what caused the move. A draft pick and a free agent pickup are otherwise the same row, so the distinction is a column rather than the note text, which a reworded string would silently invalidate. Set by a BEFORE INSERT trigger that reads the roster row's own `source`, so the three ledger writers need no change. Must stay in step with `TRANSACTION_SOURCES` in `src/lib/supabase/pokemon.ts`
 
 - trades
   - id
@@ -679,9 +680,9 @@ Match time alerts:
 - Clearing also empties the Schedule badge, because the alerts it counts are
   notifications and are removed by the same delete. Leaving the number in place
   would have it outliving the rows it was counting.
-- The control is hidden rather than disabled when the list is empty, so it does
-  not sit competing with the heading on a panel that already says there is
-  nothing to clear.
+- The control is always present and disabled when the list is empty, never hidden.
+  Hiding it leaves a member with an empty panel no visible way to clear anything
+  and no way to tell the control exists, which reads as the feature being missing.
 - Withdrawing a proposal must notify the opponent, or the badge is blind to the
   one event where the question is taken away without an answer.
 
@@ -762,6 +763,16 @@ Opponent availability:
 - If the player clicks `+`, show confirmation with the Pokémon cost and projected balance after the purchase, including transaction costs if enabled.
 - On confirmation, the Pokémon is added to the player’s roster and token salary updates accordingly.
 - Transaction history on the right shows prior actions in stack order.
+- That panel is **league-wide**, not the member's own: every team's free agent
+  pickups and releases, plus trades, newest first and capped at 25 so it reads as
+  recent activity. Draft picks are excluded, which is the only thing the filter
+  drops — a release is shown whatever the released Pokémon's original source, since
+  dropping is post-draft league activity either way. Each row names the member who
+  made the move, and the panel renders for any member regardless of whether they
+  own a team.
+- The member's own ledger stays a separate read, draft picks included, because
+  summing its `cost_delta` is how their spent salary is calculated. Widening that
+  query to the league would make every member look rich.
 
 ## 12. Trades Page
 

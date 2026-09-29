@@ -797,10 +797,10 @@ function teamLabel(team: PokemonTeam | null, fallback = "your team"): string {
 function TransactionHistory({
   goods,
 }: {
-  /** Loaded page state whose team transactions to display. */
+  /** Loaded page state whose league-wide roster moves to display. */
   goods: PokemonGoods;
 }) {
-  const transactions = goods.transactions;
+  const transactions = goods.leagueActivity;
   const timeZone = useUserTimeZone();
 
   return (
@@ -810,57 +810,58 @@ function TransactionHistory({
       </p>
       <h2 className="mt-1 text-xl font-bold text-white">Recent moves</h2>
 
-      {!goods.myTeam ? (
+      {transactions.length === 0 ? (
         <p className="mt-4 text-sm text-slate-500">
-          You do not own a team in this season, so there is no history to show.
-        </p>
-      ) : transactions.length === 0 ? (
-        <p className="mt-4 text-sm text-slate-500">
-          No transactions recorded for {teamLabel(goods.myTeam)} yet.
+          No roster moves have happened since the draft finished.
         </p>
       ) : (
-        <ul className="mt-4 space-y-3">
-          {transactions.map((entry) => (
-            <li
-              key={entry.id}
-              className="rounded-xl border border-slate-700 bg-slate-950/60 p-3"
-            >
-              <div className="flex items-center justify-between gap-3">
-                <span className="flex min-w-0 items-center gap-2">
-                  <Sprite spriteId={entry.spriteId} name={entry.name} size={28} />
-                  <span className="truncate font-medium text-slate-100">
-                    {entry.name}
+        <>
+          <p className="mt-2 text-xs text-slate-500">
+            Every team&apos;s free agent pickups and releases, newest first. Draft
+            picks are left out.
+          </p>
+          <ul className="mt-4 space-y-3">
+            {transactions.map((entry) => (
+              <li
+                key={entry.id}
+                className="rounded-xl border border-slate-700 bg-slate-950/60 p-3"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <span className="flex min-w-0 items-center gap-2">
+                    <Sprite spriteId={entry.spriteId} name={entry.name} size={28} />
+                    <span className="truncate font-medium text-slate-100">
+                      {entry.name}
+                    </span>
                   </span>
-                </span>
-                <span
-                  className={`whitespace-nowrap text-sm font-semibold ${
-                    entry.cost_delta < 0
-                      ? "text-emerald-300"
-                      : entry.cost_delta > 0
-                        ? "text-amber-300"
-                        : "text-slate-400"
-                  }`}
-                >
-                  {entry.cost_delta === 0
-                    ? "—"
-                    : entry.cost_delta < 0
-                      ? `+${-entry.cost_delta}`
-                      : `-${entry.cost_delta}`}
-                </span>
-              </div>
-              <div className="mt-1 flex items-center justify-between gap-3 text-xs text-slate-400">
-                <span>
-                  {actionLabel(entry.action)}
-                  {entry.playerName ? ` by ${entry.playerName}` : ""}
-                  {entry.note ? ` • ${entry.note}` : ""}
-                </span>
-                <span className="whitespace-nowrap">
-                  {formatDateTimeInZone(entry.created_at, timeZone)}
-                </span>
-              </div>
-            </li>
-          ))}
-        </ul>
+                  <span
+                    className={`whitespace-nowrap text-sm font-semibold ${
+                      entry.cost_delta < 0
+                        ? "text-emerald-300"
+                        : entry.cost_delta > 0
+                          ? "text-amber-300"
+                          : "text-slate-400"
+                    }`}
+                  >
+                    {entry.cost_delta === 0
+                      ? "—"
+                      : entry.cost_delta < 0
+                        ? `+${-entry.cost_delta}`
+                        : `-${entry.cost_delta}`}
+                  </span>
+                </div>
+                <div className="mt-1 flex items-center justify-between gap-3 text-xs text-slate-400">
+                  <span className="min-w-0 truncate">
+                    {actionLabel(entry.action)}
+                    {entry.playerName ? ` by ${entry.playerName}` : ""}
+                  </span>
+                  <span className="whitespace-nowrap">
+                    {formatDateTimeInZone(entry.created_at, timeZone)}
+                  </span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </>
       )}
     </aside>
   );

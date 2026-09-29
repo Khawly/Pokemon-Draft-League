@@ -2,7 +2,8 @@
  * Landing page for the Pokemon Draft League.
  *
  * Checks for an existing Supabase session on mount and redirects signed-in
- * users to the dashboard; otherwise renders the authentication form.
+ * users to the dashboard; otherwise renders the authentication form. In dev,
+ * `?devAccount=<key>` selects which registered test account to auto-login as.
  */
 
 "use client";
@@ -24,13 +25,21 @@ export default function Home() {
     let isMounted = true;
 
     async function checkSession() {
-      // Dev auto-login: when enabled, always adopt the test account's session
-      // from the server route (which reads DEV_TEST_EMAIL/PASSWORD) so the user
-      // stays on the intended test account across dev-server restarts. This must
-      // run before the existing-session check to override stale sessions.
+      // Dev auto-login: when enabled, always adopt the requested test account's
+      // session from the server route (which reads the account's credentials
+      // server-side) so the user stays on the intended test account across
+      // dev-server restarts. This must run before the existing-session check to
+      // override stale sessions. `?devAccount=` picks which registered account to
+      // sign in, so a second browser profile can view the app as another player;
+      // it defaults to the primary test account.
       if (process.env.NEXT_PUBLIC_DEV_AUTO_LOGIN === "true") {
+        const devAccount =
+          new URLSearchParams(window.location.search).get("devAccount") ?? "test";
+
         try {
-          const response = await fetch("/api/auth/dev-login");
+          const response = await fetch(
+            `/api/auth/dev-login?account=${encodeURIComponent(devAccount)}`,
+          );
 
           if (response.ok) {
             const tokens = (await response.json()) as {

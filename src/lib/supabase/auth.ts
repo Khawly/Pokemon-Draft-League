@@ -3,6 +3,9 @@
  *
  * Provides client-side wrappers around Supabase auth (sign up, sign in,
  * password reset, profile update, sign out) that throw on failure.
+ *
+ * The profile update also carries the member's display preferences, so the
+ * chosen time zone persists alongside the identity fields.
  */
 import { supabase } from "@/lib/supabase/client";
 
@@ -92,7 +95,8 @@ export async function resetPassword(email: string) {
  * other components can refresh.
  *
  * @param params - Object containing the user id, display name, Showdown
- *   username, and optional avatar URL.
+ *   username, optional avatar URL, and the IANA time zone league timestamps
+ *   should be rendered in.
  * @returns A Promise that resolves once both the auth metadata and profile row
  *   are updated.
  */
@@ -101,11 +105,13 @@ export async function updateUserProfile({
   displayName,
   showdownUsername,
   avatarUrl,
+  timeZone,
 }: {
   userId: string;
   displayName: string;
   showdownUsername: string;
   avatarUrl: string | null;
+  timeZone: string;
 }) {
   const trimmedDisplayName = displayName.trim();
   const trimmedShowdownUsername = showdownUsername.trim();
@@ -129,6 +135,7 @@ export async function updateUserProfile({
         display_name: trimmedDisplayName || null,
         pokemon_showdown_username: trimmedShowdownUsername || null,
         avatar_url: avatarUrl || null,
+        timezone: timeZone.trim() || "UTC",
         updated_at: new Date().toISOString(),
       },
       { onConflict: "id" },
@@ -145,6 +152,7 @@ export async function updateUserProfile({
           avatarUrl: avatarUrl || null,
           displayName: trimmedDisplayName || null,
           showdownUsername: trimmedShowdownUsername || null,
+          timeZone: timeZone.trim() || "UTC",
           updatedAt: new Date().toISOString(),
         },
       }),

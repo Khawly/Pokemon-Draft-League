@@ -19,11 +19,12 @@ import {
 } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
+import { useConfirm } from "@/components/confirm-dialog";
 import {
   browserTimeZone,
   formatInTimeZone,
   listTimeZones,
-  timeZoneOffsetLabel,
+  formatTimeZoneLabel,
   toZonedParts,
   zonedTimeToInstant,
 } from "@/lib/datetime";
@@ -135,6 +136,7 @@ export default function LeagueSettingsPage() {
  */
 function LeagueSettingsPageContent() {
   const router = useRouter();
+  const { confirm, confirmDialog } = useConfirm();
   const searchParams = useSearchParams();
   const [leagueId, setLeagueId] = useState<string | null>(null);
   const [seasonId, setSeasonId] = useState<string | null>(null);
@@ -436,15 +438,11 @@ function LeagueSettingsPageContent() {
    */
   const timeZoneOptionElements = useMemo(
     () =>
-      timeZoneOptions.map((zone) => {
-        const offset = timeZoneOffsetLabel(zone);
-
-        return (
-          <option key={zone} value={zone}>
-            {offset ? `${zone} (${offset})` : zone}
-          </option>
-        );
-      }),
+      timeZoneOptions.map((zone) => (
+        <option key={zone} value={zone}>
+          {formatTimeZoneLabel(zone)}
+        </option>
+      )),
     [timeZoneOptions],
   );
 
@@ -607,13 +605,17 @@ function LeagueSettingsPageContent() {
           } in week ${currentWeek} will be settled as a double loss, charging each team ${forfeitDifferential} KO diff.`
         : `Every match in week ${currentWeek} has been reported, so nothing will be settled.`;
 
-    const shouldProgress = window.confirm(
-      isFinalWeek
-        ? `Close week ${currentWeek} and open the playoffs now?\n\n${settlementWarning}\n\nClosing the final regular week also freezes the regular season.`
-        : `Close week ${currentWeek} and move the league to week ${
-            currentWeek + 1
-          } now?\n\n${settlementWarning}\n\nYour saved weekly deadline is not changed.`,
-    );
+    const shouldProgress = await confirm({
+      title: isFinalWeek
+        ? `Close week ${currentWeek} and open the playoffs?`
+        : `Close week ${currentWeek} and move to week ${currentWeek + 1}?`,
+      detail: `${settlementWarning}${
+        isFinalWeek
+          ? " Closing the final regular week also freezes the regular season."
+          : " Your saved weekly deadline is not changed."
+      }`,
+      confirmLabel: isFinalWeek ? "Close and open playoffs" : "Progress week",
+    });
 
     if (!shouldProgress) {
       return;
@@ -664,11 +666,14 @@ function LeagueSettingsPageContent() {
         ? `\n\nThe ${entry.playoff_matches} playoff match(es) that progression created are removed again.`
         : "";
 
-    const shouldUndo = window.confirm(
-      `Undo the last week progression (${entry.from_week} to ${entry.to_week}${
-        entry.source === "manual" ? ", run manually" : ", run by the weekly deadline"
-      })?\n\n${reverted}${bracketNote}\n\nThe league returns to week ${entry.from_week}.`,
-    );
+    const shouldUndo = await confirm({
+      title: "Undo the last week progression?",
+      detail: `Week ${entry.from_week} to ${entry.to_week}, run ${
+        entry.source === "manual" ? "manually" : "by the weekly deadline"
+      }. ${reverted}${bracketNote} The league returns to week ${entry.from_week}.`,
+      confirmLabel: "Undo progression",
+      tone: "danger",
+    });
 
     if (!shouldUndo) {
       return;
@@ -730,15 +735,18 @@ function LeagueSettingsPageContent() {
    * Prompts the user if there are unsaved changes before executing the next action.
    * @param nextAction - Optional callback to execute if the user chooses to leave.
    */
-  function confirmLeaveWithoutSaving(nextAction?: () => void) {
+  async function confirmLeaveWithoutSaving(nextAction?: () => void) {
     if (!hasUnsavedChanges) {
       nextAction?.();
       return;
     }
 
-    const shouldLeave = window.confirm(
-      "You have unsaved league settings changes. Leave without saving?",
-    );
+    const shouldLeave = await confirm({
+      title: "Leave without saving?",
+      detail: "Your unsaved league settings changes are discarded",
+      confirmLabel: "Discard changes",
+      tone: "danger",
+    });
 
     if (!shouldLeave) {
       return;
@@ -962,7 +970,7 @@ function LeagueSettingsPageContent() {
               <button
                 type="button"
                 onClick={() =>
-                  confirmLeaveWithoutSaving(() =>
+                  void confirmLeaveWithoutSaving(() =>
                     router.push(
                       leagueId
                         ? `/dashboard?leagueId=${leagueId}`
@@ -1286,7 +1294,7 @@ function LeagueSettingsPageContent() {
                     <span className="text-slate-200">
                       {formatInTimeZone(deadlinePreview, deadlineTimeZone)}
                     </span>
-                    , then every 7 days at {deadlineTime} ({deadlineTimeZone}).
+                    , then every 7 days at {deadlineTime} ({formatTimeZoneLabel(deadlineTimeZone)}).
                   </p>
                 ) : (
                   <p className="mt-2 text-slate-400">
@@ -1435,6 +1443,8 @@ function LeagueSettingsPageContent() {
           </div>
         </section>
       </div>
+
+      {confirmDialog}
     </main>
   );
 }

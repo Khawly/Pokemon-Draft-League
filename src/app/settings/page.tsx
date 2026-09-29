@@ -2,25 +2,71 @@
  * User settings page for the Pokemon Draft League.
  *
  * Allows authenticated users to view and edit their profile (display name,
- * Showdown username, avatar initials), upload or remove a profile avatar,
- * and sign out.
+ * Showdown username, avatar initials), upload or remove a profile avatar, pick
+ * the time zone league dates and times are shown in, declare the weekly window
+ * they are available for a match, and sign out.
  */
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { signOut, updateUserProfile } from "@/lib/supabase/auth";
 import { supabase } from "@/lib/supabase/client";
+import { useConfirm } from "@/components/confirm-dialog";
+import {
+  browserTimeZone,
+  listTimeZones,
+  formatTimeZoneLabel,
+} from "@/lib/datetime";
+import { cacheUserTimeZone } from "@/lib/user-timezone";
+import {
+  availabilityWeeksEqual,
+  defaultAvailabilityWeek,
+  formatClock,
+  loadOwnAvailabilityWeek,
+  normalizeAvailabilityWeek,
+  saveAvailabilityWeek,
+  WEEKDAY_LABELS,
+  type AvailabilityWeek,
+} from "@/lib/supabase/availability";
 
-/** User settings page component with profile editing, avatar management, and sign-out. */
+/**
+ * Picks the zone to show in the settings form for a stored profile value.
+ *
+ * A profile that predates the preference carries the column's 'UTC' default, and
+ * a member who has never chosen a zone is far better served by their own device's
+ * zone than by UTC. The value is only persisted when they save, so merely opening
+ * the page never records a preference they did not pick.
+ *
+ * @param stored - The profile's saved time zone, if any.
+ * @returns The IANA time zone to preselect.
+ */
+function resolveInitialTimeZone(stored: string | null | undefined): string {
+  const trimmed = stored?.trim();
+  return trimmed && trimmed !== "UTC" ? trimmed : browserTimeZone();
+}
+
+/** User settings page component with profile editing, avatar management, availability, and sign-out. */
 export default function SettingsPage() {
   const router = useRouter();
+  const { confirm, confirmDialog } = useConfirm();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [displayName, setDisplayName] = useState("Trainer");
   const [showdownUsername, setShowdownUsername] = useState("");
   const [avatarInitials, setAvatarInitials] = useState("T");
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [avatarRefreshKey, setAvatarRefreshKey] = useState(0);
+  const [timeZone, setTimeZone] = useState("UTC");
+  const [availability, setAvailability] = useState<AvailabilityWeek>(
+    defaultAvailabilityWeek,
+  );
+  /*
+   * The last-saved availability week. Held in state rather than a ref because the
+   * unsaved-changes hint reads it while rendering, which a ref cannot be read for.
+   */
+  const [savedAvailability, setSavedAvailability] = useState<AvailabilityWeek>(
+    defaultAvailabilityWeek,
+  );
   const [hasChanges, setHasChanges] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -33,6 +79,7 @@ export default function SettingsPage() {
     showdownUsername: "",
     avatarUrl: null as string | null,
     avatarInitials: "T",
+    timeZone: "UTC",
   });
   const pendingAvatarActionRef = useRef<"none" | "upload" | "remove">("none");
   const pendingAvatarFileRef = useRef<File | null>(null);
@@ -43,6 +90,12 @@ export default function SettingsPage() {
     "image/jpeg",
     "image/webp",
   ]);
+
+  /*
+   * The zone list only depends on the runtime's ICU data, so it is built once
+   * rather than on every render of a page that re-renders on each keystroke.
+   */
+  const timeZoneOptions = useMemo(() => listTimeZones(), []);
 
   /**
    * Reads a file and returns its data URL string.
@@ -147,17 +200,23 @@ export default function SettingsPage() {
         const currentUser = session.user;
         setUserId(currentUser.id);
 
-        const { data, error: profileError } = await supabase
-          .from("profiles")
-          .select("display_name, pokemon_showdown_username, avatar_url")
-          .eq("id", currentUser.id)
-          .maybeSingle();
+        const [profileResult, availabilityWeek] = await Promise.all([
+          supabase
+            .from("profiles")
+            .select("display_name, pokemon_showdown_username, avatar_url, timezone")
+            .eq("id", currentUser.id)
+            .maybeSingle(),
+          loadOwnAvailabilityWeek(currentUser.id),
+        ]);
+
+        const { error: profileError } = profileResult;
 
         if (profileError) {
           setError(profileError.message);
           return;
         }
 
+        const data = profileResult.data;
         const nextDisplayName =
           data?.display_name ||
           (currentUser.user_metadata?.display_name as string | undefined) ||
@@ -166,6 +225,9 @@ export default function SettingsPage() {
         const nextShowdownUsername =
           (data?.pokemon_showdown_username as string | undefined) || "";
         const nextAvatarUrl = (data?.avatar_url as string | undefined) || null;
+        const nextTimeZone = resolveInitialTimeZone(
+          data?.timezone as string | undefined,
+        );
         const initials =
           nextDisplayName
             .split(/\s+/)
@@ -179,13 +241,23 @@ export default function SettingsPage() {
           showdownUsername: nextShowdownUsername,
           avatarUrl: nextAvatarUrl,
           avatarInitials: initials,
+          timeZone: nextTimeZone,
         };
 
         originalProfileRef.current = nextProfile;
+        setSavedAvailability(availabilityWeek);
         setDisplayName(nextDisplayName);
         setShowdownUsername(nextShowdownUsername);
         setAvatarInitials(initials);
         setAvatarUrl(nextAvatarUrl);
+        setTimeZone(nextTimeZone);
+        setAvailability(availabilityWeek);
+      } catch (caughtError) {
+        const message =
+          caughtError instanceof Error
+            ? caughtError.message
+            : "Your profile could not be loaded.";
+        setError(message);
       } finally {
         setIsLoading(false);
       }
@@ -221,6 +293,8 @@ export default function SettingsPage() {
     setShowdownUsername(snapshot.showdownUsername);
     setAvatarInitials(snapshot.avatarInitials);
     setAvatarUrl(snapshot.avatarUrl);
+    setTimeZone(snapshot.timeZone);
+    setAvailability(savedAvailability);
     setAvatarRefreshKey((prev) => prev + 1);
     setHasChanges(false);
     setSuccessMessage(null);
@@ -240,19 +314,48 @@ export default function SettingsPage() {
   }
 
   /**
+   * Applies an edit to one weekday of the availability section.
+   *
+   * @param dayOfWeek - Weekday index to change (0 = Sunday).
+   * @param patch - The fields to change on that day.
+   */
+  function handleAvailabilityChange(
+    dayOfWeek: number,
+    patch: Partial<{
+      is_unavailable: boolean;
+      start_time: string;
+      end_time: string;
+    }>,
+  ) {
+    setAvailability((current) =>
+      normalizeAvailabilityWeek(
+        current.map((day) =>
+          day.day_of_week === dayOfWeek ? { ...day, ...patch } : day,
+        ),
+      ),
+    );
+    setHasChanges(true);
+    setSuccessMessage(null);
+    setError(null);
+  }
+
+  /**
    * Prompts the user if there are unsaved changes before executing the next action.
    * Reverts changes if the user confirms leaving.
    * @param nextAction - Optional callback to execute if the user chooses to leave.
    */
-  function confirmLeaveWithoutSaving(nextAction?: () => void) {
+  async function confirmLeaveWithoutSaving(nextAction?: () => void) {
     if (!hasChanges) {
       nextAction?.();
       return;
     }
 
-    const shouldLeave = window.confirm(
-      "You have unsaved changes. Leave without saving?",
-    );
+    const shouldLeave = await confirm({
+      title: "Leave without saving?",
+      detail: "Your unsaved changes to your profile, time zone, and availability are discarded",
+      confirmLabel: "Discard changes",
+      tone: "danger",
+    });
 
     if (!shouldLeave) {
       return;
@@ -263,8 +366,9 @@ export default function SettingsPage() {
   }
 
   /**
-   * Persists profile changes (avatar upload/remove, display name, Showdown username)
-   * to Supabase storage and the profiles table.
+   * Persists profile changes (avatar upload/remove, display name, Showdown
+   * username, display time zone) and the weekly availability window to Supabase
+   * storage and the database.
    */
   async function handleSaveChanges() {
     if (!userId) {
@@ -321,7 +425,16 @@ export default function SettingsPage() {
         displayName,
         showdownUsername,
         avatarUrl: nextAvatarUrl,
+        timeZone,
       });
+
+      // Saved after the profile so a failure here cannot leave the two views of
+      // the same settings disagreeing about what is stored.
+      await saveAvailabilityWeek(userId, availability);
+
+      // Refresh the cache so every other league page renders in the new zone on
+      // its next load rather than the one it happened to cache.
+      cacheUserTimeZone(timeZone);
 
       pendingAvatarActionRef.current = "none";
       pendingAvatarFileRef.current = null;
@@ -330,7 +443,9 @@ export default function SettingsPage() {
         showdownUsername,
         avatarUrl: nextAvatarUrl,
         avatarInitials,
+        timeZone,
       };
+      setSavedAvailability(availability);
       setAvatarUrl(nextAvatarUrl);
       setHasChanges(false);
       setSuccessMessage("Your profile was saved.");
@@ -446,9 +561,7 @@ export default function SettingsPage() {
 
             <button
               type="button"
-              onClick={() =>
-                confirmLeaveWithoutSaving(() => router.push("/dashboard"))
-              }
+              onClick={() => void confirmLeaveWithoutSaving(() => router.push("/dashboard"))}
               className="rounded-xl border border-slate-700 bg-slate-800 px-4 py-2 text-sm font-medium text-slate-100 transition hover:border-slate-500 hover:bg-slate-700"
             >
               Back to league
@@ -522,7 +635,7 @@ export default function SettingsPage() {
                 type="button"
                 className="w-full rounded-xl border border-red-800 bg-red-950/60 px-4 py-2.5 text-sm font-medium text-red-200 transition hover:bg-red-900/80"
                 onClick={() =>
-                  confirmLeaveWithoutSaving(async () => {
+                  void confirmLeaveWithoutSaving(async () => {
                     await handleSignOut();
                   })
                 }
@@ -577,6 +690,110 @@ export default function SettingsPage() {
                 />
               </div>
 
+              <div>
+                <label className="mb-2 block text-sm font-medium text-slate-300">
+                  Time zone
+                </label>
+                <select
+                  value={timeZone}
+                  onChange={(event) =>
+                    handleFieldChange(setTimeZone, event.target.value)
+                  }
+                  className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-slate-100 outline-none transition focus:border-amber-400"
+                >
+                  {/* A zone outside the runtime's list would otherwise be unselectable. */}
+                  {!timeZoneOptions.includes(timeZone) && (
+                    <option value={timeZone}>{formatTimeZoneLabel(timeZone)}</option>
+                  )}
+                  {timeZoneOptions.map((zone) => (
+                    <option key={zone} value={zone}>
+                      {formatTimeZoneLabel(zone)}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-2 text-xs text-slate-400">
+                  Every date and time on league pages, including match times and
+                  the weekly deadline, is shown in this zone.
+                </p>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-medium text-slate-300">
+                  Availability
+                </label>
+                <p className="mb-3 text-xs text-slate-400">
+                  The window you are free to play each day, in {formatTimeZoneLabel(timeZone)}. Your
+                  opponent sees this on the schedule page when they pick a match
+                  time. A range that ends before it starts is read as running
+                  past midnight.
+                </p>
+
+                <div className="space-y-2">
+                  {availability.map((day) => (
+                    <div
+                      key={day.day_of_week}
+                      className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2.5"
+                    >
+                      <label className="flex min-w-32 flex-1 items-center gap-2 text-sm text-slate-200">
+                        <input
+                          type="checkbox"
+                          checked={day.is_unavailable}
+                          onChange={(event) =>
+                            handleAvailabilityChange(day.day_of_week, {
+                              is_unavailable: event.target.checked,
+                            })
+                          }
+                          className="size-4 accent-rose-500"
+                        />
+                        <span>{WEEKDAY_LABELS[day.day_of_week]}</span>
+                      </label>
+
+                      {day.is_unavailable ? (
+                        <span className="text-sm text-slate-500">
+                          Unavailable
+                        </span>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="time"
+                            value={day.start_time}
+                            onChange={(event) =>
+                              handleAvailabilityChange(day.day_of_week, {
+                                start_time: event.target.value,
+                              })
+                            }
+                            aria-label={`${WEEKDAY_LABELS[day.day_of_week]} availability start`}
+                            className="rounded-xl border border-slate-700 bg-slate-950 px-2.5 py-1.5 text-sm text-slate-100 outline-none focus:border-amber-400"
+                          />
+                          <span className="text-sm text-slate-500">to</span>
+                          <input
+                            type="time"
+                            value={day.end_time}
+                            onChange={(event) =>
+                              handleAvailabilityChange(day.day_of_week, {
+                                end_time: event.target.value,
+                              })
+                            }
+                            aria-label={`${WEEKDAY_LABELS[day.day_of_week]} availability end`}
+                            className="rounded-xl border border-slate-700 bg-slate-950 px-2.5 py-1.5 text-sm text-slate-100 outline-none focus:border-amber-400"
+                          />
+                          <span className="text-xs text-slate-500">
+                            {formatClock(day.start_time)} –{" "}
+                            {formatClock(day.end_time)}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                {!availabilityWeeksEqual(savedAvailability, availability) && (
+                  <p className="mt-2 text-xs text-amber-300">
+                    Availability has unsaved changes.
+                  </p>
+                )}
+              </div>
+
               {error && (
                 <div className="rounded-lg border border-red-800 bg-red-950/60 px-3 py-2 text-sm text-red-200">
                   {error}
@@ -602,6 +819,8 @@ export default function SettingsPage() {
             </div>
           </div>
         </section>
+
+        {confirmDialog}
       </div>
     </main>
   );

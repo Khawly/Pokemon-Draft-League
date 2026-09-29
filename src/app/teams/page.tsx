@@ -12,7 +12,8 @@
  * owner/admin-only Delete. Dropping a Pokémon confirms with its name, refunds
  * its tier into the team's token salary, removes it from the roster, re-lists
  * it on the free agents, and records a transaction (all enforced by the
- * `drop_roster_pokemon` RPC).
+ * `drop_roster_pokemon` RPC). Match history timestamps are shown in the time
+ * zone the member picked in user settings.
  */
 "use client";
 
@@ -23,7 +24,10 @@ import { AbilityTooltip } from "@/components/ability-tooltip";
 import { supabase } from "@/lib/supabase/client";
 import { getSpriteUrl } from "@/lib/pokeapi";
 import { formatSeasonLabel } from "@/lib/supabase/seasons";
+import { formatDateTimeInZone } from "@/lib/datetime";
+import { useUserTimeZone } from "@/lib/user-timezone";
 import { TYPE_LIST, getDefensiveMatchup, getEmphasisGlow, getMatchupColor, type PokemonType } from "@/lib/typechart";
+import { useConfirm } from "@/components/confirm-dialog";
 import {
   deleteMatch,
   dropRosterPokemon,
@@ -177,25 +181,6 @@ function TypeBadge({ type }: { type: string }) {
       {type}
     </span>
   );
-}
-
-/**
- * Formats a nullable timestamp for the match history Date/Time column.
- *
- * @param value - The ISO timestamp, or null.
- * @returns A readable local date/time string, or "—" when null.
- */
-function formatDateTime(value: string | null): string {
-  if (!value) {
-    return "—";
-  }
-  return new Date(value).toLocaleString(undefined, {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
 }
 
 /** A sortable stat header with the sort indicator and click handler. */
@@ -720,7 +705,8 @@ function DefensiveTypingGrid({
  *
  * Each row is prefixed with the season week the match was scheduled for, so
  * playoff rounds (which continue the week numbering past the regular season)
- * stay in sequence with the regular-season rows.
+ * stay in sequence with the regular-season rows. Date/Time values render in the
+ * zone the member picked in user settings.
  */
 function MatchHistory({
   teamName,
@@ -737,6 +723,8 @@ function MatchHistory({
   /** Called with a match id after the user confirms a delete. */
   onDelete: (match: TeamMatch) => void;
 }) {
+  const timeZone = useUserTimeZone();
+
   return (
     <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-lg shadow-slate-950/30">
       <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">
@@ -791,7 +779,7 @@ function MatchHistory({
                     {match.winner_name ?? (match.status === "forfeit" ? "Forfeit" : "—")}
                   </td>
                   <td className="whitespace-nowrap px-4 py-3 text-slate-300">
-                    {formatDateTime(match.date_time)}
+                    {formatDateTimeInZone(match.date_time, timeZone)}
                   </td>
                   <td className="px-4 py-3 text-slate-300">
                     {match.results.length === 0 ? (
@@ -852,6 +840,7 @@ function TeamsPageContent({
   searchParams: URLSearchParams | null;
 }) {
   const router = useRouter();
+  const { confirm, confirmDialog } = useConfirm();
   const [goods, setGoods] = useState<TeamPageGoods | null>(null);
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
   const [compareTeamId, setCompareTeamId] = useState<string | null>(null);
@@ -961,6 +950,18 @@ function TeamsPageContent({
     [goods, compareTeamId],
   );
 
+  /*
+   * A team is addressed by its owner's live display name. `teams.team_name` is a
+   * snapshot copied out of the profile when the draft started and is never
+   * refreshed, so labelling a member with it left every heading on this page
+   * showing the name they had before they changed it. The team name is only a
+   * fallback for a profile with no display name.
+   */
+  const selectedTeamLabel =
+    selectedTeam?.owner_name || selectedTeam?.team_name || "Selected team";
+  const compareTeamLabel =
+    compareTeam?.owner_name || compareTeam?.team_name || "Selected team";
+
   const selectedRoster = useMemo(
     () => (goods && selectedTeamId ? goods.rostersByTeam.get(selectedTeamId) ?? [] : []),
     [goods, selectedTeamId],
@@ -999,9 +1000,12 @@ function TeamsPageContent({
       return;
     }
 
-    const confirmed = window.confirm(
-      `Drop ${pokemon.name} from your roster? Its tier (Tier ${pokemon.tier_value}) will be refunded into your team's token salary and it will be added back to the free agents.`,
-    );
+    const confirmed = await confirm({
+      title: `Drop ${pokemon.name} from your roster?`,
+      detail: `Its Tier ${pokemon.tier_value} cost is refunded into your token salary and it goes back to the free agents`,
+      confirmLabel: "Drop",
+      tone: "danger",
+    });
     if (!confirmed) {
       return;
     }
@@ -1022,9 +1026,12 @@ function TeamsPageContent({
   }
 
   async function handleDeleteMatch(match: TeamMatch) {
-    const confirmed = window.confirm(
-      `Delete the ${match.player_1_name} vs ${match.player_2_name} match and its results? This cannot be undone.`,
-    );
+    const confirmed = await confirm({
+      title: "Delete this match?",
+      detail: `${match.player_1_name} vs ${match.player_2_name} and every result posted for it`,
+      confirmLabel: "Delete",
+      tone: "danger",
+    });
     if (!confirmed) {
       return;
     }
@@ -1104,7 +1111,7 @@ function TeamsPageContent({
                   )}
                   {teamOptions.map((team) => (
                     <option key={team.id} value={team.id}>
-                      {team.team_name} ({team.owner_name ?? "Unknown"})
+                      {team.owner_name || team.team_name}
                     </option>
                   ))}
                 </select>
@@ -1138,7 +1145,7 @@ function TeamsPageContent({
                           value={team.id}
                           disabled={team.id === selectedTeamId}
                         >
-                          {team.team_name} ({team.owner_name ?? "Unknown"})
+                          {team.owner_name || team.team_name}
                         </option>
                       ))}
                     </select>
@@ -1203,7 +1210,7 @@ function TeamsPageContent({
         ) : (
           <>
             <TeamStatsTable
-              teamName={selectedTeam?.team_name ?? "Selected team"}
+              teamName={selectedTeamLabel}
               roster={selectedRoster}
               isMine={selectedTeamId === goods.myTeamId}
               canDrop={canDrop}
@@ -1212,7 +1219,7 @@ function TeamsPageContent({
 
             {compareTeam && (
               <TeamStatsTable
-                teamName={`${compareTeam.team_name} (comparison)`}
+                teamName={`${compareTeamLabel} (comparison)`}
                 roster={compareRoster}
                 isMine={false}
                 canDrop={false}
@@ -1221,19 +1228,19 @@ function TeamsPageContent({
             )}
 
             <DefensiveTypingGrid
-              teamName={selectedTeam?.team_name ?? "Selected team"}
+              teamName={selectedTeamLabel}
               roster={selectedRoster}
             />
 
             {compareTeam && (
               <DefensiveTypingGrid
-                teamName={`${compareTeam.team_name} (comparison)`}
+                teamName={`${compareTeamLabel} (comparison)`}
                 roster={compareRoster}
               />
             )}
 
             <MatchHistory
-              teamName={selectedTeam?.team_name ?? "Selected team"}
+              teamName={selectedTeamLabel}
               matches={selectedMatches}
               isStaff={goods.isStaff}
               onDelete={handleDeleteMatch}
@@ -1241,6 +1248,8 @@ function TeamsPageContent({
           </>
         )}
       </div>
+
+      {confirmDialog}
     </main>
   );
 }

@@ -3,14 +3,15 @@
  *
  * Loads the league, latest season, season settings (including schedule
  * configuration), every team with its owner's display info, the season's
- * matches with per-game results, and the computed season standings. Also
- * exposes the RPC-backed mutations the page uses: generating the schedule and
- * the playoff bracket (owner only), scheduling/rescheduling a match by its
- * participants, submitting and (staff-only) editing game results, and
- * forfeiting a match.
+ * matches with per-game results and their scheduling proposals, and the computed
+ * season standings. Also exposes the RPC-backed mutations the page uses:
+ * generating the schedule and the playoff bracket (owner only), the two-sided
+ * time agreement between participants (propose, accept/decline, withdraw),
+ * submitting and (staff-only) editing game results, and forfeiting a match.
  */
 import { supabase } from "@/lib/supabase/client";
 import { loadLatestSeason } from "@/lib/supabase/seasons";
+
 
 /** Lifecycle status of a season (subset used by the schedule page). */
 export type ScheduleSeasonStatus =
@@ -59,6 +60,17 @@ export type ScheduleMatchResult = {
   submitted_at: string;
 };
 
+/** A time one participant has offered the other for a match. */
+export type ScheduleProposal = {
+  id: string;
+  proposed_by: string;
+  proposed_at: string;
+  notes: string | null;
+  status: "pending" | "accepted" | "declined" | "withdrawn";
+  created_at: string;
+  responded_at: string | null;
+};
+
 /** A head-to-head match in the season with resolved team/player display info. */
 export type ScheduleMatch = {
   id: string;
@@ -66,7 +78,13 @@ export type ScheduleMatch = {
   is_playoff: boolean;
   bracket_phase: "upper" | "lower" | "gf" | null;
   scheduled_at: string | null;
-  status: "scheduled" | "in_progress" | "completed" | "forfeit" | "cancelled";
+  status:
+    | "unscheduled"
+    | "scheduled"
+    | "in_progress"
+    | "completed"
+    | "forfeit"
+    | "cancelled";
   winner_team_id: string | null;
   notes: string | null;
   player_1_team_id: string;
@@ -78,9 +96,51 @@ export type ScheduleMatch = {
   player_1_user_id: string;
   player_2_user_id: string;
   results: ScheduleMatchResult[];
+  /**
+   * The proposal still waiting for an answer, when there is one. Its presence is
+   * what makes a matchup read as "waiting on the other player" rather than
+   * simply having no time.
+   */
+  pending_proposal: ScheduleProposal | null;
 };
 
-/** A row from the season_standings RPC (ranked by the database). */
+/**
+ * One row of the owner-only match-time negotiation log.
+ *
+ * Unlike `ScheduleMatch.pending_proposal`, which is only the proposal still
+ * waiting for an answer, this covers every proposal ever made on the match,
+ * including the ones that were accepted, declined, or withdrawn. The two sides
+ * are named rather than left as user ids so the log reads as a record of what
+ * two people agreed to, and the week is carried so a log spanning a whole
+ * season can be grouped or filtered.
+ */
+export type ProposalHistoryEntry = {
+  id: string;
+  match_id: string;
+  week_number: number;
+  is_playoff: boolean;
+  bracket_phase: ScheduleMatch["bracket_phase"];
+  status: ScheduleProposal["status"];
+  /** The time offered for the match, not the time the offer was made. */
+  proposed_at: string;
+  notes: string | null;
+  proposed_by: string;
+  proposed_by_name: string;
+  /** Null until the offer is answered; a proposal cannot answer itself. */
+  responded_at: string | null;
+  responded_by: string | null;
+  /** Display name of whoever answered, or null while still pending. */
+  responded_by_name: string | null;
+  /** The two participants, as the owner sees them named. */
+  player_1_name: string;
+  player_2_name: string;
+  player_1_user_id: string;
+  player_2_user_id: string;
+  /** When the offer was made, for ordering and for the "awaiting" row. */
+  created_at: string;
+};
+
+/** A ranked standings row (already ordered by the database). */
 export type StandingsRow = {
   team_id: string;
   team_name: string;
@@ -88,6 +148,218 @@ export type StandingsRow = {
   losses: number;
   ko_diff: number;
 };
+
+/**
+ * Marks the member's own notifications as read.
+ *
+ * Used by the dashboard to clear the Schedule nav badge: opening the schedule is
+ * what counts as dealing with those alerts.
+ *
+ * @param notificationIds - The notices to clear, or null/empty to clear them all.
+ * @returns How many rows were updated.
+ * @throws If the RPC fails.
+ */
+export async function markNotificationsRead(
+  notificationIds: string[] | null = null,
+): Promise<number> {
+  const { data, error } = await supabase.rpc("mark_notifications_read", {
+    p_notification_ids: notificationIds && notificationIds.length > 0
+      ? notificationIds
+      : null,
+  });
+
+  if (error) {
+    throw new Error(error.message || "Notifications could not be marked as read.");
+  }
+
+  return Number(data ?? 0);
+}
+
+/** A proposal row as stored, before its match and participants are resolved. */
+type ProposalHistoryRow = {
+  id: string;
+  match_id: string;
+  status: ScheduleProposal["status"];
+  proposed_at: string;
+  notes: string | null;
+  proposed_by: string;
+  created_at: string;
+  responded_at: string | null;
+  responded_by: string | null;
+};
+
+/** The two participants of a match, as the owner should see them named. */
+type ProposalParticipants = {
+  week_number: number;
+  is_playoff: boolean;
+  bracket_phase: ScheduleMatch["bracket_phase"];
+  player_1_name: string;
+  player_2_name: string;
+  player_1_user_id: string;
+  player_2_user_id: string;
+};
+
+/**
+ * Resolves a user id to one of the match's participants' names.
+ *
+ * A proposal's author and its responder are both one of the two players, so the
+ * match's own participants already hold every name this log needs. Mapping off
+ * the match rather than a separate profiles read keeps the log correct when a
+ * member has since changed their display name, and keeps it to two queries.
+ */
+function participantName(
+  userId: string | null,
+  participants: ProposalParticipants,
+): string | null {
+  if (!userId) {
+    return null;
+  }
+
+  if (userId === participants.player_1_user_id) {
+    return participants.player_1_name;
+  }
+
+  if (userId === participants.player_2_user_id) {
+    return participants.player_2_name;
+  }
+
+  /*
+   * A proposal whose author or responder is not a current participant of the
+   * match, which a mid-season roster change can produce. Returning the raw id is
+   * better than attributing the offer to the wrong person.
+   */
+  return userId;
+}
+
+/**
+ * Loads the full match-time negotiation history for a season, newest first.
+ *
+ * Covers every proposal ever made, not just the pending one a matchup card
+ * shows, so the owner can see who proposed what and how each offer ended.
+ *
+ * Owner-only in practice. The database refuses these rows to anyone but the
+ * league's owner, and the History tab checks ownership before calling this, so a
+ * member never issues the query. It is deliberately separate from
+ * `loadSchedulePageData`: that one is on the critical path for every member who
+ * opens the Schedule tab, while this log grows with every rescheduling attempt
+ * and is only wanted by the owner on one tab.
+ *
+ * The proposals are read by match id rather than joined onto their match.
+ * Filtering a nested embed on the league proved unreliable here, and reading the
+ * season's matches with `MATCHES_WITH_PARTICIPANTS_SELECT` gives both the week
+ * numbers and the participant names the log has to show anyway.
+ *
+ * @param leagueId - The league whose history to read.
+ * @param seasonId - Restricts the log to the season on screen.
+ * @returns Every proposal made this season, including accepted, declined,
+ *   withdrawn, and still-pending ones, newest first.
+ * @throws If either query fails.
+ */
+export async function loadProposalHistory(
+  leagueId: string,
+  seasonId: string,
+): Promise<ProposalHistoryEntry[]> {
+  const { data: matchRows, error: matchError } = await supabase
+    .from("matches")
+    .select(MATCHES_WITH_PARTICIPANTS_SELECT)
+    .eq("league_id", leagueId)
+    .eq("season_id", seasonId);
+
+  if (matchError) {
+    throw new Error("Match proposal history could not be loaded.");
+  }
+
+  const matches = (matchRows ?? []) as ScheduleMatchRow[];
+  const matchIds = matches.map((row) => row.id);
+
+  if (matchIds.length === 0) {
+    return [];
+  }
+
+  const { data: proposalRows, error: proposalError } = await supabase
+    .from("match_scheduling_proposals")
+    .select(
+      "id, match_id, status, proposed_at, notes, proposed_by, created_at, responded_at, responded_by",
+    )
+    .in("match_id", matchIds)
+    .order("created_at", { ascending: false });
+
+  if (proposalError) {
+    throw new Error("Match proposal history could not be loaded.");
+  }
+
+  const participantsByMatch = new Map<string, ProposalParticipants>();
+
+  for (const row of matches) {
+    const player1UserId = row.player_1?.owner_user_id ?? "";
+    const player2UserId = row.player_2?.owner_user_id ?? "";
+
+    participantsByMatch.set(row.id, {
+      week_number: row.week_number,
+      is_playoff: row.is_playoff,
+      bracket_phase: row.bracket_phase,
+      player_1_name:
+        row.player_1?.owner?.display_name ??
+        row.player_1?.team_name ??
+        "Player 1",
+      player_2_name:
+        row.player_2?.owner?.display_name ??
+        row.player_2?.team_name ??
+        "Player 2",
+      player_1_user_id: player1UserId,
+      player_2_user_id: player2UserId,
+    });
+  }
+
+  return ((proposalRows ?? []) as ProposalHistoryRow[]).flatMap((row) => {
+    /*
+     * Every id came from this season's matches, so a miss means a proposal whose
+     * match was deleted between the two reads. Dropping it is better than
+     * rendering a log row with no matchup attached to it.
+     */
+    const participants = participantsByMatch.get(row.match_id);
+
+    if (!participants) {
+      return [];
+    }
+
+    return [
+      {
+        id: row.id,
+        match_id: row.match_id,
+        status: row.status,
+        proposed_at: row.proposed_at,
+        notes: row.notes,
+        proposed_by: row.proposed_by,
+        created_at: row.created_at,
+        responded_at: row.responded_at,
+        responded_by: row.responded_by,
+        week_number: participants.week_number,
+        is_playoff: participants.is_playoff,
+        bracket_phase: participants.bracket_phase,
+        player_1_name: participants.player_1_name,
+        player_2_name: participants.player_2_name,
+        player_1_user_id: participants.player_1_user_id,
+        player_2_user_id: participants.player_2_user_id,
+        proposed_by_name:
+          participantName(row.proposed_by, participants) ?? "Unknown",
+        responded_by_name: participantName(row.responded_by, participants),
+      },
+    ];
+  });
+}
+
+
+/**
+ * Columns every match read needs: the match itself plus both participants
+ * resolved to a live display name.
+ *
+ * Shared so the schedule page and the owner-only proposal history cannot drift
+ * apart on how a person is named, which is the whole point of resolving the
+ * owner rather than reading `teams.team_name`.
+ */
+const MATCHES_WITH_PARTICIPANTS_SELECT =
+  "id, week_number, is_playoff, bracket_phase, scheduled_at, status, winner_team_id, notes, player_1_team_id, player_2_team_id, player_1: player_1_team_id (team_name, owner_user_id, owner: owner_user_id (display_name, avatar_url)), player_2: player_2_team_id (team_name, owner_user_id, owner: owner_user_id (display_name, avatar_url))";
 
 /** Complete schedule page payload for a league. */
 export type SchedulePageGoods = {
@@ -299,9 +571,7 @@ export async function loadSchedulePageData(
 
   const { data: matchRows, error: matchError } = await supabase
     .from("matches")
-    .select(
-      "id, week_number, is_playoff, bracket_phase, scheduled_at, status, winner_team_id, notes, player_1_team_id, player_2_team_id, player_1: player_1_team_id (team_name, owner_user_id, owner: owner_user_id (display_name, avatar_url)), player_2: player_2_team_id (team_name, owner_user_id, owner: owner_user_id (display_name, avatar_url))",
-    )
+    .select(MATCHES_WITH_PARTICIPANTS_SELECT)
     .eq("league_id", leagueId)
     .eq("season_id", season.id)
     .order("week_number", { ascending: true })
@@ -342,6 +612,38 @@ export async function loadSchedulePageData(
     }
   }
 
+  /*
+   * Only the still-pending proposal changes what the card has to say, so just that
+   * one is read. Asking for every historical row would grow with every reschedule
+   * attempt while telling the user nothing extra.
+   */
+  const pendingProposals = new Map<string, ScheduleProposal>();
+  if (matchIds.length > 0) {
+    const { data: proposalRows, error: proposalError } = await supabase
+      .from("match_scheduling_proposals")
+      .select("id, match_id, proposed_by, proposed_at, notes, status, created_at, responded_at")
+      .in("match_id", matchIds)
+      .eq("status", "pending");
+
+    if (proposalError) {
+      throw new Error("Match time proposals could not be loaded.");
+    }
+
+    for (const row of (proposalRows ?? []) as (Omit<ScheduleProposal, "match_id"> & {
+      match_id: string;
+    })[]) {
+      pendingProposals.set(row.match_id, {
+        id: row.id,
+        proposed_by: row.proposed_by,
+        proposed_at: row.proposed_at,
+        notes: row.notes,
+        status: row.status,
+        created_at: row.created_at,
+        responded_at: row.responded_at,
+      });
+    }
+  }
+
   const matches = ((matchRows ?? []) as unknown as ScheduleMatchRow[]).map(
     (row): ScheduleMatch => ({
       id: row.id,
@@ -354,15 +656,27 @@ export async function loadSchedulePageData(
       notes: row.notes,
       player_1_team_id: row.player_1_team_id,
       player_2_team_id: row.player_2_team_id,
-      player_1_name: row.player_1?.team_name ?? "Team 1",
-      player_2_name: row.player_2?.team_name ?? "Team 2",
+      /*
+       * The owner's live display name, not the team's name. `teams.team_name` is
+       * a snapshot copied out of `profiles.display_name` when the draft started
+       * and is not editable anywhere, so labelling a player with it left every
+       * matchup showing the name the member had before they changed it, next to
+       * their up-to-date avatar. The team name is kept as the fallback for a
+       * profile with no display name set.
+       */
+      player_1_name:
+        row.player_1?.owner?.display_name ?? row.player_1?.team_name ?? "Team 1",
+      player_2_name:
+        row.player_2?.owner?.display_name ?? row.player_2?.team_name ?? "Team 2",
       player_1_avatar_url: row.player_1?.owner?.avatar_url ?? null,
       player_2_avatar_url: row.player_2?.owner?.avatar_url ?? null,
       player_1_user_id: row.player_1?.owner_user_id ?? "",
       player_2_user_id: row.player_2?.owner_user_id ?? "",
       results: resultsByMatch.get(row.id) ?? [],
+      pending_proposal: pendingProposals.get(row.id) ?? null,
     }),
   );
+
 
   return {
     ...base,
@@ -434,27 +748,74 @@ export async function generatePlayoffRound(
 }
 
 /**
- * Schedules or reschedules a match's date/time and notes (participants only).
+ * Offers a date/time to the opponent for a match the user participates in.
  *
- * @param matchId - The match to update.
- * @param scheduledAt - The new ISO timestamp, or null to clear the time.
- * @param notes - Optional scheduling notes for the opponent.
+ * The match stays unscheduled until the opponent accepts; a time that has not
+ * been agreed is never treated as scheduled.
+ *
+ * @param matchId - The match to propose a time for.
+ * @param scheduledAt - The proposed ISO timestamp.
+ * @param notes - Optional notes sent along with the proposal.
+ * @throws If the RPC rejects the proposal.
  */
-export async function updateMatchSchedule(
+export async function proposeMatchTime(
   matchId: string,
-  scheduledAt: string | null,
+  scheduledAt: string,
   notes: string,
 ): Promise<void> {
-  const { error } = await supabase.rpc("update_match_schedule", {
+  const { error } = await supabase.rpc("propose_match_time", {
     p_match_id: matchId,
     p_scheduled_at: scheduledAt,
     p_notes: notes,
   });
 
   if (error) {
-    throw new Error(error.message || "The match could not be scheduled.");
+    throw new Error(error.message || "The match time could not be proposed.");
   }
 }
+
+/**
+ * Accepts or declines the time the opponent proposed (participants only, and
+ * only for a proposal the caller did not make).
+ *
+ * @param matchId - The match being scheduled.
+ * @param accept - True to agree to the proposed time, false to decline it.
+ * @returns The match's resulting status, `scheduled` or `unscheduled`.
+ * @throws If the RPC rejects the response.
+ */
+export async function respondToMatchProposal(
+  matchId: string,
+  accept: boolean,
+): Promise<"scheduled" | "unscheduled"> {
+  const { data, error } = await supabase.rpc("respond_to_match_proposal", {
+    p_match_id: matchId,
+    p_accept: accept,
+  });
+
+  if (error) {
+    throw new Error(error.message || "The proposal could not be answered.");
+  }
+
+  return data === "scheduled" ? "scheduled" : "unscheduled";
+}
+
+/**
+ * Withdraws a pending proposal the user made, leaving the matchup needing a time
+ * again.
+ *
+ * @param matchId - The match to withdraw from.
+ * @throws If the RPC rejects the withdrawal.
+ */
+export async function cancelMatchProposal(matchId: string): Promise<void> {
+  const { error } = await supabase.rpc("cancel_match_proposal", {
+    p_match_id: matchId,
+  });
+
+  if (error) {
+    throw new Error(error.message || "The proposal could not be withdrawn.");
+  }
+}
+
 
 /**
  * Submits one game result for a match the user participates in. Enforces one
@@ -577,4 +938,116 @@ export function nextPowerOfTwo(count: number): number {
     result *= 2;
   }
   return result;
+}
+
+/** A run of proposals from one week of the season, for the owner history log. */
+export type ProposalHistoryGroup = {
+  week_number: number;
+  is_playoff: boolean;
+  bracket_phase: ProposalHistoryEntry["bracket_phase"];
+  entries: ProposalHistoryEntry[];
+};
+
+/**
+ * Groups the owner proposal log by week, newest week first.
+ *
+ * The loader already returns the whole log newest first, so this only has to
+ * bucket it. Weeks come out in descending order, which for a proposal log reads
+ * as "most recent first" the way a member would expect, and each week's entries
+ * keep the loader's ordering rather than being re-sorted.
+ *
+ * @param entries - The log as loaded.
+ * @returns One group per week that has at least one proposal, newest week first.
+ */
+export function groupProposalHistoryByWeek(
+  entries: ProposalHistoryEntry[],
+): ProposalHistoryGroup[] {
+  const groups = new Map<number, ProposalHistoryGroup>();
+
+  for (const entry of entries) {
+    const existing = groups.get(entry.week_number);
+
+    if (existing) {
+      existing.entries.push(entry);
+      continue;
+    }
+
+    groups.set(entry.week_number, {
+      week_number: entry.week_number,
+      is_playoff: entry.is_playoff,
+      bracket_phase: entry.bracket_phase,
+      entries: [entry],
+    });
+  }
+
+  return [...groups.values()].sort(
+    (a, b) => b.week_number - a.week_number,
+  );
+}
+
+/**
+ * Describes how a match-time offer ended, in the terms the owner cares about.
+ *
+ * The log's job is to answer "did they agree, and who said no", so a bare status
+ * is not enough: an accepted offer names who accepted it, and a pending one says
+ * plainly that nobody has answered rather than leaving that to be inferred from
+ * a missing name.
+ *
+ * @param entry - One log row.
+ * @returns A short phrase such as "Accepted by Bam".
+ */
+export function proposalOutcomeLabel(entry: ProposalHistoryEntry): string {
+  switch (entry.status) {
+    case "accepted":
+      return entry.responded_by_name
+        ? `Accepted by ${entry.responded_by_name}`
+        : "Accepted";
+    case "declined":
+      return entry.responded_by_name
+        ? `Declined by ${entry.responded_by_name}`
+        : "Declined";
+    case "withdrawn":
+      return entry.responded_by_name
+        ? `Withdrawn by ${entry.responded_by_name}`
+        : "Withdrawn";
+    default:
+      return "Awaiting a response";
+  }
+}
+
+/** Tailwind text colour for a proposal's outcome badge. */
+export function proposalOutcomeTone(
+  status: ProposalHistoryEntry["status"],
+): string {
+  switch (status) {
+    case "accepted":
+      return "text-emerald-300 border-emerald-800 bg-emerald-950/40";
+    case "declined":
+      return "text-rose-300 border-rose-800 bg-rose-950/40";
+    case "withdrawn":
+      return "text-slate-300 border-slate-700 bg-slate-900";
+    default:
+      return "text-amber-300 border-amber-800 bg-amber-950/40";
+  }
+}
+
+/**
+ * Labels the week a proposal belongs to.
+ *
+ * Playoff proposals are keyed to the round they were played in, not to a week
+ * number, so calling one "Week 4" would be wrong and "Playoffs" is what the rest
+ * of the page already says.
+ *
+ * @param group - The week group being labelled.
+ * @returns A label such as "Week 3" or "Playoffs".
+ */
+export function proposalWeekLabel(group: {
+  week_number: number;
+  is_playoff: boolean;
+}): string {
+  if (group.is_playoff) {
+    return "Playoffs";
+  }
+
+  return `Week ${group.week_number}`;
 }

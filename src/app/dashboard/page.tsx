@@ -8,11 +8,19 @@
 
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { DashboardShell } from "@/components/dashboard-shell";
+import { useConfirm } from "@/components/confirm-dialog";
 import { supabase } from "@/lib/supabase/client";
-import { loadDashboardData, type DashboardGoods } from "@/lib/supabase/dashboard";
+import {
+  clearAllNotifications,
+  loadDashboardData,
+  loadMatchTimeAlerts,
+  type DashboardGoods,
+} from "@/lib/supabase/dashboard";
+import { useRealtimeInvalidation } from "@/lib/use-realtime-invalidation";
+import { markNotificationsRead } from "@/lib/supabase/schedule";
 
 /**
  * Streams the dashboard content behind a Suspense loading fallback so the
@@ -50,6 +58,24 @@ function DashboardPageContent() {
   const [goods, setGoods] = useState<DashboardGoods | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  /**
+   * Panel-level feedback for the notification list. Deliberately separate from
+   * the page-level `error`, which replaces the entire dashboard: a failure to
+   * clear one panel is not a failure of the league, and blanking the page to say
+   * so would throw away everything the member can still read.
+   */
+  const [notificationError, setNotificationError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [isClearingNotifications, setIsClearingNotifications] = useState(false);
+  const { confirm, confirmDialog } = useConfirm();
+
+  /*
+   * The effect below owns the load, but a real-time match change needs to re-run
+   * it from outside. A ref is used rather than lifting the function to component
+   * scope because it closes over the effect's own dependencies, and moving it
+   * would mean duplicating the league resolution.
+   */
+  const loadLeagueRef = useRef<(() => Promise<void>) | null>(null);
 
   useEffect(() => {
     async function syncSessionUser(
@@ -64,16 +90,25 @@ function DashboardPageContent() {
       }
 
       const user = session.user;
+
+      /*
+       * The profile row is the authority for the display name, not the auth
+       * metadata: the profile is what every other page reads, so reading the
+       * metadata here is what made the header disagree with the rest of the app
+       * after a rename. The metadata and the email local part remain as
+       * fallbacks for a profile that has not been provisioned yet.
+       */
+      const { data: profileData } = await supabase
+        .from("profiles")
+        .select("display_name, avatar_url")
+        .eq("id", user.id)
+        .maybeSingle();
+
       const displayName =
+        (profileData?.display_name as string | undefined) ||
         (user.user_metadata?.display_name as string | undefined) ||
         user.email?.split("@")[0] ||
         "Trainer";
-
-      const { data: profileData } = await supabase
-        .from("profiles")
-        .select("avatar_url")
-        .eq("id", user.id)
-        .maybeSingle();
 
       setSessionUser({
         email: user.email ?? "Unknown email",
@@ -156,6 +191,8 @@ function DashboardPageContent() {
       }
     }
 
+    loadLeagueRef.current = loadLeague;
+
     async function loadSession() {
       const {
         data: { session },
@@ -187,8 +224,158 @@ function DashboardPageContent() {
     return () => {
       subscription.unsubscribe();
       window.removeEventListener("profile-updated", handleProfileUpdated);
+      loadLeagueRef.current = null;
     };
   }, [router, searchParams]);
+
+  /** Re-runs the league load, for a real-time change to a match. */
+  const reloadLeague = useCallback(async () => {
+    await loadLeagueRef.current?.();
+  }, []);
+
+  /**
+   * Clears this week's match-time alerts when the member opens the schedule.
+   *
+   * The badge is dropped from local state first so it disappears the instant the
+   * Schedule tab is pressed rather than after a round trip; a failed write simply
+   * brings the count back on the next load, which is a far smaller problem than
+   * a badge that refuses to clear.
+   */
+  async function handleScheduleVisited() {
+    const ids = goods?.matchTimeAlertIds ?? [];
+
+    if (ids.length === 0) {
+      return;
+    }
+
+    setGoods((current) =>
+      current
+        ? { ...current, matchTimeAlertIds: [], matchTimeAlertCount: 0 }
+        : current,
+    );
+
+    try {
+      await markNotificationsRead(ids);
+    } catch {
+      // The next load restores whatever is genuinely still unread.
+    }
+  }
+
+  /*
+   * Clearing notifications is a delete, so it is confirmed first. The dialog copy
+   * names the scope, because "clear all" on a panel that shows five of the
+   * member's forty would otherwise read as removing only what is on screen.
+   */
+  const handleClearNotifications = useCallback(async () => {
+    const leagueId = goods?.leagueId;
+
+    if (!leagueId) {
+      return;
+    }
+
+    const confirmed = await confirm({
+      title: "Clear all notifications?",
+      detail:
+        "This removes every notification for this league, including any you have not read. It cannot be undone.",
+      confirmLabel: "Clear all",
+      tone: "danger",
+    });
+
+    if (!confirmed) {
+      return;
+    }
+
+    setIsClearingNotifications(true);
+    setNotificationError(null);
+
+    try {
+      const removed = await clearAllNotifications(leagueId);
+
+      /*
+       * The match-time alerts behind the Schedule badge are notifications too, so
+       * they are gone along with the list and the badge has to go with them. The
+       * panel only ever holds this league's rows, and every one of them is gone,
+       * so both fields are emptied rather than refetched.
+       */
+      setGoods((current) =>
+        current
+          ? {
+              ...current,
+              notifications: [],
+              matchTimeAlertIds: [],
+              matchTimeAlertCount: 0,
+            }
+          : current,
+      );
+
+      setNotice(
+        removed === 1
+          ? "1 notification cleared."
+          : `${removed} notifications cleared.`,
+      );
+    } catch (clearError) {
+      /*
+       * Reported inside the panel rather than through the page-level error, which
+       * replaces the whole dashboard. A failed clear is a problem with one panel,
+       * not with the league.
+       */
+      setNotificationError(
+        clearError instanceof Error
+          ? clearError.message
+          : "Notifications could not be cleared.",
+      );
+    } finally {
+      setIsClearingNotifications(false);
+    }
+  }, [goods?.leagueId, confirm]);
+
+  /**
+   * Refreshes only the Schedule badge, for a notification that arrived while the
+   * dashboard was open.
+   *
+   * A new notification is by far the most common real-time event and it changes
+   * nothing on this page but the badge, so this deliberately avoids re-running the
+   * full dashboard load, which pages the entire draft pool and reads every roster.
+   */  const refreshScheduleBadge = useCallback(async () => {
+    const leagueId = goods?.leagueId;
+
+    if (!leagueId) {
+      return;
+    }
+
+    const { data: sessionData } = await supabase.auth.getSession();
+    const userId = sessionData.session?.user?.id;
+
+    if (!userId) {
+      return;
+    }
+
+    const alerts = await loadMatchTimeAlerts(leagueId, userId);
+
+    setGoods((previous) =>
+      previous
+        ? {
+            ...previous,
+            matchTimeAlertIds: alerts.ids,
+            matchTimeAlertCount: alerts.count,
+          }
+        : previous,
+    );
+  }, [goods?.leagueId]);
+
+  /*
+   * Live updates, scoped to what each table actually changes. A notification only
+   * moves the badge, so it takes the cheap path; a match changing status, time, or
+   * result changes the schedule, the week, and the standings, so it reloads the
+   * page's data.
+   */
+  useRealtimeInvalidation({
+    leagueId: goods?.leagueId ?? null,
+    watchers: [
+      { table: "notifications", onChange: () => void refreshScheduleBadge() },
+      { table: "matches", onChange: () => void reloadLeague() },
+    ],
+  });
 
   if (isLoading || !sessionUser || !leagueName) {
     return (
@@ -220,8 +407,14 @@ function DashboardPageContent() {
           leagueName={leagueName}
           leagueId={searchParams.get("leagueId") ?? null}
           goods={goods}
+          onScheduleVisited={() => void handleScheduleVisited()}
+          onClearNotifications={() => void handleClearNotifications()}
+          isClearingNotifications={isClearingNotifications}
+          notificationError={notificationError}
+          notificationNotice={notice}
         />
       </div>
+      {confirmDialog}
     </main>
   );
 }

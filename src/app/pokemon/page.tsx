@@ -9,7 +9,8 @@
  * `pickup_roster_pokemon` RPC claims it; `-` cancels the pending add. The right
  * column shows the user's team transaction history in stack order (newest
  * first). Pickup is only available once the draft is complete and the user owns
- * a team.
+ * a team. Transaction timestamps are shown in the time zone the member picked in
+ * user settings.
  */
 "use client";
 
@@ -20,15 +21,22 @@ import { supabase } from "@/lib/supabase/client";
 import { AbilityTooltip } from "@/components/ability-tooltip";
 import { getSpriteUrl } from "@/lib/pokeapi";
 import { formatSeasonLabel } from "@/lib/supabase/seasons";
+import { formatDateTimeInZone } from "@/lib/datetime";
+import { useUserTimeZone } from "@/lib/user-timezone";
 import {
+  ALL_POKEMON_TYPES,
   getPickupCost,
   canAffordPickup,
   getPokemonSalary,
   loadPokemonPageData,
   pickupRosterPokemon,
+  poolTypeCounts,
+  sortPoolByType,
   type PokemonGoods,
   type PokemonPoolRow,
+  type PokemonTeam,
 } from "@/lib/supabase/pokemon";
+import { TYPE_LIST } from "@/lib/typechart";
 
 /** LocalStorage key used by the top nav to persist the selected league. */
 const SELECTED_LEAGUE_STORAGE_KEY = "pokemon-draft-league:selected-league";
@@ -151,25 +159,6 @@ function TypeBadge({ type }: { type: string }) {
  */
 function tierLabel(tier: number): string {
   return tier === 0 ? "Unranked" : `Tier ${tier}`;
-}
-
-/**
- * Formats a nullable timestamp for the transaction history rows.
- *
- * @param value - The ISO timestamp, or null.
- * @returns A readable local date/time string, or "—" when null.
- */
-function formatDateTime(value: string | null): string {
-  if (!value) {
-    return "—";
-  }
-  return new Date(value).toLocaleString(undefined, {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
 }
 
 /**
@@ -782,11 +771,28 @@ function PickupConfirmDialog({
 }
 
 /**
+ * Addresses a member by their live display name.
+ *
+ * `teams.team_name` is a snapshot copied out of the profile when the draft
+ * started and is never refreshed, so labelling a member with it left the page
+ * greeting them by the name they had before they changed it. The team name is
+ * only a fallback for a profile with no display name.
+ *
+ * @param team - The member's team slot, if they own one this season.
+ * @param fallback - The label to use when the member has no team.
+ * @returns The name to show.
+ */
+function teamLabel(team: PokemonTeam | null, fallback = "your team"): string {
+  return team ? team.owner_name || team.team_name : fallback;
+}
+
+/**
  * Renders the right-column transaction history panel.
  *
  * Lists the user's team ledger in stack order (newest first): Pokémon name,
  * action label, the signed token delta, and when it happened. The note, when
- * present, appears beneath the action.
+ * present, appears beneath the action. Times render in the zone the member picked
+ * in user settings.
  */
 function TransactionHistory({
   goods,
@@ -795,6 +801,7 @@ function TransactionHistory({
   goods: PokemonGoods;
 }) {
   const transactions = goods.transactions;
+  const timeZone = useUserTimeZone();
 
   return (
     <aside className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-lg shadow-slate-950/30">
@@ -809,7 +816,7 @@ function TransactionHistory({
         </p>
       ) : transactions.length === 0 ? (
         <p className="mt-4 text-sm text-slate-500">
-          No transactions recorded for {goods.myTeam.team_name} yet.
+          No transactions recorded for {teamLabel(goods.myTeam)} yet.
         </p>
       ) : (
         <ul className="mt-4 space-y-3">
@@ -848,7 +855,7 @@ function TransactionHistory({
                   {entry.note ? ` • ${entry.note}` : ""}
                 </span>
                 <span className="whitespace-nowrap">
-                  {formatDateTime(entry.created_at)}
+                  {formatDateTimeInZone(entry.created_at, timeZone)}
                 </span>
               </div>
             </li>
@@ -882,6 +889,13 @@ function PokemonPageContent({
   const [search, setSearch] = useState("");
   const [sortKey, setSortKey] = useState<PokemonSortKey>("tier");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  /*
+   * The type the table is grouped by, or ALL_POKEMON_TYPES. Held apart from
+   * `sortKey` because it is a grouping rather than a column order: it leads the
+   * table when set and steps aside when a column header is sorted, instead of
+   * fighting the header for control of the order.
+   */
+  const [typeSort, setTypeSort] = useState<string>(ALL_POKEMON_TYPES);
   const [pendingPokemonId, setPendingPokemonId] = useState<string | null>(null);
   const [confirmTarget, setConfirmTarget] = useState<PokemonPoolRow | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
@@ -971,25 +985,45 @@ function PokemonPageContent({
     };
   }, [router, requestedLeagueId]);
 
+  /*
+   * How many free agents carry each type, so the dropdown can label its options
+   * with the count. Recomputed with the payload rather than on every keystroke,
+   * since the pool only changes when the league's data is reloaded.
+   */
+  const typeCounts = useMemo(
+    () => poolTypeCounts(goods?.pool ?? []),
+    [goods?.pool],
+  );
+
   const filtered = useMemo(() => {
     if (!goods) {
       return [];
     }
     const query = search.trim().toLowerCase();
-    return goods.pool
-      .filter((row) => {
-        if (!query) {
-          return true;
-        }
-        const haystack = `${row.name} ${row.species_name} ${row.pokemon_id}`.toLowerCase();
-        return haystack.includes(query);
-      })
+    const matches = goods.pool.filter((row) => {
+      if (!query) {
+        return true;
+      }
+      const haystack = `${row.name} ${row.species_name} ${row.pokemon_id}`.toLowerCase();
+      return haystack.includes(query);
+    });
+
+    /*
+     * A selected type leads the table and the column headers then order within
+     * it, so the type stays the primary grouping the member asked for. With no
+     * type selected the column sort owns the order on its own.
+     */
+    if (typeSort !== ALL_POKEMON_TYPES) {
+      return sortPoolByType(matches, typeSort);
+    }
+
+    return matches
       .slice()
       .sort(
         (a, b) =>
           compareRows(a, b, sortKey, sortDir) || a.name.localeCompare(b.name),
       );
-  }, [goods, search, sortKey, sortDir]);
+  }, [goods, search, sortKey, sortDir, typeSort]);
 
   const salary = useMemo(
     () => (goods ? getPokemonSalary(goods) : null),
@@ -1057,7 +1091,7 @@ function PokemonPageContent({
       );
       await refresh(goods.league.id);
       setFeedback(
-        `Added ${confirmTarget.name} to ${goods.myTeam?.team_name ?? "your team"}${
+        `Added ${confirmTarget.name} to ${teamLabel(goods.myTeam)}${
           result.charged_tokens > 0
             ? ` for ${result.charged_tokens} tokens`
             : ""
@@ -1121,7 +1155,7 @@ function PokemonPageContent({
                     <span>
                       Team:{" "}
                       <span className="font-medium text-slate-100">
-                        {goods.myTeam.team_name}
+                        {teamLabel(goods.myTeam)}
                       </span>{" "}
                       • Salary:{" "}
                       <span className="font-medium text-slate-100">
@@ -1133,7 +1167,7 @@ function PokemonPageContent({
                     <span>
                       Team:{" "}
                       <span className="font-medium text-slate-100">
-                        {goods.myTeam.team_name}
+                        {teamLabel(goods.myTeam)}
                       </span>{" "}
                       • Roster: {goods.rosterCount} Pokémon
                     </span>
@@ -1177,14 +1211,41 @@ function PokemonPageContent({
               </button>
             </div>
 
-            <input
-              type="text"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Find Pokemon"
-              aria-label="Find Pokemon"
-              className="w-full max-w-xs rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none transition focus:border-amber-400"
-            />
+            <div className="flex w-full max-w-xl flex-col gap-3 sm:flex-row sm:items-center">
+              <input
+                type="text"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Find Pokemon"
+                aria-label="Find Pokemon"
+                className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none transition focus:border-amber-400"
+              />
+              {/*
+               * Sorts rather than filters, so the label says so: the row count
+               * never changes, the chosen type just leads the table. Option labels
+               * carry the count so a type the pool has none of is visibly empty
+               * before it is picked, instead of looking like a control that did
+               * nothing once it was.
+               */}
+              <label className="flex shrink-0 items-center gap-2">
+                <span className="text-xs font-semibold uppercase tracking-[0.15em] text-slate-400">
+                  Sort by type
+                </span>
+                <select
+                  value={typeSort}
+                  onChange={(event) => setTypeSort(event.target.value)}
+                  aria-label="Sort the free agent table by type"
+                  className="rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm capitalize text-slate-100 outline-none transition focus:border-amber-400"
+                >
+                  <option value={ALL_POKEMON_TYPES}>All types</option>
+                  {TYPE_LIST.map((type) => (
+                    <option key={type} value={type} className="capitalize">
+                      {type} ({typeCounts.get(type) ?? 0})
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
           </div>
         </header>
 

@@ -75,6 +75,10 @@ export type DraftPick = {
   id: string;
   team_id: string;
   owner_user_id: string;
+  /**
+   * The team's draft-time name snapshot. Not for labelling a person: that is
+   * `picker_display_name`, which reads the live profile and so survives a rename.
+   */
   team_name: string;
   picker_display_name: string | null;
   round_number: number;

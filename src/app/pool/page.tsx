@@ -39,6 +39,7 @@ import {
   POKEMON_DATA,
 } from "@/lib/pokeapi";
 import { AbilityTooltip } from "@/components/ability-tooltip";
+import { useConfirm } from "@/components/confirm-dialog";
 
 /** A named, saved draft pool for a league season. */
 type PoolSummary = {
@@ -681,6 +682,7 @@ function PoolPageContent({
   searchParams: URLSearchParams | null;
 }) {
   const router = useRouter();
+  const { confirm, confirmDialog } = useConfirm();
   const requestedLeagueId = searchParams?.get("leagueId") ?? null;
   const [leagueId, setLeagueId] = useState<string | null>(null);
   const [leagueName, setLeagueName] = useState("");
@@ -905,12 +907,20 @@ function PoolPageContent({
   }, [activePoolId, pools, isOwner]);
 
   /** Resets the working state to a brand-new, unsaved pool. */
-  function startNewPool() {
+  async function startNewPool() {
     if (!leagueId || !seasonId) {
       return;
     }
-    if (isDirty && !window.confirm("Discard unsaved changes and start a new pool?")) {
-      return;
+    if (isDirty) {
+      const discard = await confirm({
+        title: "Discard unsaved changes?",
+        detail: "Starting a new pool clears everything you have not saved",
+        confirmLabel: "Discard and start new",
+        tone: "danger",
+      });
+      if (!discard) {
+        return;
+      }
     }
     setActivePoolId(null);
     setPoolName("");
@@ -921,15 +931,23 @@ function PoolPageContent({
   }
 
   /** Switches the active Saved Draft Pools selection, guarding unsaved edits. */
-  function handlePoolSwitch(nextPoolId: string) {
+  async function handlePoolSwitch(nextPoolId: string) {
     if (nextPoolId === activePoolId) {
       return;
     }
-    if (isDirty && !window.confirm("Discard unsaved changes and switch pools?")) {
-      return;
+    if (isDirty) {
+      const discard = await confirm({
+        title: "Discard unsaved changes?",
+        detail: "Switching pools clears everything you have not saved",
+        confirmLabel: "Discard and switch",
+        tone: "danger",
+      });
+      if (!discard) {
+        return;
+      }
     }
     if (nextPoolId === "") {
-      startNewPool();
+      await startNewPool();
       return;
     }
     setActivePoolId(nextPoolId);
@@ -1170,11 +1188,14 @@ function PoolPageContent({
     }
 
     const deletedPoolName = poolName.trim() || "this pool";
-    const confirmed = window.confirm(
-      isDirty
-        ? `Delete "${deletedPoolName}"? Unsaved changes will be discarded and its Pokémon removed.`
-        : `Delete "${deletedPoolName}" and all of its Pokémon?`,
-    );
+    const confirmed = await confirm({
+      title: `Delete "${deletedPoolName}"?`,
+      detail: isDirty
+        ? "Your unsaved changes are discarded and the pool's Pokémon are removed"
+        : "The pool and every Pokémon in it are removed",
+      confirmLabel: "Delete pool",
+      tone: "danger",
+    });
     if (!confirmed) {
       return;
     }
@@ -1731,7 +1752,7 @@ function PoolPageContent({
                   <span className="whitespace-nowrap">Saved Draft Pools</span>
                   <select
                     value={activePoolId ?? ""}
-                    onChange={(event) => handlePoolSwitch(event.target.value)}
+                    onChange={(event) => void handlePoolSwitch(event.target.value)}
                     disabled={pools.length === 0}
                     className="rounded-xl border border-slate-700 bg-slate-900 px-3 py-2.5 text-sm text-slate-100 outline-none focus:border-amber-400"
                   >
@@ -1773,7 +1794,7 @@ function PoolPageContent({
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={startNewPool}
+                    onClick={() => void startNewPool()}
                     disabled={isBusy}
                     className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-2.5 text-sm font-medium text-slate-300 transition hover:border-slate-600 disabled:cursor-not-allowed disabled:opacity-40"
                   >
@@ -2189,6 +2210,8 @@ function PoolPageContent({
           </div>
         )}
       </div>
+
+      {confirmDialog}
     </main>
   );
 }

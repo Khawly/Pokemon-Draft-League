@@ -91,7 +91,13 @@ export type TeamMatch = {
   week_number: number;
   is_playoff: boolean;
   scheduled_at: string | null;
-  status: "scheduled" | "in_progress" | "completed" | "forfeit" | "cancelled";
+  status:
+    | "unscheduled"
+    | "scheduled"
+    | "in_progress"
+    | "completed"
+    | "forfeit"
+    | "cancelled";
   winner_team_id: string | null;
   player_1_team_id: string;
   player_2_team_id: string;
@@ -345,7 +351,7 @@ export async function loadTeamPageData(
   const { data: matchRows, error: matchError } = await supabase
     .from("matches")
     .select(
-      "id, week_number, is_playoff, scheduled_at, status, winner_team_id, player_1_team_id, player_2_team_id, player_1: player_1_team_id (team_name), player_2: player_2_team_id (team_name), winner: winner_team_id (team_name)",
+      "id, week_number, is_playoff, scheduled_at, status, winner_team_id, player_1_team_id, player_2_team_id, player_1: player_1_team_id (team_name, owner: owner_user_id (display_name)), player_2: player_2_team_id (team_name, owner: owner_user_id (display_name)), winner: winner_team_id (team_name, owner: owner_user_id (display_name))",
     )
     .eq("league_id", leagueId)
     .eq("season_id", season.id)
@@ -394,9 +400,9 @@ export async function loadTeamPageData(
     winner_team_id: string | null;
     player_1_team_id: string;
     player_2_team_id: string;
-    player_1?: { team_name?: string } | null;
-    player_2?: { team_name?: string } | null;
-    winner?: { team_name?: string } | null;
+    player_1?: { team_name?: string; owner?: { display_name?: string | null } | null } | null;
+    player_2?: { team_name?: string; owner?: { display_name?: string | null } | null } | null;
+    winner?: { team_name?: string; owner?: { display_name?: string | null } | null } | null;
   }[]).map(
     (row): TeamMatch => {
       const results = resultsByMatch.get(row.id) ?? [];
@@ -413,9 +419,10 @@ export async function loadTeamPageData(
         winner_team_id: row.winner_team_id,
         player_1_team_id: row.player_1_team_id,
         player_2_team_id: row.player_2_team_id,
-        player_1_name: row.player_1?.team_name ?? "Team 1",
-        player_2_name: row.player_2?.team_name ?? "Team 2",
-        winner_name: row.winner?.team_name ?? null,
+        // The owners' live display names; `team_name` is a draft-time snapshot.
+        player_1_name: row.player_1?.owner?.display_name ?? row.player_1?.team_name ?? "Team 1",
+        player_2_name: row.player_2?.owner?.display_name ?? row.player_2?.team_name ?? "Team 2",
+        winner_name: row.winner?.owner?.display_name ?? row.winner?.team_name ?? null,
         date_time: lastSubmitted ?? row.scheduled_at ?? null,
         results,
       };

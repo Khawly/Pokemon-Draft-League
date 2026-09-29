@@ -18,6 +18,7 @@ import {
   type DashboardGoods,
 } from "@/lib/supabase/dashboard";
 import { formatSeasonLabel } from "@/lib/supabase/seasons";
+import { useUserTimeZone } from "@/lib/user-timezone";
 
 /** Navigation tab labels displayed in the league header. */
 const tabs = ["Overview", "Draft Board", "Teams", "Pokémon", "Schedule"];
@@ -80,6 +81,23 @@ export interface DashboardShellProps {
   leagueId?: string | null;
   /** Season data backing every panel; omitted panels render their empty state. */
   goods: DashboardGoods;
+  /**
+   * Called when the Schedule tab is opened, so the page can mark this week's
+   * match-time alerts as read and drop the badge.
+   */
+  onScheduleVisited?: () => void;
+  /**
+   * Called when the member asks to clear every notification for this league. The
+   * page owns the confirmation and the delete, so this panel stays presentational
+   * and the irreversible action is confirmed in one place.
+   */
+  onClearNotifications?: () => void;
+  /** Disables the clear control while a clear is in flight. */
+  isClearingNotifications?: boolean;
+  /** Panel-level failure text, kept separate from the page-level error. */
+  notificationError?: string | null;
+  /** Panel-level confirmation text, e.g. how many notifications were removed. */
+  notificationNotice?: string | null;
 }
 
 /**
@@ -99,9 +117,29 @@ export function DashboardShell({
   leagueName = "League Name",
   leagueId,
   goods,
+  onScheduleVisited,
+  onClearNotifications,
+  isClearingNotifications = false,
+  notificationError = null,
+  notificationNotice = null,
 }: DashboardShellProps) {
   const router = useRouter();
   const scheduleRoute = routeFor("schedule", leagueId);
+  /** Match and notification times render in the zone the member picked in settings. */
+  const timeZone = useUserTimeZone();
+  /** Unread match-time alerts raised by the member's opponent this week. */
+  const scheduleAlertCount = goods.matchTimeAlertCount ?? 0;
+
+  /*
+   * Labels a team by its owner's live display name. The standings RPC returns
+   * `teams.team_name`, which was copied out of the profile when the draft started
+   * and is never refreshed, so ranking players by it left them shown under the
+   * name they had before they changed it.
+   */
+  const teamLabel = (teamId: string, fallbackName: string) => {
+    const team = goods.teams.find((entry) => entry.id === teamId);
+    return team?.owner_name || fallbackName;
+  };
 
   // The stat cards read off the same payload, so their detail lines describe
   // whatever the league has actually configured (an unset schedule reads as
@@ -164,7 +202,7 @@ export function DashboardShell({
 
               <div className="flex-1">
                 <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-slate-300">
-                  <span>Owner: {displayName}</span>
+                  <span>{displayName}</span>
                 </div>
               </div>
             </div>
@@ -181,15 +219,38 @@ export function DashboardShell({
                 if (!route) {
                   return;
                 }
+
+                // Opening the schedule is what clears the match-time alerts, so
+                // the badge goes away as a result of going to deal with them.
+                if (route === "schedule") {
+                  onScheduleVisited?.();
+                }
+
                 router.push(routeFor(route, leagueId));
               }}
-              className={`rounded-full px-3.5 py-2 text-sm font-medium transition ${
+              className={`relative rounded-full px-3.5 py-2 text-sm font-medium transition ${
                 index === 0
                   ? "bg-amber-500 text-slate-950"
                   : "bg-slate-800 text-slate-300 hover:bg-slate-700"
               }`}
             >
               {tab}
+
+              {/*
+                Unread match-time alerts for this week's matchup. Absolutely
+                positioned into the button's top-right corner, and nudged up so
+                it straddles the pill rather than sitting inside it.
+              */}
+              {tab === "Schedule" && scheduleAlertCount > 0 && (
+                <span
+                  className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full border-2 border-slate-900 bg-rose-500 px-1 text-[11px] font-bold leading-none text-white"
+                  aria-label={`${scheduleAlertCount} unread match time update${
+                    scheduleAlertCount === 1 ? "" : "s"
+                  }`}
+                >
+                  {scheduleAlertCount > 99 ? "99+" : scheduleAlertCount}
+                </span>
+              )}
             </button>
           ))}
         </div>
@@ -256,7 +317,7 @@ export function DashboardShell({
                             className={`h-2.5 w-2.5 rounded-full ${RANK_ACCENTS[index % RANK_ACCENTS.length]}`}
                           />
                           <span className="font-medium text-slate-100">
-                            {row.team_name}
+                            {teamLabel(row.team_id, row.team_name)}
                           </span>
                         </div>
                       </td>
@@ -281,13 +342,14 @@ export function DashboardShell({
             {goods.nextMatch ? (
               <>
                 <h3 className="mt-3 text-xl font-bold text-white">
-                  {goods.nextMatch.player_1_name} vs {goods.nextMatch.player_2_name}
+                  {goods.nextMatch.player_1_name} vs{" "}
+                  {goods.nextMatch.player_2_name}
                 </h3>
                 <p className="mt-2 text-sm text-slate-300">
                   {goods.nextMatch.is_playoff
                     ? "Postseason"
                     : `Week ${goods.nextMatch.week_number}`}{" "}
-                  • {formatMatchTime(goods.nextMatch.scheduled_at)} •{" "}
+                  • {formatMatchTime(goods.nextMatch.scheduled_at, timeZone)} •{" "}
                   {matchFormatLabel}
                 </p>
                 <button
@@ -308,9 +370,34 @@ export function DashboardShell({
           </div>
 
           <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-lg shadow-slate-950/30">
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">
-              Notifications
-            </p>
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">
+                Notifications
+              </p>
+              {/*
+               * Hidden rather than disabled on an empty list: a control that
+               * cannot do anything should not sit next to the heading competing
+               * with it, and "you have no notifications" already says the state.
+               */}
+              {goods.notifications.length > 0 && onClearNotifications && (
+                <button
+                  type="button"
+                  disabled={isClearingNotifications}
+                  onClick={onClearNotifications}
+                  className="rounded-lg border border-slate-700 px-2.5 py-1 text-xs font-medium text-slate-300 transition hover:border-rose-800 hover:text-rose-300 disabled:opacity-50"
+                >
+                  {isClearingNotifications ? "Clearing..." : "Clear all"}
+                </button>
+              )}
+            </div>
+            {notificationError && (
+              <p className="mt-3 text-xs text-rose-300">{notificationError}</p>
+            )}
+            {!notificationError && notificationNotice && (
+              <p className="mt-3 text-xs text-emerald-300">
+                {notificationNotice}
+              </p>
+            )}
             {goods.notifications.length === 0 ? (
               <p className="mt-4 text-sm text-slate-500">
                 You have no notifications yet.
@@ -330,7 +417,7 @@ export function DashboardShell({
                     <div>
                       <p>{item.message}</p>
                       <p className="mt-1 text-xs text-slate-500">
-                        {formatNotificationAge(item.created_at)}
+                        {formatNotificationAge(item.created_at, timeZone)}
                       </p>
                     </div>
                   </li>
@@ -380,7 +467,7 @@ export function DashboardShell({
                       {match.is_playoff
                         ? "Postseason"
                         : `Week ${match.week_number}`}{" "}
-                      • {formatMatchTime(match.scheduled_at)}
+                      • {formatMatchTime(match.scheduled_at, timeZone)}
                     </p>
                   </div>
                   <span
@@ -403,7 +490,9 @@ export function DashboardShell({
             My team
           </p>
           <h2 className="mt-2 text-xl font-bold text-white">
-            {goods.myTeam?.team_name ?? "No team yet"}
+            {goods.myTeam
+              ? (goods.myTeam.owner_name ?? goods.myTeam.team_name)
+              : "No team yet"}
           </h2>
 
           {!goods.myTeam ? (

@@ -28,6 +28,7 @@
 import Image from "next/image";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useConfirm } from "@/components/confirm-dialog";
 import { formatSeasonLabel } from "@/lib/supabase/seasons";
 import {
   DraftGoods,
@@ -552,7 +553,9 @@ function PickBoardGrid({ goods, now }: ArenaPanelProps) {
         <span className="text-xs text-slate-500">
           {mine
             ? "You: " +
-              (teamByOwner.get(mine.user_id)?.team_name ?? mine.display_name ?? "")
+              (mine.display_name ??
+                teamByOwner.get(mine.user_id)?.team_name ??
+                "")
             : ""}
         </span>
       </div>
@@ -567,8 +570,10 @@ function PickBoardGrid({ goods, now }: ArenaPanelProps) {
             const team = teamByOwner.get(member.user_id) ?? null;
             const isOnClock = onClockOwnerUserId === member.user_id;
             const currentRound = isOnClock ? slice.roundNumber : null;
+            // A draft panel names a person, so it reads their live display name
+            // and only falls back to the draft-time team-name snapshot.
             const panelName =
-              team?.team_name ?? member.display_name ?? "Unnamed player";
+              member.display_name ?? team?.team_name ?? "Unnamed player";
             const salary =
               team && goods.settings?.enable_pokemon_costs
                 ? getTeamSalary(goods, team.id)
@@ -1786,6 +1791,7 @@ const URGENT_THRESHOLD_MS = 60_000;
  */
 function DraftArena({ leagueId }: { leagueId: string }) {
   const router = useRouter();
+  const { confirm, confirmDialog } = useConfirm();
   const [goods, setGoods] = useState<DraftGoods | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
@@ -2047,9 +2053,13 @@ function DraftArena({ leagueId }: { leagueId: string }) {
 
   async function handleResetDraft() {
     if (!goods || busyReset) return;
-    const confirmed = window.confirm(
-      "Reset the draft to its pre-draft state? This clears all picks, rosters, and the draft order for the current season.",
-    );
+    const confirmed = await confirm({
+      title: "Reset the draft?",
+      detail:
+        "Every pick, roster, and the draft order for this season are cleared, returning it to its pre-draft state",
+      confirmLabel: "Reset draft",
+      tone: "danger",
+    });
     if (!confirmed) return;
     setBusyReset(true);
     setError(null);
@@ -2347,6 +2357,8 @@ function DraftArena({ leagueId }: { leagueId: string }) {
           />
         )}
       </div>
+
+      {confirmDialog}
     </main>
   );
 }

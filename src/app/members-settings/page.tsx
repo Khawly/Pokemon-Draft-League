@@ -4,13 +4,17 @@
  * Displays the roster of an active league with per-member roles, optional
  * per-team salary editing, and owner-only actions (promote, demote, remove).
  * All members have read-only roster access and can leave the league
- * themselves.
+ * themselves. Join dates are shown in the time zone the member picked in user
+ * settings.
  */
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
+import { formatDateTimeInZone } from "@/lib/datetime";
+import { useUserTimeZone } from "@/lib/user-timezone";
+import { useConfirm } from "@/components/confirm-dialog";
 
 /** Normalized representation of an active league member for display and mutation. */
 type MemberRow = {
@@ -55,6 +59,7 @@ export default function MembersSettingsPage() {
  */
 function MembersSettingsPageContent() {
   const router = useRouter();
+  const { confirm, confirmDialog } = useConfirm();
   const searchParams = useSearchParams();
   const [leagueId, setLeagueId] = useState<string | null>(null);
   const [leagueName, setLeagueName] = useState("");
@@ -69,6 +74,8 @@ function MembersSettingsPageContent() {
   const [isBusy, setIsBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  /** The zone join dates are rendered in. */
+  const timeZone = useUserTimeZone();
 
   useEffect(() => {
     /** Loads the active league's members, the current user's role, and salary settings. */
@@ -295,11 +302,14 @@ function MembersSettingsPageContent() {
     }
 
     const isLeavingOwner = currentUserRole === "owner";
-    const confirmed = window.confirm(
-      isLeavingOwner
-        ? "You are the league owner. Leaving will transfer ownership if another member is available. Continue?"
-        : "Leave this league? You will no longer have access to it unless re-invited.",
-    );
+    const confirmed = await confirm({
+      title: isLeavingOwner ? "Leave as the league owner?" : "Leave this league?",
+      detail: isLeavingOwner
+        ? "Ownership transfers to another member if one is available"
+        : "You lose access to this league unless you are re-invited",
+      confirmLabel: "Leave league",
+      tone: "danger",
+    });
 
     if (!confirmed) {
       return;
@@ -413,9 +423,12 @@ function MembersSettingsPageContent() {
     const targetMember = members.find(
       (member) => member.user_id === targetUserId,
     );
-    const confirmed = window.confirm(
-      `Remove ${targetMember?.display_name || "this member"} from the league?`,
-    );
+    const confirmed = await confirm({
+      title: `Remove ${targetMember?.display_name || "this member"}?`,
+      detail: "They lose access to the league immediately",
+      confirmLabel: "Remove member",
+      tone: "danger",
+    });
 
     if (!confirmed) {
       return;
@@ -646,14 +659,7 @@ function MembersSettingsPageContent() {
                       )}
                       <td className="px-3 py-3 text-slate-400">
                         {member.joined_at
-                          ? new Date(member.joined_at).toLocaleDateString(
-                              undefined,
-                              {
-                                month: "short",
-                                day: "numeric",
-                                year: "numeric",
-                              },
-                            )
+                          ? formatDateTimeInZone(member.joined_at, timeZone)
                           : "—"}
                       </td>
                       <td className="px-3 py-3">
@@ -710,6 +716,8 @@ function MembersSettingsPageContent() {
           </div>
         </section>
       </div>
+
+      {confirmDialog}
     </main>
   );
 }

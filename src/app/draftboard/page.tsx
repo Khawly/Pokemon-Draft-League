@@ -16,6 +16,7 @@ import {
 } from "@/lib/supabase/draftboard";
 import { createLeagueInvite } from "@/lib/supabase/invites";
 import { formatSeasonLabel } from "@/lib/supabase/seasons";
+import { useConfirm } from "@/components/confirm-dialog";
 
 /**
  * Entry point for the draft board route.
@@ -59,6 +60,7 @@ const statusLabel: Record<string, string> = {
  */
 function DraftBoardPageContent() {
   const router = useRouter();
+  const { confirm, confirmDialog } = useConfirm();
   const searchParams = useSearchParams();
   const [goods, setGoods] = useState<DraftboardGoods | null>(null);
   const [stagedPositions, setStagedPositions] = useState<
@@ -426,9 +428,11 @@ function DraftBoardPageContent() {
     }
 
     // Starting the draft locks the order, so confirm intent before proceeding.
-    const confirmed = window.confirm(
-      "Start the draft now? Once started, the draft order locks and picks begin.",
-    );
+    const confirmed = await confirm({
+      title: "Start the draft now?",
+      detail: "The draft order locks and picking begins immediately",
+      confirmLabel: "Start draft",
+    });
 
     if (!confirmed) {
       return;
@@ -613,6 +617,8 @@ function DraftBoardPageContent() {
               onSavePositions={handleSavePositions}
             />
           </section>
+
+          {confirmDialog}
         </div>
       </div>
     </main>

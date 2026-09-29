@@ -44,7 +44,13 @@ export type PokemonSettings = {
 /** The signed-in user's team slot in the current season. */
 export type PokemonTeam = {
   id: string;
+  /**
+   * The draft-time snapshot of the owner's name. Kept only as a fallback for a
+   * profile with no display name; the UI labels the member by `owner_name`.
+   */
   team_name: string;
+  /** The owner's live display name, which is how the member is addressed. */
+  owner_name: string | null;
   total_salary_override: number | null;
 };
 
@@ -216,7 +222,9 @@ export async function loadPokemonPageData(
       .maybeSingle(),
     supabase
       .from("teams")
-      .select("id, owner_user_id, team_name, total_salary_override")
+      .select(
+        "id, owner_user_id, team_name, total_salary_override, profiles: owner_user_id (display_name)",
+      )
       .eq("league_id", leagueId)
       .eq("season_id", season.id),
     supabase
@@ -253,6 +261,7 @@ export async function loadPokemonPageData(
     owner_user_id: string;
     team_name: string;
     total_salary_override: number | null;
+    profiles?: { display_name?: string | null } | null;
   }[]);
 
   const members = ((memberResult.data ?? []) as {
@@ -407,6 +416,7 @@ export async function loadPokemonPageData(
       ? {
           id: myTeam.id,
           team_name: myTeam.team_name,
+          owner_name: myTeam.profiles?.display_name ?? null,
           total_salary_override: myTeam.total_salary_override,
         }
       : null,
@@ -469,6 +479,96 @@ export function getPickupCost(
     ? (goods.settings.transaction_cost ?? 0)
     : 0;
   return { tierCost, transactionCost, total: tierCost + transactionCost };
+}
+
+/**
+ * The dropdown value meaning "do not group by type".
+ *
+ * A real type name rather than an empty string, so the select has a value on
+ * every option and the change handler never has to treat "" as special.
+ */
+export const ALL_POKEMON_TYPES = "all";
+
+/**
+ * Counts how many rows carry each type, for the type dropdown's option labels.
+ *
+ * A member picking a type wants to know whether the pool has any before they
+ * select it. Without a count, choosing a type with no rows in the pool silently
+ * reorders the table into "everything else, by tier" and reads as a control that
+ * did nothing.
+ *
+ * Types are matched case-insensitively and a dual-typed Pokémon counts once per
+ * type it carries, which is what a member scanning for a Water Pokémon expects
+ * even when it is also Ice.
+ *
+ * @param rows - The free-agent rows to count.
+ * @returns Type name to row count. Only types actually present appear as keys.
+ */
+export function poolTypeCounts(rows: PokemonPoolRow[]): Map<string, number> {
+  const counts = new Map<string, number>();
+
+  for (const row of rows) {
+    for (const type of row.types) {
+      const key = type.trim().toLowerCase();
+
+      if (key) {
+        counts.set(key, (counts.get(key) ?? 0) + 1);
+      }
+    }
+  }
+
+  return counts;
+}
+
+/**
+ * Orders the free-agent table so the chosen type leads, best tier first.
+ *
+ * The dropdown sorts rather than filters, so the row set never changes: a
+ * Pokémon carrying the selected type moves to the top and everything else
+ * follows, each group ordered by tier. A Pokémon whose slug is missing from the
+ * bundled catalog has no types at all and therefore always lands in the second
+ * group, which is the honest outcome rather than dropping it.
+ *
+ * The tier order is fixed at best first with unranked last, matching the Tiers
+ * tab, rather than following the table's own sort direction. A member reversing
+ * the Tier column expects the whole table to reverse; having the dropdown's
+ * grouping silently follow along would make the two controls contradict each
+ * other. Ties fall back to name so the order is stable between renders.
+ *
+ * @param rows - The free-agent rows to order.
+ * @param type - The selected type, or {@link ALL_POKEMON_TYPES} for no grouping.
+ * @returns A new array ordered by the selected type. The input is not mutated.
+ */
+export function sortPoolByType(
+  rows: PokemonPoolRow[],
+  type: string,
+): PokemonPoolRow[] {
+  const selected = type.trim().toLowerCase();
+
+  if (!selected || selected === ALL_POKEMON_TYPES) {
+    return rows.slice();
+  }
+
+  const byTierThenName = (a: PokemonPoolRow, b: PokemonPoolRow): number => {
+    // An unranked Pokémon (0) is not a better pick than a tier 1, so it sinks
+    // either way instead of riding the numeric order.
+    if (a.tier_value === 0 || b.tier_value === 0) {
+      if (a.tier_value === 0 && b.tier_value === 0) {
+        return a.name.localeCompare(b.name);
+      }
+      return a.tier_value === 0 ? 1 : -1;
+    }
+
+    return b.tier_value - a.tier_value || a.name.localeCompare(b.name);
+  };
+
+  const matches = (row: PokemonPoolRow): boolean =>
+    row.types.some((entry) => entry.trim().toLowerCase() === selected);
+
+  return rows
+    .filter(matches)
+    .sort(byTierThenName)
+    .concat(rows.filter((row) => !matches(row)).sort(byTierThenName));
 }
 
 /**

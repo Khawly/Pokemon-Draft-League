@@ -33,11 +33,9 @@ const settingsItems: SettingsItem[] = [
     path: "/members-settings",
     requiresLeague: true,
   },
-  {
-    label: "Draft Pool",
-    path: "/pool",
-    requiresLeague: true,
-  },
+  // The draft pool has no entry here. /pool is still reachable from the dashboard
+  // checklist, the draft board, and the direct route; it is owner-only and low
+  // frequency, so it did not earn a permanent spot in a menu every member opens.
 ];
 
 /** LocalStorage key used to persist the user's last-selected league across sessions. */

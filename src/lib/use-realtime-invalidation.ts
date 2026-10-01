@@ -37,8 +37,38 @@ import { supabase } from "@/lib/supabase/client";
  * the whole page is a two-person negotiation. See
  * supabase/migrations/20261103_trade_workflow.sql for why the narrow-publication
  * rule in 20261029_realtime_publication.sql has an exception here.
+ *
+ * The draft tables let the draft page learn that a pick happened by event instead
+ * of by polling. draft_picks is the one that matters: manual picks, bot auto-picks
+ * and timeout resolutions all write to it, so one subscription covers every way the
+ * draft can move. See supabase/migrations/20261109_proposals_league_id_and_draft_realtime.sql.
  */
-export type RealtimeTable = "matches" | "notifications" | "match_scheduling_proposals" | "trades";
+export type RealtimeTable =
+  | "matches"
+  | "notifications"
+  | "match_scheduling_proposals"
+  | "trades"
+  | "draft_picks"
+  | "draft_priority_lists"
+  | "draft_round_settings";
+
+/**
+ * Tables with no `league_id` column, which therefore cannot be filtered by league.
+ *
+ * A subscription filter is only possible on a column the table actually has, and an
+ * unfiltered subscription is only safe when row-level security already limits the
+ * subscriber to their own rows.
+ *
+ * `match_scheduling_proposals` used to be in this set. It gained a denormalised
+ * `league_id` in 20261109, so it is filtered like every other table now.
+ *
+ * `draft_round_settings` stays unfiltered: it is keyed by season and user, and its
+ * policy is already per-user, so a subscriber can only ever be told about rows they
+ * could read directly anyway.
+ */
+const TABLES_WITHOUT_LEAGUE_FILTER: ReadonlySet<RealtimeTable> = new Set([
+  "draft_round_settings",
+]);
 
 /** One table to watch and what to do when it changes. */
 export type RealtimeWatcher = {
@@ -181,14 +211,16 @@ export function useRealtimeInvalidation({
     const channel = supabase.channel(`realtime:${tableKey}:${leagueId}`);
 
     for (const watcher of watchersRef.current) {
-      if (watcher.table === "match_scheduling_proposals") {
-        // Proposals carry no league column, so nothing can be filtered on and every
-        // proposal event arrives. It is only a staleness signal, and it always
-        // accompanies a change to the match it belongs to.
+      const onChange = schedule(watcher.table);
+
+      // Tables without a league column cannot be filtered. See
+      // TABLES_WITHOUT_LEAGUE_FILTER for why each of these is still safe to
+      // receive unfiltered.
+      if (TABLES_WITHOUT_LEAGUE_FILTER.has(watcher.table)) {
         channel.on(
           "postgres_changes",
           { event: "*", schema: "public", table: watcher.table },
-          schedule(watcher.table),
+          onChange,
         );
         continue;
       }
@@ -197,11 +229,11 @@ export function useRealtimeInvalidation({
         "postgres_changes",
         {
           event: "*",
-        schema: "public",
+          schema: "public",
           table: watcher.table,
           filter: `league_id=eq.${leagueId}`,
         },
-        schedule(watcher.table),
+        onChange,
       );
     }
 

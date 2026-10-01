@@ -2,14 +2,14 @@
  * Members settings page for the Pokemon Draft League.
  *
  * Displays the roster of an active league with per-member roles, optional
- * per-team salary editing, and owner-only actions (promote, demote, remove).
- * All members have read-only roster access and can leave the league
- * themselves. Join dates are shown in the time zone the member picked in user
- * settings.
+ * per-team salary editing, and owner-only actions (promote to admin, demote,
+ * transfer ownership, remove). All members have read-only roster access and can
+ * leave the league themselves. Join dates are shown in the time zone the member
+ * picked in user settings.
  */
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import { formatDateTimeInZone } from "@/lib/datetime";
@@ -214,6 +214,67 @@ function MembersSettingsPageContent() {
     loadMembers();
   }, [router, searchParams]);
 
+  /*
+   * Re-reads the roster after a change that can alter who holds which role.
+   *
+   * Ownership handover is the reason this exists. Promoting an admin moves
+   * leagues.owner_id, so the caller's own role changes as a side effect of an action
+   * they took on someone else's row. Patching the local array would leave the page
+   * showing the caller as owner while the server has already demoted them, and the
+   * "Promote to Owner" button would still be on screen with no permissions behind it.
+   */
+  const reloadMembers = useCallback(async () => {
+    const { data: league } = await supabase
+      .from("leagues")
+      .select("owner_id")
+      .eq("id", leagueId ?? "")
+      .maybeSingle();
+
+    if (league?.owner_id) {
+      setOwnerUserId(league.owner_id);
+    }
+
+    const { data: freshMembers } = await supabase
+      .from("league_members")
+      .select("user_id, role, joined_at")
+      .eq("league_id", leagueId ?? "")
+      .eq("is_active", true);
+
+    if (freshMembers) {
+      const userIds = freshMembers.map((member) => member.user_id);
+      const { data: freshProfiles } = await supabase
+        .from("profiles")
+        .select("id, display_name, avatar_url")
+        .in("id", userIds);
+
+      const profileById = new Map(
+        (freshProfiles ?? []).map((profile) => [profile.id, profile]),
+      );
+
+      const normalized: MemberRow[] = freshMembers.map((member) => {
+        const profile = profileById.get(member.user_id);
+        return {
+          user_id: member.user_id,
+          role: (member.role as "owner" | "admin" | "member") || "member",
+          joined_at: member.joined_at,
+          display_name: profile?.display_name || "Member",
+          avatar_url: profile?.avatar_url || null,
+          // Preserved: reloadMembers is about roles, so it must not discard a salary
+          // edit the owner has typed but not yet saved.
+          total_token_salary: members.find(
+            (existing) => existing.user_id === member.user_id,
+          )?.total_token_salary ?? null,
+        };
+      });
+
+      setMembers(normalized);
+      setCurrentUserRole(
+        normalized.find((member) => member.user_id === currentUserId)?.role ??
+          null,
+      );
+    }
+  }, [leagueId, currentUserId, members]);
+
   const isOwner = currentUserRole === "owner" || currentUserId === ownerUserId;
 
   /**
@@ -393,6 +454,87 @@ function MembersSettingsPageContent() {
         caughtError instanceof Error
           ? caughtError.message
           : "Unable to update member role.";
+      setError(message);
+    } finally {
+      setIsBusy(false);
+    }
+  }
+
+  /**
+   * Hands league ownership to an admin, demoting the current owner to admin.
+   *
+   * Ownership lives in `leagues.owner_id` rather than in the membership role, and
+   * the update policy on `leagues` forbids the owner from pointing `owner_id` at
+   * anyone else, so this goes through the `transfer_league_ownership` RPC rather
+   * than a direct write. That RPC moves both rows in one transaction.
+   *
+   * The current owner loses owner-only access the moment this succeeds and there is
+   * no undo, so it is always confirmed first. After the handover the caller is no
+   * longer the owner, which flips `isOwner` and hides this control; the member list
+   * is reloaded from the server rather than patched locally so the page reflects
+   * the new state.
+   *
+   * @param targetUserId - The admin being promoted.
+   */
+  async function promoteToOwner(targetUserId: string) {
+    if (!leagueId) {
+      setError("Select a league before transferring ownership.");
+      return;
+    }
+
+    if (!isOwner) {
+      setError("Only the league owner can transfer ownership.");
+      return;
+    }
+
+    if (targetUserId === ownerUserId) {
+      setError("You already own this league.");
+      return;
+    }
+
+    const targetMember = members.find(
+      (member) => member.user_id === targetUserId,
+    );
+
+    const confirmed = await confirm({
+      title: `Make ${targetMember?.display_name || "this admin"} the owner?`,
+      detail:
+        "They gain full owner access, including league settings, the draft pool and member management. You become an admin and lose owner-only access. This cannot be undone.",
+      confirmLabel: "Transfer ownership",
+      tone: "danger",
+    });
+
+    if (!confirmed) {
+      return;
+    }
+
+    setIsBusy(true);
+    setError(null);
+    setSuccessMessage(null);
+
+    try {
+      const { error: transferError } = await supabase.rpc(
+        "transfer_league_ownership",
+        {
+          p_league_id: leagueId,
+          p_new_owner_user_id: targetUserId,
+        },
+      );
+
+      if (transferError) {
+        throw transferError;
+      }
+
+      setSuccessMessage(
+        `${targetMember?.display_name || "That admin"} is now the league owner. You are now an admin.`,
+      );
+
+      await reloadMembers();
+    } catch (caughtError) {
+      const message =
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Unable to transfer ownership.";
       setError(message);
     } finally {
       setIsBusy(false);
@@ -664,18 +806,38 @@ function MembersSettingsPageContent() {
                       </td>
                       <td className="px-3 py-3">
                         {canManage ? (
-                          <div className="flex justify-end gap-2">
+                          <div className="flex flex-wrap justify-end gap-2">
                             {member.role === "admin" ? (
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  updateMemberRole(member.user_id, "member")
-                                }
-                                disabled={isBusy}
-                                className="rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1.5 text-xs text-slate-200 transition hover:border-slate-500 hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
-                              >
-                                Demote
-                              </button>
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    updateMemberRole(member.user_id, "member")
+                                  }
+                                  disabled={isBusy}
+                                  className="rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1.5 text-xs text-slate-200 transition hover:border-slate-500 hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                  Demote
+                                </button>
+                                {/*
+                                  Ownership handover. Only on admin rows, and only
+                                  for the owner, matching the RPC's own guard. The
+                                  button moves to the promoted member's card the
+                                  moment this succeeds, because the clicker's own
+                                  role is now admin.
+                                */}
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    promoteToOwner(member.user_id)
+                                  }
+                                  disabled={isBusy}
+                                  title="Transfer league ownership to this admin. You become an admin."
+                                  className="rounded-lg border border-amber-600 bg-amber-950/50 px-2.5 py-1.5 text-xs text-amber-200 transition hover:border-amber-500 hover:bg-amber-900/50 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                  Promote to Owner
+                                </button>
+                              </>
                             ) : (
                               <button
                                 type="button"

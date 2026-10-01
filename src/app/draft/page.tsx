@@ -29,6 +29,7 @@ import Image from "next/image";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useConfirm } from "@/components/confirm-dialog";
+import { useRealtimeInvalidation } from "@/lib/use-realtime-invalidation";
 import { formatSeasonLabel } from "@/lib/supabase/seasons";
 import {
   DraftGoods,
@@ -1755,8 +1756,22 @@ function EmptyDraft({ leagueName }: { leagueName: string }) {
  * actions (pick, priority add/reorder/save) to the draft RPCs.
  */
 
-/** Polling interval for draft state refreshes, in milliseconds. */
-const POLL_INTERVAL_MS = 5000;
+/**
+ * Fallback poll interval for draft state, in milliseconds.
+ *
+ * This is a safety net, not the update path. Realtime carries pick events
+ * (see the useRealtimeInvalidation call in DraftArena), so a pick normally shows up
+ * in well under a second and the lag between turns is set by event delivery rather
+ * than by this number.
+ *
+ * It still runs because realtime is best-effort: a dropped websocket, a reconnect
+ * mid-draft, or a change made by something outside the app would otherwise leave the
+ * arena showing stale state indefinitely, and a draft has a per-pick timer running
+ * against that state. Twenty seconds is slow enough to be negligible next to the
+ * ~144 requests/minute a five-second poll costs, and fast enough that a genuinely
+ * missed event is corrected well before a timer expires.
+ */
+const POLL_INTERVAL_MS = 20000;
 
 /** Custom MIME type carrying a pool `pokemon_id` on the drag payload. */
 const DND_POKEMON = "application/x-draft-pokemon-id";
@@ -1851,6 +1866,31 @@ function DraftArena({ leagueId }: { leagueId: string }) {
     });
     setError(null);
   }, [leagueId, applyServerState]);
+
+  /*
+   * Realtime is the primary signal that the draft has moved, and the poll below is
+   * only a slow safety net.
+   *
+   * draft_picks is the table that matters: a manual pick, a bot auto-pick, and a
+   * timeout resolution all write a row to it, so one subscription covers every way
+   * the draft can advance. Without this the page had to poll a 12-request load every
+   * five seconds purely to notice a pick, which put up to five seconds of lag on
+   * every turn change and on a timer expiring.
+   *
+   * Priority lists and round flags are watched too so an edit made on another device
+   * shows up here. The pending-confirmation dialog is paused rather than dropped, so
+   * an event arriving while the member is choosing a Pokemon defers the refresh and
+   * replays it once they answer instead of yanking the pool out from under them.
+   */
+  const { flush: flushDraftRealtime } = useRealtimeInvalidation({
+    leagueId,
+    watchers: [
+      { table: "draft_picks", onChange: () => void refreshGoods() },
+      { table: "draft_priority_lists", onChange: () => void refreshGoods() },
+      { table: "draft_round_settings", onChange: () => void refreshGoods() },
+    ],
+    isPaused: () => pendingPickId !== null,
+  });
 
   const slice = useMemo(
     () => (goods ? computeDraftSlice(goods) : null),
@@ -2044,6 +2084,9 @@ function DraftArena({ leagueId }: { leagueId: string }) {
     try {
       await submitDraftPick(goods.league.id, pokemonId);
       await refreshGoods();
+      // The draft moving is exactly the event realtime was holding while the
+      // confirmation dialog was open; apply it now the dialog is dismissed.
+      flushDraftRealtime();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Pick failed.");
     } finally {
@@ -2353,7 +2396,12 @@ function DraftArena({ leagueId }: { leagueId: string }) {
             row={pendingPickRow}
             isSaving={busyPick}
             onConfirm={() => void handlePick(pendingPickRow.pokemon_id)}
-            onCancel={() => setPendingPickId(null)}
+            onCancel={() => {
+              setPendingPickId(null);
+              // Cancelling is also a good moment to pick up anything the draft did
+              // while the dialog held events back.
+              flushDraftRealtime();
+            }}
           />
         )}
       </div>

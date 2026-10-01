@@ -13,7 +13,8 @@
                     "test:coverage":  "vitest run --coverage",
                     "db:login":  "supabase login",
                     "db:link":  "supabase link",
-                    "db:push":  "supabase db push"
+                    "db:push":  "supabase db push",
+                    "seed:bots":  "node scripts/seed-test-bots.mjs"
                 },
     "dependencies":  {
                          "@supabase/server":  "^1.6.0",

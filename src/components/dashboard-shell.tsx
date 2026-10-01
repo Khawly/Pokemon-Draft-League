@@ -11,6 +11,7 @@
 import { useRouter } from "next/navigation";
 import { signOut } from "@/lib/supabase/auth";
 import { getSpriteUrl } from "@/lib/pokeapi";
+import { TabNotification } from "@/components/nav-alert-badge";
 import {
   formatMatchTime,
   formatNotificationAge,
@@ -21,7 +22,7 @@ import { formatSeasonLabel } from "@/lib/supabase/seasons";
 import { useUserTimeZone } from "@/lib/user-timezone";
 
 /** Navigation tab labels displayed in the league header. */
-const tabs = ["Overview", "Draft Board", "Teams", "Pokémon", "Schedule"];
+const tabs = ["Overview", "Draft Board", "Teams", "Pokémon", "Schedule", "Trades"];
 
 /** Maps the navigable header tabs to their route slugs (leagueId is appended). */
 const TAB_ROUTES: Record<string, string> = {
@@ -29,6 +30,7 @@ const TAB_ROUTES: Record<string, string> = {
   Teams: "teams",
   Pokémon: "pokemon",
   Schedule: "schedule",
+  Trades: "trades",
 };
 
 /** Builds the route for a tab slug using the selected league id. */
@@ -87,6 +89,11 @@ export interface DashboardShellProps {
    */
   onScheduleVisited?: () => void;
   /**
+   * Called when the Trades tab is opened, so the page can mark the member's
+   * unread trade alerts as read and drop the badge.
+   */
+  onTradesVisited?: () => void;
+  /**
    * Called when the member asks to clear every notification for this league. The
    * page owns the confirmation and the delete, so this panel stays presentational
    * and the irreversible action is confirmed in one place.
@@ -118,6 +125,7 @@ export function DashboardShell({
   leagueId,
   goods,
   onScheduleVisited,
+  onTradesVisited,
   onClearNotifications,
   isClearingNotifications = false,
   notificationError = null,
@@ -129,6 +137,21 @@ export function DashboardShell({
   const timeZone = useUserTimeZone();
   /** Unread match-time alerts raised by the member's opponent this week. */
   const scheduleAlertCount = goods.matchTimeAlertCount ?? 0;
+  /** Unread trade alerts raised by the other party on a trade still in play. */
+  const tradeAlertCount = goods.tradeAlertCount ?? 0;
+
+  /*
+   * Which of the header tabs can carry a bubble, and what each would be counting.
+   * Declared as data so the render below has no per-tab special cases, matching how
+   * the Trades page builds its own strip.
+   *
+   * The dashboard's tabs show no list length, so `total` is always 0 at the call site
+   * and the bubble is the only marker these entries ever carry.
+   */
+  const tabAlerts: Record<string, { badge: number; subject: string }> = {
+    Schedule: { badge: scheduleAlertCount, subject: "match time" },
+    Trades: { badge: tradeAlertCount, subject: "trade" },
+  };
 
   /*
    * Labels a team by its owner's live display name. The standings RPC returns
@@ -226,6 +249,12 @@ export function DashboardShell({
                   onScheduleVisited?.();
                 }
 
+                // Same idea for trades: navigating there is the member acting on
+                // the alert, so the badge is dropped as a result.
+                if (route === "trades") {
+                  onTradesVisited?.();
+                }
+
                 router.push(routeFor(route, leagueId));
               }}
               className={`relative rounded-full px-3.5 py-2 text-sm font-medium transition ${
@@ -237,19 +266,19 @@ export function DashboardShell({
               {tab}
 
               {/*
-                Unread match-time alerts for this week's matchup. Absolutely
-                positioned into the button's top-right corner, and nudged up so
-                it straddles the pill rather than sitting inside it.
+                The app-wide notification convention: the red bubble when something
+                is waiting on the member, nothing when it is not. See TabNotification.
               */}
-              {tab === "Schedule" && scheduleAlertCount > 0 && (
-                <span
-                  className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full border-2 border-slate-900 bg-rose-500 px-1 text-[11px] font-bold leading-none text-white"
-                  aria-label={`${scheduleAlertCount} unread match time update${
-                    scheduleAlertCount === 1 ? "" : "s"
-                  }`}
-                >
-                  {scheduleAlertCount > 99 ? "99+" : scheduleAlertCount}
-                </span>
+              {/*
+                The app-wide notification convention: the red bubble when something
+                is waiting on the member, nothing when it is not. See TabNotification.
+              */}
+              {tabAlerts[tab] && (
+                <TabNotification
+                  badge={tabAlerts[tab].badge}
+                  total={0}
+                  subject={tabAlerts[tab].subject}
+                />
               )}
             </button>
           ))}

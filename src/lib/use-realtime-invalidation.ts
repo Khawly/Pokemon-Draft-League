@@ -29,8 +29,16 @@
 import { useEffect, useRef } from "react";
 import { supabase } from "@/lib/supabase/client";
 
-/** Tables a page may ask to watch. */
-export type RealtimeTable = "matches" | "notifications" | "match_scheduling_proposals";
+/**
+ * Tables a page may ask to watch.
+ *
+ * `trades` joins the three from the original publication because a trade is the one
+ * thing after the draft that changes under a member while they are looking at it:
+ * the whole page is a two-person negotiation. See
+ * supabase/migrations/20261103_trade_workflow.sql for why the narrow-publication
+ * rule in 20261029_realtime_publication.sql has an exception here.
+ */
+export type RealtimeTable = "matches" | "notifications" | "match_scheduling_proposals" | "trades";
 
 /** One table to watch and what to do when it changes. */
 export type RealtimeWatcher = {

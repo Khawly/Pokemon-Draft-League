@@ -34,6 +34,36 @@ const MATCH_TIME_EVENT_TYPES = [
   "match_proposal_withdrawn",
 ];
 
+/**
+ * The notification types that describe a trade moving. A trade alert is only
+ * raised for these; the rest of the notification history is informational.
+ *
+ * Kept in step with the `type` values raised by the trade RPCs in
+ * supabase/migrations/20261103_trade_workflow.sql. A value added there and not here
+ * would be silently omitted from the badge rather than erroring, which is the same
+ * quiet-drift trap as TRANSACTION_SOURCES.
+ */
+const TRADE_EVENT_TYPES = [
+  "trade_proposed",
+  "trade_accepted",
+  "trade_declined",
+  "trade_withdrawn",
+  "trade_pending_approval",
+  "trade_rejected",
+  "trade_completed",
+];
+
+/**
+ * Trade statuses that can still change hands, and so can still be the subject of an
+ * alert.
+ *
+ * An alert about a trade that has already been declined, completed, or rejected is
+ * dropped rather than counted, so a badge cannot outlive the thing it is counting.
+ * That is the same guarantee the match-time badge gets from being scoped to the
+ * current week.
+ */
+const OPEN_TRADE_STATUSES = ["awaiting_response", "pending_approval", "approved"];
+
 
 /** Match statuses that count as still open (not yet decided). */
 const OPEN_MATCH_STATUSES = ["scheduled", "in_progress"] as const;
@@ -163,6 +193,14 @@ export type DashboardGoods = {
   /** How many of those alerts there are. */
   matchTimeAlertCount: number;
   /**
+   * Unread trade alerts raised by the other party, backing the badge on the Trades
+   * nav button and on the Trades page's "My Trades" tab. Ids are carried alongside
+   * the count so opening either can clear exactly these.
+   */
+  tradeAlertIds: string[];
+  /** How many of those alerts there are. */
+  tradeAlertCount: number;
+  /**
    * The league this payload describes. Exposed so a real-time refresh can scope
    * its own reads without re-resolving the league from the URL.
    */
@@ -191,6 +229,8 @@ function emptyGoods(): DashboardGoods {
     notifications: [],
     matchTimeAlertIds: [],
     matchTimeAlertCount: 0,
+    tradeAlertIds: [],
+    tradeAlertCount: 0,
     leagueId: "",
   };
 }
@@ -398,6 +438,10 @@ export async function loadDashboardData(
     () => NO_ALERTS,
   );
 
+  const tradeAlertsPromise = loadTradeAlerts(leagueId, userId).catch(
+    () => NO_ALERTS,
+  );
+
   const [rosterResult, poolResult, tradeResult, notificationResult] =
     await Promise.all([
       teamIds.length > 0
@@ -425,6 +469,7 @@ export async function loadDashboardData(
     ]);
 
   const alerts = await alertsPromise;
+  const tradeAlerts = await tradeAlertsPromise;
 
   // Surface the member's own fixtures first, then the soonest by kickoff.
   const sortedOpen = [...openMatches].sort((a, b) => {
@@ -502,6 +547,8 @@ export async function loadDashboardData(
     notifications,
     matchTimeAlertIds: alerts.ids,
     matchTimeAlertCount: alerts.count,
+    tradeAlertIds: tradeAlerts.ids,
+    tradeAlertCount: tradeAlerts.count,
     leagueId,
   };
 }
@@ -653,6 +700,86 @@ export async function loadMatchTimeAlerts(
    * be dropped by SQL comparison, and more importantly a member's own actions -
    * answering a proposal, withdrawing their own - must never count as an alert
    * about themselves.
+   */
+  const ids = (data as { id: string; actor_user_id: string | null }[])
+    .filter((row) => row.actor_user_id !== userId)
+    .map((row) => row.id);
+
+  return { ids, count: ids.length };
+}
+
+/**
+ * Loads the unread trade alerts the other party has raised against the member in
+ * the league's current season.
+ *
+ * Deliberately the same shape as {@link loadMatchTimeAlerts}: unread, addressed to
+ * the member, restricted to a trade that can still change hands, with the member's
+ * own actions excluded. Sharing that shape is what makes the two badges behave
+ * identically rather than merely look alike -- both are cleared by a visit, both
+ * drop on the same "Clear all", and neither ever counts something the member did.
+ *
+ * Self-contained for the same reason as its match-time counterpart: a notification
+ * arriving in real time has to refresh just the badge, and that must not cost a full
+ * dashboard load, which pages the entire draft pool and reads every roster. Two
+ * small index-backed reads are enough.
+ *
+ * @param leagueId - League whose alerts to read.
+ * @param userId - The signed-in member, who is the recipient.
+ * @returns The alert ids and count; empty when there is nothing to show.
+ */
+export async function loadTradeAlerts(
+  leagueId: string,
+  userId: string,
+): Promise<MatchTimeAlerts> {
+  const { data: seasonRow } = await loadLatestSeason<DashboardSeason>(
+    leagueId,
+    "id, season_number, status, name",
+  );
+
+  const seasonId = seasonRow?.id ?? null;
+
+  if (!seasonId) {
+    return NO_ALERTS;
+  }
+
+  /*
+   * Scoped to trades that are still open. The member is a party to these, either as
+   * the sender or the one asked, so this is the set of trades whose outcome they are
+   * actually waiting on.
+   */
+  const { data: tradeRows } = await supabase
+    .from("trades")
+    .select("id")
+    .eq("league_id", leagueId)
+    .eq("season_id", seasonId)
+    .in("status", OPEN_TRADE_STATUSES)
+    .or(`proposer_user_id.eq.${userId},recipient_user_id.eq.${userId}`);
+
+  const openTradeIds = ((tradeRows ?? []) as { id: string }[]).map(
+    (row) => row.id,
+  );
+
+  if (openTradeIds.length === 0) {
+    return NO_ALERTS;
+  }
+
+  const { data, error } = await supabase
+    .from("notifications")
+    .select("id, actor_user_id")
+    .eq("league_id", leagueId)
+    .eq("recipient_user_id", userId)
+    .eq("is_read", false)
+    .in("type", TRADE_EVENT_TYPES)
+    .in("related_entity_id", openTradeIds);
+
+  if (error || !data) {
+    return NO_ALERTS;
+  }
+
+  /*
+   * The same self-exclusion the match-time alerts apply, and for the same reason: a
+   * member answering their own proposal, or voting on a trade they are party to,
+   * must never see the badge go up as a result of acting.
    */
   const ids = (data as { id: string; actor_user_id: string | null }[])
     .filter((row) => row.actor_user_id !== userId)

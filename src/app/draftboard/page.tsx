@@ -552,7 +552,7 @@ function DraftBoardPageContent() {
                     }
                     className="rounded-xl border border-slate-600 bg-slate-800 px-4 py-2 text-sm font-medium text-slate-100 transition hover:border-slate-500 hover:bg-slate-700"
                   >
-                    Tier List
+                    Draft Pool
                   </button>
                 </>
               )}

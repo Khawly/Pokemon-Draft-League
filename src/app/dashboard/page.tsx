@@ -17,6 +17,7 @@ import {
   clearAllNotifications,
   loadDashboardData,
   loadMatchTimeAlerts,
+  loadTradeAlerts,
   type DashboardGoods,
 } from "@/lib/supabase/dashboard";
 import { useRealtimeInvalidation } from "@/lib/use-realtime-invalidation";
@@ -262,6 +263,31 @@ function DashboardPageContent() {
   }
 
   /*
+   * Identical handling to the schedule badge, and for the same reason: opening the
+   * Trades page is the member going to deal with the alert, so the count drops
+   * locally first and the read state is written behind it.
+   */
+  async function handleTradesVisited() {
+    const ids = goods?.tradeAlertIds ?? [];
+
+    if (ids.length === 0) {
+      return;
+    }
+
+    setGoods((current) =>
+      current
+        ? { ...current, tradeAlertIds: [], tradeAlertCount: 0 }
+        : current,
+    );
+
+    try {
+      await markNotificationsRead(ids);
+    } catch {
+      // The next load restores whatever is genuinely still unread.
+    }
+  }
+
+  /*
    * Clearing notifications is a delete, so it is confirmed first. The dialog copy
    * names the scope, because "clear all" on a panel that shows five of the
    * member's forty would otherwise read as removing only what is on screen.
@@ -292,10 +318,10 @@ function DashboardPageContent() {
       const removed = await clearAllNotifications(leagueId);
 
       /*
-       * The match-time alerts behind the Schedule badge are notifications too, so
-       * they are gone along with the list and the badge has to go with them. The
-       * panel only ever holds this league's rows, and every one of them is gone,
-       * so both fields are emptied rather than refetched.
+       * The match-time and trade alerts behind the two nav badges are notifications
+       * too, so they are gone along with the list and the badges have to go with
+       * them. The panel only ever holds this league's rows, and every one of them is
+       * gone, so all four fields are emptied rather than refetched.
        */
       setGoods((current) =>
         current
@@ -304,6 +330,8 @@ function DashboardPageContent() {
               notifications: [],
               matchTimeAlertIds: [],
               matchTimeAlertCount: 0,
+              tradeAlertIds: [],
+              tradeAlertCount: 0,
             }
           : current,
       );
@@ -330,13 +358,14 @@ function DashboardPageContent() {
   }, [goods?.leagueId, confirm]);
 
   /**
-   * Refreshes only the Schedule badge, for a notification that arrived while the
-   * dashboard was open.
+   * Refreshes only the two nav badges, for a notification or trade change that
+   * arrived while the dashboard was open.
    *
    * A new notification is by far the most common real-time event and it changes
-   * nothing on this page but the badge, so this deliberately avoids re-running the
+   * nothing on this page but the badges, so this deliberately avoids re-running the
    * full dashboard load, which pages the entire draft pool and reads every roster.
-   */  const refreshScheduleBadge = useCallback(async () => {
+   */
+  const refreshAlerts = useCallback(async () => {
     const leagueId = goods?.leagueId;
 
     if (!leagueId) {
@@ -350,7 +379,15 @@ function DashboardPageContent() {
       return;
     }
 
-    const alerts = await loadMatchTimeAlerts(leagueId, userId);
+    /*
+     * Both badges in one pass. They are driven by the same table and the same
+     * visit-clears-it rule, so splitting them would mean two round trips to redraw
+     * two numbers that a single notification can move at once.
+     */
+    const [alerts, tradeAlerts] = await Promise.all([
+      loadMatchTimeAlerts(leagueId, userId),
+      loadTradeAlerts(leagueId, userId),
+    ]);
 
     setGoods((previous) =>
       previous
@@ -358,6 +395,8 @@ function DashboardPageContent() {
             ...previous,
             matchTimeAlertIds: alerts.ids,
             matchTimeAlertCount: alerts.count,
+            tradeAlertIds: tradeAlerts.ids,
+            tradeAlertCount: tradeAlerts.count,
           }
         : previous,
     );
@@ -365,15 +404,17 @@ function DashboardPageContent() {
 
   /*
    * Live updates, scoped to what each table actually changes. A notification only
-   * moves the badge, so it takes the cheap path; a match changing status, time, or
+   * moves a badge, so it takes the cheap path; a match changing status, time, or
    * result changes the schedule, the week, and the standings, so it reloads the
-   * page's data.
+   * page's data. A trade only moves its own badge and the tab list it appears in,
+   * so it takes the cheap path too.
    */
   useRealtimeInvalidation({
     leagueId: goods?.leagueId ?? null,
     watchers: [
-      { table: "notifications", onChange: () => void refreshScheduleBadge() },
+      { table: "notifications", onChange: () => void refreshAlerts() },
       { table: "matches", onChange: () => void reloadLeague() },
+      { table: "trades", onChange: () => void refreshAlerts() },
     ],
   });
 
@@ -408,6 +449,7 @@ function DashboardPageContent() {
           leagueId={searchParams.get("leagueId") ?? null}
           goods={goods}
           onScheduleVisited={() => void handleScheduleVisited()}
+          onTradesVisited={() => void handleTradesVisited()}
           onClearNotifications={() => void handleClearNotifications()}
           isClearingNotifications={isClearingNotifications}
           notificationError={notificationError}

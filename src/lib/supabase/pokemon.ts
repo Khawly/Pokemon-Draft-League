@@ -103,15 +103,22 @@ export type TransactionSource = (typeof TRANSACTION_SOURCES)[number];
 /** A roster move from the ledger, enriched with a display name and sprite id. */
 export type PokemonTransaction = {
   id: string;
-  pokemon_id: string;
+  /** Null on a token movement, which carries no Pokémon. */
+  pokemon_id: string | null;
   name: string;
-  /** Sprite id used to render the local sprite. */
+  /** Sprite id used to render the local sprite. Zero on a token movement. */
   spriteId: number;
+  /**
+   * True when the row moves tokens rather than a Pokémon. The page swaps the
+   * species sprite for a token icon on these, since there is no catalog entry to
+   * draw and the "?" placeholder would read as a broken record.
+   */
+  isTokenMovement: boolean;
   /** The member who made the move. */
   userId: string;
   /** The mover's display name, when their profile has one set. */
   playerName: string | null;
-  action: "added" | "dropped" | "trade_in" | "trade_out";
+  action: "added" | "dropped" | "trade_in" | "trade_out" | "token_transfer";
   /**
    * What caused the move. Null only for a row written before the column existed
    * and read before the backfill, which the panel treats as unknown rather than
@@ -182,10 +189,11 @@ type RosterClaimRow = {
 
 type TransactionRow = {
   id: string;
-  pokemon_id: string;
+  /** Null on a token movement, which has no Pokémon behind it. */
+  pokemon_id: string | null;
   user_id: string;
   profiles?: { display_name?: string | null } | null;
-  action: "added" | "dropped" | "trade_in" | "trade_out";
+  action: "added" | "dropped" | "trade_in" | "trade_out" | "token_transfer";
   source?: TransactionSource | null;
   cost_delta: number;
   note: string | null;
@@ -562,13 +570,21 @@ function mapTransactionRows(rows: unknown[]): PokemonTransaction[] {
    * at each call site so there is one place that knows the shape.
    */
   return (rows as TransactionRow[]).map((row) => {
-    const entry = getPokemonEntryBySlug(row.pokemon_id);
+    /*
+     * A token movement carries no Pokémon, so there is no slug to look up in the
+     * catalog. It still belongs in the ledger feed because it moved the member's
+     * budget, which is what the panel is for, so it is labelled as the tokens it was
+     * rather than dropped or rendered as a blank row.
+     */
+    const slug = row.pokemon_id;
+    const entry = slug == null ? undefined : getPokemonEntryBySlug(slug);
 
     return {
       id: row.id,
-      pokemon_id: row.pokemon_id,
-      name: entry?.name ?? row.pokemon_id,
+      pokemon_id: slug,
+      name: slug == null ? "Tokens" : (entry?.name ?? slug),
       spriteId: entry?.spriteId ?? 0,
+      isTokenMovement: slug == null,
       userId: row.user_id,
       playerName: row.profiles?.display_name ?? null,
       action: row.action,

@@ -155,6 +155,14 @@ function LeagueSettingsPageContent() {
   const [adminsApproveTrades, setAdminsApproveTrades] = useState(false);
   const [ownersAdminsVoteOnTrades, setOwnersAdminsVoteOnTrades] =
     useState(false);
+  /*
+   * Whether members may attach tokens to a trade proposal. Only surfaced when the
+   * league has Pokémon costs on, which is set on the Draft Settings page; both
+   * flags live on the same league_settings row, so this page reads the other one
+   * purely to decide whether to render the control at all.
+   */
+  const [allowTokenTrades, setAllowTokenTrades] = useState(false);
+  const [pokemonCostsEnabled, setPokemonCostsEnabled] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -180,6 +188,7 @@ function LeagueSettingsPageContent() {
     transactionCost: 0,
     adminsApproveTrades: false,
     ownersAdminsVoteOnTrades: false,
+    allowTokenTrades: false,
   });
 
   useEffect(() => {
@@ -358,6 +367,8 @@ function LeagueSettingsPageContent() {
           transaction_cost?: number | null;
           admins_approve_trades?: boolean | null;
           owners_admins_vote_on_trades?: boolean | null;
+          allow_token_trades?: boolean | null;
+          enable_pokemon_costs?: boolean | null;
         } | null = null;
 
         try {
@@ -365,7 +376,7 @@ function LeagueSettingsPageContent() {
           const response = await supabase
             .from("league_settings")
             .select(
-              "enable_transaction_costs, transaction_cost, admins_approve_trades, owners_admins_vote_on_trades",
+              "enable_transaction_costs, transaction_cost, admins_approve_trades, owners_admins_vote_on_trades, allow_token_trades, enable_pokemon_costs",
             )
             .eq("league_id", activeLeagueId)
             .eq("season_id", seasonData.id)
@@ -386,6 +397,7 @@ function LeagueSettingsPageContent() {
             transactionCost: 0,
             adminsApproveTrades: false,
             ownersAdminsVoteOnTrades: false,
+            allowTokenTrades: false,
           };
           setLeagueName(leagueData.name || "");
           setNumberOfPlayers(resolvedNumberOfPlayers);
@@ -393,6 +405,8 @@ function LeagueSettingsPageContent() {
           setTransactionCost(0);
           setAdminsApproveTrades(false);
           setOwnersAdminsVoteOnTrades(false);
+          setAllowTokenTrades(false);
+          setPokemonCostsEnabled(false);
           setHasUnsavedChanges(false);
           return;
         }
@@ -408,6 +422,7 @@ function LeagueSettingsPageContent() {
           ownersAdminsVoteOnTrades: Boolean(
             settingsData.owners_admins_vote_on_trades,
           ),
+          allowTokenTrades: Boolean(settingsData.allow_token_trades),
         };
 
         originalSettingsRef.current = nextSettings;
@@ -417,6 +432,8 @@ function LeagueSettingsPageContent() {
         setTransactionCost(nextSettings.transactionCost);
         setAdminsApproveTrades(nextSettings.adminsApproveTrades);
         setOwnersAdminsVoteOnTrades(nextSettings.ownersAdminsVoteOnTrades);
+        setAllowTokenTrades(nextSettings.allowTokenTrades);
+        setPokemonCostsEnabled(Boolean(settingsData.enable_pokemon_costs));
         setHasUnsavedChanges(false);
       } finally {
         setIsLoading(false);
@@ -827,7 +844,7 @@ function LeagueSettingsPageContent() {
           await supabase
             .from("league_settings")
             .select(
-              "enable_transaction_costs, transaction_cost, admins_approve_trades, owners_admins_vote_on_trades",
+              "enable_transaction_costs, transaction_cost, admins_approve_trades, owners_admins_vote_on_trades, allow_token_trades",
             )
             .eq("league_id", leagueId)
             .eq("season_id", seasonId)
@@ -881,6 +898,7 @@ function LeagueSettingsPageContent() {
         transaction_cost?: number | null;
         admins_approve_trades?: boolean;
         owners_admins_vote_on_trades?: boolean;
+        allow_token_trades?: boolean;
       } = {
         league_id: leagueId,
         season_id: seasonId,
@@ -892,6 +910,12 @@ function LeagueSettingsPageContent() {
         settingsPayload.admins_approve_trades = adminsApproveTrades;
         settingsPayload.owners_admins_vote_on_trades =
           normalizedOwnersAdminsVoteOnTrades;
+        /*
+         * Forced off rather than saved as-is when the league has no Pokémon costs,
+         * so a stale "on" cannot survive costs being switched off and then back on.
+         */
+        settingsPayload.allow_token_trades =
+          pokemonCostsEnabled && allowTokenTrades;
       } else {
         throw new Error(
           "League settings columns are not present in the live database. Please apply the required schema migration first.",
@@ -917,9 +941,13 @@ function LeagueSettingsPageContent() {
         transactionCost: normalizedTransactionCost ?? 0,
         adminsApproveTrades,
         ownersAdminsVoteOnTrades: normalizedOwnersAdminsVoteOnTrades,
+        allowTokenTrades: pokemonCostsEnabled && allowTokenTrades,
       };
 
       setHasUnsavedChanges(false);
+      // Kept in step with what was actually written, so a save that forced the flag
+      // off does not leave the checkbox showing the state that was refused.
+      setAllowTokenTrades(pokemonCostsEnabled && allowTokenTrades);
       setSuccessMessage("League settings saved successfully.");
     } catch (caughtError) {
       const message =
@@ -1135,6 +1163,27 @@ function LeagueSettingsPageContent() {
                   className="h-4 w-4 accent-amber-500 disabled:cursor-not-allowed disabled:opacity-50"
                 />
               </label>
+
+              {/*
+                Hidden outright rather than shown disabled. The setting is
+                meaningless without a token economy, so rendering it greyed out
+                would offer the owner a control that cannot do anything, and the
+                reason it is unavailable lives on a different page.
+              */}
+              {pokemonCostsEnabled && (
+                <label className="flex items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-950/60 p-3 text-sm text-slate-200">
+                  <span>Allow tokens to be traded</span>
+                  <input
+                    type="checkbox"
+                    checked={allowTokenTrades}
+                    onChange={(event) => {
+                      setAllowTokenTrades(event.target.checked);
+                      setHasUnsavedChanges(true);
+                    }}
+                    className="h-4 w-4 accent-amber-500"
+                  />
+                </label>
+              )}
 
               <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-4 text-sm text-slate-300">
                 <p className="font-medium text-slate-200">Approval logic</p>

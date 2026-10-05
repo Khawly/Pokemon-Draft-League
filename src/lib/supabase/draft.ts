@@ -10,6 +10,7 @@
 import { supabase } from "@/lib/supabase/client";
 import { loadLatestSeason } from "@/lib/supabase/seasons";
 import { getPokemonEntryBySlug } from "@/lib/pokeapi";
+import { toZonedParts, zonedTimeToInstant } from "@/lib/datetime";
 
 /** Lifecycle status of a season's draft. */
 export type DraftStatus =
@@ -47,8 +48,22 @@ export type DraftSettings = {
   total_token_salary: number | null;
   allow_per_team_salary: boolean;
   pick_time_limit_minutes: number;
-  auto_pick_on_timeout: boolean;
+auto_pick_on_timeout: boolean;
   skip_player_on_timeout: boolean;
+  /** Whether the league holds the draft during a nightly window. */
+  quiet_hours_enabled: boolean;
+  /** Local wall clock the window opens, `HH:MM`. Null when disabled. */
+  quiet_hours_start: string | null;
+  /** Local wall clock the window closes, `HH:MM`. Null when disabled. */
+  quiet_hours_end: string | null;
+  /**
+   * The zone the two wall clocks are expressed in.
+   *
+   * The database columns are still named `_est`, which is historical: nothing ever
+   * implemented a fixed Eastern window, so this is whatever zone the owner saved,
+   * defaulting to UTC for a league configured before the column existed.
+   */
+  quiet_hours_timezone: string | null;
 };
 
 /** A team slot in the season, with its resolved draft order position. */
@@ -139,8 +154,18 @@ export type DraftGoods = {
   members: DraftMember[];
   teams: DraftTeam[];
   picks: DraftPick[];
-  poolRows: DraftPoolRow[];
+poolRows: DraftPoolRow[];
   priority: DraftPriorityEntry[];
+  /**
+   * Token spend per team, from the transaction ledger, keyed by team id.
+   *
+   * The ledger rather than the pick list, because it is the single authority every
+   * other page sums: a draft pick, a free agent pickup and its fee, a release
+   * refund, and both sides of a completed trade all land in it. Summing
+   * `picks` instead only ever saw the draft, so a balance on the draft board
+   * ignored everything that happened after it.
+   */
+  spentByTeam: Map<string, number>;
   /** Per-round Auto-Pick / Skip-Pick flags for the current user (round key). */
   roundFlags: Map<number, { autoPick: boolean; skipPick: boolean }>;
   currentUserId: string;
@@ -248,7 +273,8 @@ export async function loadDraftData(leagueId: string): Promise<DraftGoods> {
     teams: [],
     picks: [],
     poolRows: [],
-    priority: [],
+priority: [],
+    spentByTeam: new Map<string, number>(),
     roundFlags: new Map<number, { autoPick: boolean; skipPick: boolean }>(),
     currentUserId: user.id,
     userRole: null,
@@ -259,12 +285,18 @@ export async function loadDraftData(leagueId: string): Promise<DraftGoods> {
     return base;
   }
 
-  const [settingsResult, teamResult, memberResult, pickResult, poolResult] =
-    await Promise.all([
+const [
+    settingsResult,
+    teamResult,
+    memberResult,
+    pickResult,
+    poolResult,
+    ledgerResult,
+  ] = await Promise.all([
       supabase
         .from("league_settings")
         .select(
-          "draft_format, total_rounds, enable_pokemon_costs, total_token_salary, allow_per_team_salary, pick_time_limit_minutes, auto_pick_on_timeout, skip_player_on_timeout",
+          "draft_format, total_rounds, enable_pokemon_costs, total_token_salary, allow_per_team_salary, pick_time_limit_minutes, auto_pick_on_timeout, skip_player_on_timeout, quiet_hours_enabled, quiet_hours_start_est, quiet_hours_end_est, quiet_hours_timezone",
         )
         .eq("season_id", season.id)
         .maybeSingle(),
@@ -276,7 +308,7 @@ export async function loadDraftData(leagueId: string): Promise<DraftGoods> {
         .order("draft_position", { ascending: true, nullsFirst: false }),
       supabase
         .from("league_members")
-        .select("user_id, role, draft_position, profiles: user_id (display_name, avatar_url)")
+        .select("user_id, role, draft_position, profiles: user_id (display_name, avatar_url, timezone)")
         .eq("league_id", leagueId)
         .eq("is_active", true),
       supabase
@@ -286,15 +318,40 @@ export async function loadDraftData(leagueId: string): Promise<DraftGoods> {
         )
         .eq("league_id", leagueId)
         .order("overall_pick", { ascending: true }),
-      supabase
+supabase
         .from("draft_pools")
         .select("id, is_active")
         .eq("league_id", leagueId)
         .eq("season_id", season.id),
+      /*
+       * The season's whole token ledger, which is what a team's balance is summed
+       * from. Fetched by season rather than by team id list because the team rows are
+       * read in the same batch and are not available to filter on yet.
+       */
+      supabase
+        .from("transactions")
+        .select("team_id, cost_delta")
+        .eq("season_id", season.id),
     ]);
 
-  if (settingsResult.error || teamResult.error || memberResult.error || pickResult.error) {
+  if (
+    settingsResult.error ||
+    teamResult.error ||
+    memberResult.error ||
+    pickResult.error
+  ) {
     throw new Error("Draft state could not be loaded.");
+  }
+
+  const spentByTeam = new Map<string, number>();
+  for (const row of (ledgerResult.data ?? []) as {
+    team_id: string;
+    cost_delta: number;
+  }[]) {
+    spentByTeam.set(
+      row.team_id,
+      (spentByTeam.get(row.team_id) ?? 0) + row.cost_delta,
+    );
   }
 
   const settingsRow = settingsResult.data as {
@@ -304,8 +361,12 @@ export async function loadDraftData(leagueId: string): Promise<DraftGoods> {
     total_token_salary: number | null;
     allow_per_team_salary: boolean;
     pick_time_limit_minutes: number;
-    auto_pick_on_timeout: boolean;
+auto_pick_on_timeout: boolean;
     skip_player_on_timeout: boolean;
+    quiet_hours_enabled?: boolean | null;
+    quiet_hours_start_est?: string | null;
+    quiet_hours_end_est?: string | null;
+    quiet_hours_timezone?: string | null;
   } | null;
 
   const settings: DraftSettings | null = settingsRow
@@ -318,6 +379,10 @@ export async function loadDraftData(leagueId: string): Promise<DraftGoods> {
         pick_time_limit_minutes: settingsRow.pick_time_limit_minutes,
         auto_pick_on_timeout: settingsRow.auto_pick_on_timeout,
         skip_player_on_timeout: settingsRow.skip_player_on_timeout,
+        quiet_hours_enabled: Boolean(settingsRow.quiet_hours_enabled),
+        quiet_hours_start: settingsRow.quiet_hours_start_est || null,
+        quiet_hours_end: settingsRow.quiet_hours_end_est || null,
+        quiet_hours_timezone: settingsRow.quiet_hours_timezone || null,
       }
     : null;
 
@@ -329,18 +394,45 @@ export async function loadDraftData(leagueId: string): Promise<DraftGoods> {
     total_salary_override: team.total_salary_override,
   }));
 
-  const members = ((memberResult.data ?? []) as {
+const memberRows = (memberResult.data ?? []) as {
     user_id: string;
     role: "owner" | "admin" | "member";
     draft_position: number | null;
-    profiles?: { display_name?: string | null; avatar_url?: string | null } | null;
-  }[]).map((row) => ({
+    profiles?: {
+      display_name?: string | null;
+      avatar_url?: string | null;
+      timezone?: string | null;
+    } | null;
+  }[];
+
+  const members = memberRows.map((row) => ({
     user_id: row.user_id,
     role: row.role,
     display_name: row.profiles?.display_name ?? null,
     avatar_url: row.profiles?.avatar_url ?? null,
     draft_position: row.draft_position,
   }));
+
+  /*
+   * The quiet hours window is anchored to the league owner's own profile zone, so
+   * overriding whatever the settings row happens to hold. Read live rather than
+   * from league_settings, because draft_quiet_hours resolves it the same way on
+   * every sweep: if the two disagreed, the header would state one window while the
+   * engine enforced another, which is exactly what made a zone change look like it
+   * had done nothing. The stored column remains the fallback for an owner with no
+   * usable profile zone.
+   */
+  if (settings) {
+    const ownerZone =
+      memberRows.find((row) => row.role === "owner")?.profiles?.timezone ??
+      memberRows.find((row) => row.user_id === league.owner_id)?.profiles
+        ?.timezone;
+
+    const trimmed = ownerZone?.trim();
+    if (trimmed) {
+      settings.quiet_hours_timezone = trimmed;
+    }
+  }
 
   const picks = ((pickResult.data ?? []) as PickLedgerRow[]).map((row) => ({
     id: row.id,
@@ -477,8 +569,9 @@ export async function loadDraftData(leagueId: string): Promise<DraftGoods> {
     members,
     teams,
     picks,
-    poolRows: poolRowsMapped,
+poolRows: poolRowsMapped,
     priority,
+    spentByTeam,
     roundFlags,
     userRole: members.find((member) => member.user_id === user.id)?.role ?? null,
     myTeamId: myTeam?.id ?? null,
@@ -575,12 +668,17 @@ export async function setDraftPaused(
  * Returns the latest season of a league to its pre-draft state.
  *
  * Owner-only RPC; it clears the auto-created team mirror, pick ledger,
- * rosters, transactions, and priority lists for the season and flips it back
- * to `draft_pending` so the order can be re-arranged and the draft started
- * again.
+ * rosters, and transactions for the season and flips it back to
+ * `draft_pending` so the order can be re-arranged and the draft started again.
+ *
+ * Priority lists are restored rather than cleared: the server snapshots every
+ * player's list when the draft starts (the draft consumes those lists as picks
+ * land) and puts them back here, so a reset does not throw away a list the
+ * league built. A season started before snapshots existed has none to restore
+ * from, and its lists are left cleared.
  *
  * @param leagueId - The league whose latest season should be reset.
- * @returns A Promise resolving to the season id and its new status.
+ * @returns A promise resolving to the season id and its new status.
  * @throws If the caller is not the league owner, no season exists, or the
  *   reset fails.
  */
@@ -716,6 +814,14 @@ export function computeDraftSlice(goods: DraftGoods): DraftSlice {
  * (or a per-team override when enabled) and are only meaningful when costs are
  * enabled. When costs are disabled, remaining salary is effectively unlimited.
  *
+ * Spend is the team's transaction ledger sum, matching the trades, teams, and
+ * Pokemon pages. Summing `draft_picks` was only ever correct while the draft was
+ * the sole thing that could move a balance: it sees the picks and nothing else,
+ * so a free agent pickup, its fee, a release refund, or a completed trade left
+ * the board quoting a budget that no other page agreed with. The pick list stays
+ * as the fallback for a season whose ledger has not been written yet, matching
+ * how the teams page falls back to roster tiers.
+ *
  * @param goods - The loaded draft state.
  * @param teamId - The team to evaluate.
  * @returns Budget, spent, and remaining salary amounts.
@@ -736,9 +842,11 @@ export function getTeamSalary(goods: DraftGoods, teamId: string): {
   const budget = usesOverride
     ? (team?.total_salary_override ?? 0)
     : (goods.settings.total_token_salary ?? 0);
-  const spent = goods.picks
+
+  const fromPicks = goods.picks
     .filter((pick) => pick.team_id === teamId)
     .reduce((sum, pick) => sum + pick.cost_delta, 0);
+  const spent = goods.spentByTeam.get(teamId) ?? fromPicks;
 
   return { budget, spent, remaining: budget - spent };
 }
@@ -771,6 +879,177 @@ export function getPickDeadlineMs(goods: DraftGoods): number | null {
     return null;
   }
 
-  const minutes = goods.settings?.pick_time_limit_minutes ?? 5;
+const minutes = goods.settings?.pick_time_limit_minutes ?? 5;
   return new Date(start).getTime() + minutes * 60_000;
+}
+
+/** The league's quiet hours window, resolved into something displayable. */
+export type QuietHoursWindow = {
+  /** True when the league has the window switched on with usable clocks. */
+  enabled: boolean;
+  /**
+   * The window expressed in `toZone`, formatted for display, e.g. `8:00 PM – 5:00 AM`.
+   * Null when the window is off or its clocks are unusable.
+   */
+  label: string | null;
+  /** The zone the two clocks are stored in, for showing alongside the label. */
+  zone: string | null;
+  /** True when `now` falls inside the window in the stored zone. */
+  activeNow: boolean;
+};
+
+/**
+ * Minutes since midnight for an `HH:MM` clock, or null when it will not parse.
+ *
+ * Mirrors `formatClock`'s tolerance of `24:00`, which the availability windows use
+ * to mean midnight.
+ *
+ * @param clock - The stored clock string.
+ * @returns Minutes past midnight, or null.
+ */
+function clockMinutes(clock: string | null): number | null {
+  if (!clock) {
+    return null;
+  }
+  const match = /^(\d{1,2}):(\d{2})$/.exec(clock.trim());
+  if (!match) {
+    return null;
+  }
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (hours > 24 || minutes > 59) {
+    return null;
+  }
+  return hours * 60 + minutes;
+}
+
+/**
+ * Formats an absolute instant as a clock time in the given zone.
+ *
+ * @param instant - The instant to render.
+ * @param zone - The IANA zone to render it in.
+ * @returns A localized time string, e.g. `8:00 PM`.
+ */
+function formatClockInZone(instant: Date, zone: string): string {
+  return new Intl.DateTimeFormat(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: zone,
+  }).format(instant);
+}
+
+/**
+ * Renders one of the stored wall clocks as it reads in the reader's own zone.
+ *
+ * A real conversion, not a relabelling: "20:00" in the league's zone is a wall
+ * clock that only becomes an instant once a date is attached, so the stored zone's
+ * current date anchors it and the resulting instant is then rendered in the
+ * reader's zone. Formatting the number as typed would have looked right while
+ * never changing with the reader, which is the whole thing the label is for.
+ *
+ * Falls back to the clock as the owner typed it when it falls in a DST
+ * spring-forward gap, where the wall time does not exist and there is no instant
+ * to convert.
+ *
+ * @param minutes - Minutes past midnight in the stored zone.
+ * @param anchorDate - `YYYY-MM-DD` in the stored zone, used to place the clock.
+ * @param storedZone - The zone the clock is expressed in.
+ * @param toZone - The zone to render the result in.
+ * @returns A localized time string.
+ */
+function renderStoredClock(
+  minutes: number,
+  anchorDate: string,
+  storedZone: string,
+  toZone: string,
+): string {
+  const hours = String(Math.floor(minutes / 60)).padStart(2, "0");
+  const mins = String(minutes % 60).padStart(2, "0");
+
+  const instant = zonedTimeToInstant(anchorDate, `${hours}:${mins}`, storedZone);
+  if (instant) {
+    return formatClockInZone(instant, toZone);
+  }
+
+  // No such wall time today (DST gap): show what the owner entered, unconverted.
+  return new Intl.DateTimeFormat(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: "UTC",
+  }).format(new Date(Date.UTC(2000, 0, 1, 0, minutes)));
+}
+
+/**
+ * Resolves the league's quiet hours for display.
+ *
+ * The stored clocks are wall times in the league's configured zone, so this
+ * re-labels them into whatever zone the reader is looking in: a member in Europe
+ * sees the same window as `9:00 PM – 6:00 AM` rather than the owner's `3:00 PM –
+ * 12:00 PM`. `activeNow` deliberately stays in the stored zone, because that is the
+ * one the database decides the window in and a reader's own clock must not be able
+ * to disagree with it about whether the draft is currently held.
+ *
+ * @param goods - The loaded draft state.
+ * @param toZone - The zone to render the label in, normally the viewer's.
+ * @param now - The instant to test against the window. Defaults to the current time.
+ * @returns The window's display state.
+ */
+export function resolveQuietHours(
+  goods: DraftGoods,
+  toZone: string,
+  now: Date = new Date(),
+): QuietHoursWindow {
+  const settings = goods.settings;
+  const zone = settings?.quiet_hours_timezone || null;
+  const startMinutes = clockMinutes(settings?.quiet_hours_start ?? null);
+  const endMinutes = clockMinutes(settings?.quiet_hours_end ?? null);
+
+  const off: QuietHoursWindow = {
+    enabled: false,
+    label: null,
+    zone,
+    activeNow: false,
+  };
+
+  if (
+    !settings?.quiet_hours_enabled ||
+    startMinutes == null ||
+    endMinutes == null
+  ) {
+    return off;
+  }
+
+  /*
+   * Equal bounds would be a window that is either always open or never open. The
+   * database reads it as never, so this does too rather than showing a 24-hour
+   * quiet period the engine would not honour.
+   */
+  if (startMinutes === endMinutes) {
+    return off;
+  }
+
+  const storedZone = zone ?? "UTC";
+  const localNow = toZonedParts(now, storedZone);
+
+  const label = `${renderStoredClock(startMinutes, localNow?.date ?? "", storedZone, toZone)} – ${renderStoredClock(endMinutes, localNow?.date ?? "", storedZone, toZone)}`;
+
+  /*
+   * Active-now stays in the stored zone. That is the one the database decides the
+   * window in, so a reader's own clock must not be able to disagree with the
+   * engine about whether the draft is currently held.
+   */
+  const localMinutes =
+    localNow == null
+      ? null
+      : Number(localNow.time.slice(0, 2)) * 60 + Number(localNow.time.slice(3, 5));
+
+  let activeNow = false;
+  if (localMinutes != null) {
+    activeNow =
+      startMinutes < endMinutes
+        ? localMinutes >= startMinutes && localMinutes < endMinutes
+        : localMinutes >= startMinutes || localMinutes < endMinutes;
+  }
+
+  return { enabled: true, label, zone, activeNow };
 }

@@ -10,6 +10,7 @@
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
+import { loadUserTimeZone } from "@/lib/user-timezone";
 
 /**
  * Draft settings page that suspends rendering until the client-only
@@ -49,6 +50,13 @@ function DraftSettingsPageContent() {
   const [quietHoursEnabled, setQuietHoursEnabled] = useState(false);
   const [quietHoursStart, setQuietHoursStart] = useState("20:00");
   const [quietHoursEnd, setQuietHoursEnd] = useState("09:00");
+  /*
+   * The zone the two quiet hours clocks are read in. Left null until the league's
+   * saved value is known, and defaulted to the owner's own profile zone when there
+   * isn't one, so the window means what the person configuring it expects without
+   * them having to know the window is stored as bare wall clocks.
+   */
+  const [quietHoursTimeZone, setQuietHoursTimeZone] = useState<string | null>(null);
   const [leagueId, setLeagueId] = useState<string | null>(null);
   const [seasonId, setSeasonId] = useState<string | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -145,6 +153,14 @@ function DraftSettingsPageContent() {
           quietHoursEnabled: Boolean(settingsData.quiet_hours_enabled),
           quietHoursStart: settingsData.quiet_hours_start_est || "20:00",
           quietHoursEnd: settingsData.quiet_hours_end_est || "09:00",
+          /*
+           * Always the owner's live profile zone, never the value cached on the
+           * settings row. draft_quiet_hours resolves the zone the same way on every
+           * sweep, so reading the row here would have the page and the engine
+           * disagreeing about the window, and a zone changed in user settings would
+           * look like it had done nothing until draft settings were re-saved.
+           */
+          quietHoursTimeZone: await loadUserTimeZone(),
         };
 
         originalSettingsRef.current = nextSettings;
@@ -159,6 +175,7 @@ function DraftSettingsPageContent() {
         setQuietHoursEnabled(nextSettings.quietHoursEnabled);
         setQuietHoursStart(nextSettings.quietHoursStart);
         setQuietHoursEnd(nextSettings.quietHoursEnd);
+        setQuietHoursTimeZone(nextSettings.quietHoursTimeZone);
         setHasUnsavedChanges(false);
       } finally {
         setIsLoading(false);
@@ -202,6 +219,17 @@ function DraftSettingsPageContent() {
             quiet_hours_enabled: quietHoursEnabled,
             quiet_hours_start_est: quietHoursEnabled ? quietHoursStart : null,
             quiet_hours_end_est: quietHoursEnabled ? quietHoursEnd : null,
+            /*
+             * quiet_hours_timezone is deliberately not written from here.
+             *
+             * draft_quiet_hours resolves the zone from the league owner's profile on
+             * every sweep, so this page has nothing to contribute and could only
+             * contribute it wrongly: the value would come from a component state
+             * seeded once on mount, so a tab left open across a zone change in user
+             * settings would write the old zone back over the new one on the next
+             * save. The column stays as the fallback the migration populated, for
+             * the case where the owner has no usable profile zone at all.
+             */
           },
           { onConflict: "league_id, season_id" },
         );
@@ -447,7 +475,7 @@ function DraftSettingsPageContent() {
                 <div className="grid gap-4 md:grid-cols-2">
                   <div>
                     <label className="mb-2 block text-sm font-medium text-slate-300">
-                      Quiet hours start (EST)
+                      Quiet hours start
                     </label>
                     <input
                       type="time"
@@ -461,7 +489,7 @@ function DraftSettingsPageContent() {
                   </div>
                   <div>
                     <label className="mb-2 block text-sm font-medium text-slate-300">
-                      Quiet hours end (EST)
+                      Quiet hours end
                     </label>
                     <input
                       type="time"
@@ -474,6 +502,23 @@ function DraftSettingsPageContent() {
                     />
                   </div>
                 </div>
+              )}
+
+{/*
+                  Spelled out because the clocks mean nothing without it. The zone is
+                  read live from your user settings on every load, which is also how
+                  the draft engine resolves it, so changing it there moves this
+                  window without anything needing re-saving here.
+                */}
+              {quietHoursEnabled && (
+                <p className="mt-3 text-xs text-slate-500">
+                  Times are in{" "}
+                  <span className="font-medium text-slate-400">
+                    {quietHoursTimeZone ?? "UTC"}
+                  </span>
+                  , from your user settings. The draft is held for the whole window,
+                  and anyone looking at the board sees it converted to their own zone.
+                </p>
               )}
             </div>
           </div>

@@ -137,6 +137,47 @@ function Sprite({
   );
 }
 
+/**
+ * Renders a token coin for a ledger row that moves tokens rather than a Pokémon.
+ *
+ * Inline SVG rather than a file in `public/`, because every asset there is a
+ * numbered Pokémon sprite resolved by dex id and there is no catalog entry for a
+ * coin to hang an id off. It also lets the rim and the highlight scale with the
+ * requested size instead of being fixed pixels that would blur at 48px.
+ *
+ * Amber matches the accent the rest of the app already uses for token figures, so
+ * a token row reads as money at a glance next to the coloured species sprites.
+ *
+ * @param props.size - Square pixel dimensions.
+ * @returns The coin icon.
+ */
+function TokenIcon({ size }: { size: number }) {
+  return (
+    <svg
+      viewBox="0 0 32 32"
+      width={size}
+      height={size}
+      style={{ width: size, height: size }}
+      role="img"
+      aria-label="Tokens"
+      className="shrink-0"
+    >
+      <circle cx="16" cy="16" r="14" fill="#78350f" />
+      <circle cx="16" cy="16" r="11.5" fill="#f59e0b" />
+      <circle cx="16" cy="16" r="11.5" fill="none" stroke="#fbbf24" strokeWidth="1.5" />
+      {/* Upper-left highlight, the convention that makes a flat circle read as a coin. */}
+      <path
+        d="M16 6.5a9.5 9.5 0 0 0-8.2 4.75"
+        fill="none"
+        stroke="#fcd34d"
+        strokeWidth="2"
+        strokeLinecap="round"
+        opacity="0.7"
+      />
+    </svg>
+  );
+}
+
 /** Renders a type badge for a PokeAPI type name. */
 function TypeBadge({ type }: { type: string }) {
   return (
@@ -168,7 +209,12 @@ function tierLabel(tier: number): string {
  * @returns A human-readable label.
  */
 function actionLabel(
-  action: "added" | "dropped" | "trade_in" | "trade_out",
+  action:
+    | "added"
+    | "dropped"
+    | "trade_in"
+    | "trade_out"
+    | "token_transfer",
 ): string {
   switch (action) {
     case "added":
@@ -179,6 +225,8 @@ function actionLabel(
       return "Trade in";
     case "trade_out":
       return "Trade out";
+    case "token_transfer":
+      return "Tokens traded";
   }
 }
 
@@ -391,7 +439,7 @@ function FreeAgentTable({
             <SortableTh label="Type" column="type" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
             <SortableTh label="Tier" column="tier" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
             <SortableTh label="Abilities" column="abilities" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
-            <SortableTh label="Total" column="bst" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+            <SortableTh label="BST" column="bst" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
             <SortableTh label="HP" column="hp" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
             <SortableTh label="Atk" column="attack" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
             <SortableTh label="Def" column="defense" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
@@ -812,13 +860,14 @@ function TransactionHistory({
 
       {transactions.length === 0 ? (
         <p className="mt-4 text-sm text-slate-500">
-          No roster moves have happened since the draft finished.
+          No pickups, releases, or token trades have happened since the draft
+          finished.
         </p>
       ) : (
         <>
           <p className="mt-2 text-xs text-slate-500">
-            Every team&apos;s free agent pickups and releases, newest first. Draft
-            picks are left out.
+            Every team&apos;s free agent pickups, releases, and token trades, newest
+            first. Draft picks are left out.
           </p>
           <ul className="mt-4 space-y-3">
             {transactions.map((entry) => (
@@ -828,7 +877,11 @@ function TransactionHistory({
               >
                 <div className="flex items-center justify-between gap-3">
                   <span className="flex min-w-0 items-center gap-2">
-                    <Sprite spriteId={entry.spriteId} name={entry.name} size={28} />
+                    {entry.isTokenMovement ? (
+                      <TokenIcon size={28} />
+                    ) : (
+                      <Sprite spriteId={entry.spriteId} name={entry.name} size={28} />
+                    )}
                     <span className="truncate font-medium text-slate-100">
                       {entry.name}
                     </span>

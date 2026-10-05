@@ -325,7 +325,7 @@ function PokemonPicker({
       ) : filtered.length === 0 ? (
         <p className="mt-3 text-sm text-slate-500">No Pokémon match that search.</p>
       ) : (
-        <ul className="mt-3 max-h-72 space-y-1 overflow-y-auto pr-1">
+        <ul className="mt-3 space-y-1">
           {filtered.map((row) => {
             const isSelected = selected.includes(row.pokemon_id);
 
@@ -432,7 +432,22 @@ function TradeCard({
    * while and by the time it is answered either side's balance may have moved; this
    * states what this trade itself is worth, which is what the card is about.
    */
-  const shift = tradeValueShift(outgoing, incoming, costsEnabled);
+  const shift = tradeValueShift(
+    outgoing,
+    incoming,
+    costsEnabled,
+    trade.proposerTokenAmount,
+    trade.recipientTokenAmount,
+  );
+
+  /*
+   * A trade can move tokens without moving a single Pokémon, so the card says so
+   * in its own right. Without this a recipient asked to hand over 20 tokens would
+   * see two empty side panels and a value line derived from nothing.
+   */
+  const proposerTokens = trade.proposerTokenAmount;
+  const recipientTokens = trade.recipientTokenAmount;
+  const movesTokens = proposerTokens > 0 || recipientTokens > 0;
 
   return (
     <article className="rounded-2xl border border-slate-800 bg-slate-900/80 p-5 shadow-lg shadow-slate-950/30">
@@ -478,6 +493,7 @@ function TradeCard({
             }
             items={outgoing}
             costsEnabled={costsEnabled}
+            tokenAmount={proposerTokens}
           />
           <TradeSidePanel
             heading={
@@ -487,8 +503,23 @@ function TradeCard({
             }
             items={incoming}
             costsEnabled={costsEnabled}
+            tokenAmount={recipientTokens}
           />
         </div>
+      )}
+
+      {/*
+          Negated to read as a balance swing rather than an amount handed over,
+          matching the "Value Exchanged" line below and complete_trade's ledger:
+          sending tokens costs the sender budget and credits the receiver.
+        */}
+      {costsEnabled && movesTokens && (
+        <p className="mt-4 text-sm text-slate-300">
+          Tokens Exchanged:{" "}
+          <ValueSwingText delta={-proposerTokens} name={trade.proposer_name} />
+          {" and "}
+          <ValueSwingText delta={-recipientTokens} name={trade.recipient_name} />
+        </p>
       )}
 
       {costsEnabled && showing > 0 && (
@@ -667,10 +698,16 @@ interface TradeSidePanelProps {
   items: TradeItem[];
   /** Whether to show each Pokémon's tier value. */
   costsEnabled: boolean;
+  /** Tokens this side is sending. Zero for none. */
+  tokenAmount: number;
 }
 
 /**
- * Renders one side's Pokémon as a vertical list.
+ * Renders one side of a trade: the Pokémon it sends, and the tokens it attaches.
+ *
+ * The tokens are listed alongside the Pokémon rather than only in the exchange
+ * summary below, because this is the panel a member reads to answer "what am I
+ * giving up?" and an amount of tokens is part of that answer.
  *
  * @param props - {@link TradeSidePanelProps}
  * @returns The list panel.
@@ -679,14 +716,22 @@ function TradeSidePanel({
   heading,
   items,
   costsEnabled,
+  tokenAmount,
 }: TradeSidePanelProps) {
   return (
     <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-3">
       <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
         {heading}
       </p>
+      {costsEnabled && tokenAmount > 0 && (
+        <p className="mt-2 rounded-lg border border-emerald-800 bg-emerald-950/40 px-3 py-2 text-sm font-semibold text-emerald-200">
+          {tokenAmount} {tokenAmount === 1 ? "token" : "tokens"}
+        </p>
+      )}
       {items.length === 0 ? (
-        <p className="mt-2 text-sm text-slate-500">Nothing</p>
+        <p className="mt-2 text-sm text-slate-500">
+          {costsEnabled && tokenAmount > 0 ? "No Pokémon" : "Nothing"}
+        </p>
       ) : (
         <ul className="mt-2 space-y-2">
           {items.map((item) => (
@@ -720,7 +765,13 @@ interface ProposalBuilderProps {
   /** True while a proposal is being submitted. */
   busy: boolean;
   /** Submits the proposal. */
-  onSubmit: (recipientUserId: string, offer: string[], request: string[]) => void;
+  onSubmit: (
+    recipientUserId: string,
+    offer: string[],
+    request: string[],
+    proposerTokens: number,
+    recipientTokens: number,
+  ) => void;
 }
 
 /**
@@ -743,6 +794,24 @@ function ProposalBuilder({
   const [recipientId, setRecipientId] = useState<string>("");
   const [offer, setOffer] = useState<string[]>([]);
   const [request, setRequest] = useState<string[]>([]);
+  /*
+   * Token amounts are held as strings because a number input's value is a string
+   * until it is parsed, and parsing on every keystroke would fight the member: an
+   * empty box is NaN, and treating that as 0 while they type "12" one digit at a
+   * time makes the projection jump. Clamped to a non-negative integer when read,
+   * which is also the only shape propose_trade accepts.
+   */
+  const [proposerTokensRaw, setProposerTokensRaw] = useState<string>("");
+  const [recipientTokensRaw, setRecipientTokensRaw] = useState<string>("");
+
+  /** Parses a token field into the non-negative integer the RPC expects. */
+  const parseTokens = (raw: string): number => {
+    const parsed = Number.parseInt(raw, 10);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+  };
+
+  const proposerTokens = parseTokens(proposerTokensRaw);
+  const recipientTokens = parseTokens(recipientTokensRaw);
 
   const opponents = useMemo(
     () => tradeOpponents(goods.teams, goods.currentUserId),
@@ -795,13 +864,34 @@ function ProposalBuilder({
 
   const projection =
     goods.myTeam && recipient
-      ? projectTradeBalance(goods, goods.myTeam.id, recipient.id, offerPokemon, requestPokemon)
+      ? projectTradeBalance(
+          goods,
+          goods.myTeam.id,
+          recipient.id,
+          offerPokemon,
+          requestPokemon,
+          proposerTokens,
+          recipientTokens,
+        )
       : null;
 
   const costsEnabled = goods.settings?.enable_pokemon_costs === true;
-  const nothingSelected = offer.length + request.length === 0;
+  /*
+   * Tokens are opt-in on two levels, matching what the server accepts: the league
+   * has to have costs running for a token amount to mean anything, and the owner
+   * has to have enabled token trades. Either being off hides the inputs entirely,
+   * so a member is never offered a field that would be refused on submit.
+   */
+  const tokenTradesAllowed =
+    costsEnabled && goods.settings?.allow_token_trades === true;
+  const nothingSelected =
+    offer.length + request.length === 0 &&
+    !(tokenTradesAllowed && (proposerTokens > 0 || recipientTokens > 0));
   const blocked = busy || nothingSelected || !goods.myTeam || !recipient;
   const canSubmit = !blocked && (projection?.affordable ?? false);
+  /* Whether anything at all is on the table, which is what earns a delta readout. */
+  const hasValue =
+    offer.length + request.length > 0 || proposerTokens > 0 || recipientTokens > 0;
 
   if (!goods.myTeam) {
     return (
@@ -864,6 +954,34 @@ function ProposalBuilder({
         />
       </div>
 
+      {/* Token inputs, mirroring the two Pokémon pickers above. */}
+      {tokenTradesAllowed && (
+        <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-lg shadow-slate-950/30">
+          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">
+            Tokens
+          </p>
+          <p className="mt-1 text-sm text-slate-400">
+            Tokens you send come out of your budget; tokens you receive go onto
+            theirs. Leave both blank to trade Pokémon only.
+          </p>
+
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            <TokenAmountField
+              label="You send"
+              value={proposerTokensRaw}
+              disabled={busy}
+              onChange={setProposerTokensRaw}
+            />
+            <TokenAmountField
+              label="You receive"
+              value={recipientTokensRaw}
+              disabled={busy || !recipient}
+              onChange={setRecipientTokensRaw}
+            />
+          </div>
+        </div>
+      )}
+
       <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-lg shadow-slate-950/30">
         <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">
           Projected balances
@@ -883,7 +1001,7 @@ function ProposalBuilder({
                   costsEnabled={costsEnabled}
                 />
               </p>
-              {costsEnabled && offer.length + request.length > 0 && (
+              {costsEnabled && hasValue && (
                 <p
                   className={`mt-1 text-xs ${
                     (projection?.proposerDelta ?? 0) >= 0
@@ -906,7 +1024,7 @@ function ProposalBuilder({
                   costsEnabled={costsEnabled}
                 />
               </p>
-              {costsEnabled && offer.length + request.length > 0 && (
+              {costsEnabled && hasValue && (
                 <p
                   className={`mt-1 text-xs ${
                     (projection?.recipientDelta ?? 0) >= 0
@@ -932,18 +1050,22 @@ function ProposalBuilder({
           <button
             type="button"
             disabled={!canSubmit}
-            onClick={() => onSubmit(recipientId, offer, request)}
+            onClick={() =>
+              onSubmit(recipientId, offer, request, proposerTokens, recipientTokens)
+            }
             className="rounded-xl bg-amber-500 px-5 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-40"
           >
             {busy ? "Sending..." : "Send proposal"}
           </button>
-          {(offer.length > 0 || request.length > 0) && (
+          {(offer.length > 0 || request.length > 0 || proposerTokens > 0 || recipientTokens > 0) && (
             <button
               type="button"
               disabled={busy}
               onClick={() => {
                 setOffer([]);
                 setRequest([]);
+                setProposerTokensRaw("");
+                setRecipientTokensRaw("");
               }}
               className="rounded-xl border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm font-medium text-slate-100 transition hover:border-slate-500 disabled:opacity-50"
             >
@@ -952,12 +1074,60 @@ function ProposalBuilder({
           )}
           {nothingSelected && (
             <span className="text-sm text-slate-500">
-              Choose at least one Pokémon to send.
+              Choose at least one Pokémon or some tokens to send.
             </span>
           )}
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * One optional token amount in a proposal.
+ *
+ * Held as a raw string so a partially typed or cleared box never resolves to NaN in
+ * the balance projection. `type="number"` gives the stepper and numeric keypad for
+ * free while the parent does the parsing, so the field itself has no opinion about
+ * what counts as a legal amount.
+ *
+ * @param props.label - Which side of the trade the amount belongs to.
+ * @param props.value - The raw field contents.
+ * @param props.disabled - True while the proposal is submitting or unusable.
+ * @param props.onChange - Receives the raw field contents on every keystroke.
+ * @returns The labelled number input.
+ */
+function TokenAmountField({
+  label,
+  value,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  disabled: boolean;
+  onChange: (next: string) => void;
+}) {
+  return (
+    <label className="block">
+      <span className="text-xs font-medium uppercase tracking-wider text-slate-500">
+        {label}
+      </span>
+      <div className="mt-1 flex items-center gap-2">
+        <input
+          type="number"
+          inputMode="numeric"
+          min={0}
+          step={1}
+          value={value}
+          disabled={disabled}
+          placeholder="0"
+          onChange={(event) => onChange(event.target.value)}
+          className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-slate-100 outline-none transition focus:border-amber-400 disabled:cursor-not-allowed disabled:opacity-50"
+        />
+        <span className="shrink-0 text-sm text-slate-500">tokens</span>
+      </div>
+    </label>
   );
 }
 
@@ -1347,6 +1517,8 @@ function TradesPageContent({
     recipientUserId: string,
     offer: string[],
     request: string[],
+    proposerTokens: number,
+    recipientTokens: number,
   ) {
     if (!goods) {
       return;
@@ -1369,7 +1541,14 @@ function TradesPageContent({
     setFeedback(null);
 
     try {
-      await proposeTrade(goods.league.id, recipientUserId, offer, request);
+      await proposeTrade(
+        goods.league.id,
+        recipientUserId,
+        offer,
+        request,
+        proposerTokens,
+        recipientTokens,
+      );
       await refresh(goods.league.id);
       setFeedback(`Proposal sent to ${other}.`);
       // Routed through the tab handler rather than setTab directly, so arriving at

@@ -41,12 +41,14 @@ function makeGoods({
   budget = 100,
   enableCosts = true,
   perTeamOverride,
+  allowTokenTrades = false,
 }: {
   teams: Array<{ id: string; owner_user_id: string }>;
   spentByTeam: Record<string, number>;
   budget?: number;
   enableCosts?: boolean;
   perTeamOverride?: Record<string, number>;
+  allowTokenTrades?: boolean;
 }): TradesGoods {
   return {
     league: { id: "league-1", name: "Test League", owner_id: "owner-1" },
@@ -62,6 +64,7 @@ function makeGoods({
       allow_per_team_salary: perTeamOverride != null,
       admins_approve_trades: true,
       owners_admins_vote_on_trades: true,
+      allow_token_trades: allowTokenTrades,
     },
     teams: teams.map((team) => ({
       id: team.id,
@@ -110,6 +113,8 @@ function makeTrade(
     created_at: "2026-01-01T00:00:00.000Z",
     updated_at: "2026-01-01T00:00:00.000Z",
     completed_at: null,
+    proposerTokenAmount: 0,
+    recipientTokenAmount: 0,
     items: [],
     votes: [],
     ...overrides,
@@ -248,6 +253,111 @@ describe("tradeValueShift", () => {
     );
 
     expect(shift.proposerDelta).toBe(0);
+    expect(Object.is(shift.proposerDelta, 0)).toBe(true);
+    expect(Object.is(shift.recipientDelta, 0)).toBe(true);
+  });
+
+  it("counts tokens the proposer sends as budget it gives up", () => {
+    /*
+     * The opposite of the Pokémon case, and the thing worth pinning. Handing over a
+     * tier 8 frees 8 tokens because that cost is no longer carried; handing over 12
+     * tokens costs 12, because the tokens are the currency the other side spends.
+     */
+    const shift = tradeValueShift([], [], true, 12);
+
+    expect(shift.proposerDelta).toBe(-12);
+    expect(shift.recipientDelta).toBe(12);
+  });
+
+  it("counts tokens the recipient sends in the proposer's favour", () => {
+    const shift = tradeValueShift([], [], true, 0, 5);
+
+    expect(shift.proposerDelta).toBe(5);
+    expect(shift.recipientDelta).toBe(-5);
+  });
+
+  it("nets tokens against the tiers moving the other way", () => {
+    /*
+     * Khawly offers a tier 8 Garchomp and sends 3 tokens, taking a tier 1 Ditto and
+     * receiving nothing: 8 given against 1 received frees 7 of tier budget, and the
+     * 3 tokens cost him 3 more, so his balance rises by 4.
+     */
+    const shift = tradeValueShift(
+      [pokemon("garchomp", 8)],
+      [pokemon("ditto", 1)],
+      true,
+      3,
+      0,
+    );
+
+    expect(shift.proposerDelta).toBe(4);
+    expect(shift.recipientDelta).toBe(-4);
+  });
+
+  it("agrees with complete_trade on which side a token transfer charges", () => {
+    /*
+     * complete_trade writes a positive cost_delta against the sender, so its spend
+     * rises and its remaining falls. The projection has to read the same way or the
+     * panel promises a balance the database will not hold.
+     */
+    const goods = makeGoods({
+      teams: [
+        { id: "team-1", owner_user_id: "user-1" },
+        { id: "team-2", owner_user_id: "user-2" },
+      ],
+      spentByTeam: { "team-1": 60, "team-2": 20 },
+      allowTokenTrades: true,
+    });
+
+    const projection = projectTradeBalance(
+      goods,
+      "team-1",
+      "team-2",
+      [],
+      [],
+      20,
+      0,
+    );
+
+    // team-1 has 40 left and sends 20 of it.
+    expect(projection.proposerRemaining).toBe(20);
+    // team-2 had 80 left and is handed 20.
+    expect(projection.recipientRemaining).toBe(100);
+    expect(projection.affordable).toBe(true);
+  });
+
+  it("calls a token transfer the proposer cannot cover unaffordable", () => {
+    const goods = makeGoods({
+      teams: [
+        { id: "team-1", owner_user_id: "user-1" },
+        { id: "team-2", owner_user_id: "user-2" },
+      ],
+      spentByTeam: { "team-1": 90, "team-2": 20 },
+      allowTokenTrades: true,
+    });
+
+    // team-1 has 10 left and is trying to send 20.
+    const projection = projectTradeBalance(
+      goods,
+      "team-1",
+      "team-2",
+      [],
+      [],
+      20,
+      0,
+    );
+
+    expect(projection.affordable).toBe(false);
+  });
+
+  it("ignores token amounts when the league has costs switched off", () => {
+    /*
+     * A proposal can sit unanswered for a week and the owner can switch costs off in
+     * the meantime. The stored amount must not keep moving balances, because
+     * complete_trade writes nothing when costs are off.
+     */
+    const shift = tradeValueShift([], [], false, 20, 5);
+
     expect(Object.is(shift.proposerDelta, 0)).toBe(true);
     expect(Object.is(shift.recipientDelta, 0)).toBe(true);
   });

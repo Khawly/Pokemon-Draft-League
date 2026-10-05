@@ -16,6 +16,7 @@ import {
   proposalOutcomeLabel,
   proposalOutcomeTone,
   proposalWeekLabel,
+  seasonPhaseLabel,
   type ProposalHistoryEntry,
   type ScheduleMatch,
   type ScheduleMatchResult,
@@ -281,5 +282,69 @@ describe("proposalWeekLabel", () => {
     expect(proposalWeekLabel({ week_number: 4, is_playoff: true })).toBe(
       "Playoffs",
     );
+  });
+});
+
+describe("seasonPhaseLabel", () => {
+  const match = (status: ScheduleMatch["status"]) => ({ status });
+
+  it("calls a league with no schedule and no week the preseason", () => {
+    // A league still in its draft has no current week, which used to be read as
+    // the postseason.
+    expect(
+      seasonPhaseLabel({
+        currentWeek: null,
+        regularSeasonCompleted: false,
+        regularMatches: [],
+      }),
+    ).toBe("Preseason");
+  });
+
+  it("calls a league in the middle of the regular season its current week", () => {
+    expect(
+      seasonPhaseLabel({
+        currentWeek: 3,
+        regularSeasonCompleted: false,
+        regularMatches: [match("completed"), match("scheduled")],
+      }),
+    ).toBe("Current week 3");
+  });
+
+  it("calls a frozen regular season the postseason even with a parked week", () => {
+    // The deadline sweep leaves current_week on the final week when it closes
+    // the regular season out, so completion has to win over the pointer.
+    expect(
+      seasonPhaseLabel({
+        currentWeek: 8,
+        regularSeasonCompleted: true,
+        regularMatches: [match("completed")],
+      }),
+    ).toBe("Postseason");
+  });
+
+  it("calls a fully decided schedule the postseason without a deadline", () => {
+    // A league that never ran a weekly deadline never has the completion flag
+    // set, so an all-settled schedule is the only signal it is over.
+    expect(
+      seasonPhaseLabel({
+        currentWeek: null,
+        regularSeasonCompleted: false,
+        regularMatches: [
+          match("completed"),
+          match("forfeit"),
+          match("cancelled"),
+        ],
+      }),
+    ).toBe("Postseason");
+  });
+
+  it("stays in the preseason while any regular match is undecided", () => {
+    expect(
+      seasonPhaseLabel({
+        currentWeek: null,
+        regularSeasonCompleted: false,
+        regularMatches: [match("completed"), match("unscheduled")],
+      }),
+    ).toBe("Preseason");
   });
 });

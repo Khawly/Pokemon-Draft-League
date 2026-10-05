@@ -2088,7 +2088,7 @@ function PoolPageContent({
                         <th className="px-4 py-3 font-semibold">
                           Abilities
                         </th>
-                        <SortHeader label="Total" column="bst" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} center />
+                        <SortHeader label="BST" column="bst" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} center />
                         <SortHeader label="HP" column="hp" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
                         <SortHeader label="Atk" column="attack" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
                         <SortHeader label="Def" column="defense" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />

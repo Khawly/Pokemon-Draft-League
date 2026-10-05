@@ -66,6 +66,12 @@ export type TradeSettings = {
    * owner is the only approver; when it is on the admins join the voting pool.
    */
   owners_admins_vote_on_trades: boolean;
+  /**
+   * The league's "Allow Tokens to Be Traded" switch. Only meaningful when
+   * `enable_pokemon_costs` is on; without a token economy there is nothing for a
+   * token amount to be measured against.
+   */
+  allow_token_trades: boolean;
 };
 
 /** A team slot in the season with its owner's resolved display info. */
@@ -129,6 +135,13 @@ export type Trade = {
   updated_at: string;
   /** When the roster swap landed. Null until the trade completes. */
   completed_at: string | null;
+  /**
+   * Tokens the proposer is sending. This comes out of the proposer's budget and
+   * goes onto the recipient's, the opposite of how sending a Pokémon behaves.
+   */
+  proposerTokenAmount: number;
+  /** Tokens the recipient is sending, counted the same way. */
+  recipientTokenAmount: number;
   items: TradeItem[];
   votes: TradeVote[];
 };
@@ -220,6 +233,8 @@ type TradeRow = {
   created_at: string;
   updated_at: string;
   completed_at: string | null;
+  proposer_token_amount: number | null;
+  recipient_token_amount: number | null;
   proposer?: { display_name?: string | null } | null;
   recipient?: { display_name?: string | null } | null;
 };
@@ -340,7 +355,7 @@ export async function loadTradesPageData(leagueId: string): Promise<TradesGoods>
     supabase
       .from("league_settings")
       .select(
-        "enable_pokemon_costs, total_token_salary, allow_per_team_salary, admins_approve_trades, owners_admins_vote_on_trades",
+        "enable_pokemon_costs, total_token_salary, allow_per_team_salary, admins_approve_trades, owners_admins_vote_on_trades, allow_token_trades",
       )
       .eq("season_id", season.id)
       .maybeSingle(),
@@ -369,6 +384,7 @@ export async function loadTradesPageData(leagueId: string): Promise<TradesGoods>
     allow_per_team_salary: boolean;
     admins_approve_trades: boolean;
     owners_admins_vote_on_trades: boolean;
+    allow_token_trades: boolean;
   } | null;
 
   const settings: TradeSettings | null = settingsRow
@@ -378,6 +394,7 @@ export async function loadTradesPageData(leagueId: string): Promise<TradesGoods>
         allow_per_team_salary: settingsRow.allow_per_team_salary,
         admins_approve_trades: settingsRow.admins_approve_trades,
         owners_admins_vote_on_trades: settingsRow.owners_admins_vote_on_trades,
+        allow_token_trades: settingsRow.allow_token_trades,
       }
     : null;
 
@@ -493,7 +510,7 @@ export async function loadTradesPageData(leagueId: string): Promise<TradesGoods>
   const { data: tradeRows, error: tradeError } = await supabase
     .from("trades")
     .select(
-      "id, status, proposer_user_id, recipient_user_id, created_at, updated_at, completed_at, proposer: proposer_user_id (display_name), recipient: recipient_user_id (display_name)",
+      "id, status, proposer_user_id, recipient_user_id, created_at, updated_at, completed_at, proposer_token_amount, recipient_token_amount, proposer: proposer_user_id (display_name), recipient: recipient_user_id (display_name)",
     )
     .eq("league_id", leagueId)
     .eq("season_id", season.id)
@@ -606,6 +623,8 @@ export async function loadTradesPageData(leagueId: string): Promise<TradesGoods>
     created_at: row.created_at,
     updated_at: row.updated_at,
     completed_at: row.completed_at,
+    proposerTokenAmount: row.proposer_token_amount ?? 0,
+    recipientTokenAmount: row.recipient_token_amount ?? 0,
     items: (itemsByTrade.get(row.id) ?? []).sort((a, b) =>
       a.side === b.side ? a.name.localeCompare(b.name) : a.side === "proposer" ? -1 : 1,
     ),
@@ -716,17 +735,39 @@ export type TradeValueShift = {
  * @param incoming - Pokémon leaving the recipient's roster.
  * @param costsEnabled - Whether the league charges for Pokémon at all. With costs
  *   off no tier was ever charged, so nothing moves.
+ * @param proposerTokens - Tokens the proposer is sending.
+ * @param recipientTokens - Tokens the recipient is sending.
  * @returns Both sides' balance changes.
  */
 export function tradeValueShift(
   outgoing: TradePokemon[],
   incoming: TradePokemon[],
   costsEnabled: boolean,
+  proposerTokens = 0,
+  recipientTokens = 0,
 ): TradeValueShift {
   const sumTiers = (rows: TradePokemon[]): number =>
     costsEnabled ? rows.reduce((sum, row) => sum + row.tier_value, 0) : 0;
 
-  const proposerDelta = sumTiers(outgoing) - sumTiers(incoming);
+  /*
+   * Tokens run the opposite way to Pokémon, which is the whole reason this is not
+   * just another term in the tier sum.
+   *
+   * Handing over a Pokémon frees budget, because the tier it was bought for is no
+   * longer carried and `complete_trade` writes a negative `cost_delta` for it.
+   * Handing over tokens costs budget: the tokens are the currency, so giving them
+   * away is exactly what the other side spends them on, and `complete_trade`
+   * writes a positive `cost_delta` against the sender. Reading a token transfer as
+   * a refund made the projection promise the sender a larger balance than the
+   * database would hold, and flagged the wrong side as the one going broke.
+   *
+   * Both are gated on costs being on, matching `complete_trade`: with costs off
+   * nothing is charged for anything, so a stored amount must not move a balance.
+   */
+  const given = costsEnabled ? proposerTokens : 0;
+  const received = costsEnabled ? recipientTokens : 0;
+
+  const proposerDelta = sumTiers(outgoing) - sumTiers(incoming) - given + received;
 
   /*
    * Negating zero would produce -0, which is equal to 0 under `===` but not under
@@ -812,6 +853,8 @@ export function getTeamSalary(goods: TradesGoods, teamId: string): TeamSalary {
  * @param recipientTeamId - The team receiving them.
  * @param outgoing - Pokémon leaving the proposer's roster.
  * @param incoming - Pokémon leaving the recipient's roster.
+ * @param proposerTokens - Tokens the proposer is sending.
+ * @param recipientTokens - Tokens the recipient is sending.
  * @returns The two projected balances, the two net deltas, and whether both sides
  *   stay solvent.
  */
@@ -821,6 +864,8 @@ export function projectTradeBalance(
   recipientTeamId: string,
   outgoing: TradePokemon[],
   incoming: TradePokemon[],
+  proposerTokens = 0,
+  recipientTokens = 0,
 ): TradeProjection {
   const proposerSalary = getTeamSalary(goods, proposerTeamId);
   const recipientSalary = getTeamSalary(goods, recipientTeamId);
@@ -837,6 +882,8 @@ export function projectTradeBalance(
     outgoing,
     incoming,
     costed,
+    proposerTokens,
+    recipientTokens,
   );
 
   const proposerRemaining = proposerSalary.remaining + proposerDelta;
@@ -1115,6 +1162,8 @@ export function totalTierValue(items: TradePokemon[]): number {
  * @param recipientUserId - The member being asked.
  * @param offer - Pokémon slugs the proposer sends.
  * @param request - Pokémon slugs the proposer wants to receive.
+ * @param proposerTokens - Tokens the proposer is sending.
+ * @param recipientTokens - Tokens the recipient is sending.
  * @returns The new trade's id.
  * @throws If the database rejects the proposal.
  */
@@ -1123,6 +1172,8 @@ export async function proposeTrade(
   recipientUserId: string,
   offer: string[],
   request: string[],
+  proposerTokens = 0,
+  recipientTokens = 0,
 ): Promise<string> {
   const toJson = (slugs: string[]) => slugs.map((pokemon_id) => ({ pokemon_id }));
 
@@ -1131,6 +1182,8 @@ export async function proposeTrade(
     p_recipient_user_id: recipientUserId,
     p_offer: toJson(offer),
     p_request: toJson(request),
+    p_proposer_tokens: proposerTokens,
+    p_recipient_tokens: recipientTokens,
   });
 
   if (error) {

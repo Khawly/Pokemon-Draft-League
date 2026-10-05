@@ -43,6 +43,7 @@ import {
   isPokemonPicked,
   loadDraftData,
   resetDraft,
+  resolveQuietHours,
   resolveDraftTimeout,
   savePriorityList,
   setDraftPaused,
@@ -56,6 +57,7 @@ import {
   getPokemonDetailsBySlug,
   getSpriteUrl,
 } from "@/lib/pokeapi";
+import { useUserTimeZone } from "@/lib/user-timezone";
 
 /*
  * Small shared building blocks, mirroring the pool page's sprite/type/tier
@@ -250,33 +252,46 @@ function DraftTimer({
   startedAt,
   pausedAt,
   now,
+  quietActive = false,
 }: {
   limitMinutes: number | null;
   status: DraftStatus | null;
   startedAt: string | null;
   pausedAt: string | null;
   now: number;
+  /**
+   * True while the league's quiet hours window is open, so the timer can present
+   * itself as held rather than running down into an auto-pick that the server is
+   * going to refuse anyway.
+   */
+  quietActive?: boolean;
 }) {
   const limitMs = (limitMinutes && limitMinutes > 0 ? limitMinutes : 5) * 60_000;
 
   if (status === "draft_active" && startedAt) {
     const deadline = new Date(startedAt).getTime() + limitMs;
 
-    if (pausedAt) {
-      // The timer is frozen: show the remaining budget as of the pause instant.
-      const pausedAtMs = new Date(pausedAt).getTime();
+    if (pausedAt || quietActive) {
+      /*
+       * Frozen. Both a manual pause and an open quiet hours window stop the clock,
+       * so the countdown is anchored to the start stamp and reads as the full pick
+       * budget rather than draining to zero. That is also what the server settles
+       * on: it parks draft_pick_started_at at the end of the window, which hands
+       * the picker a fresh full pick when quiet hours lift.
+       */
+      const pausedAtMs = new Date(pausedAt ?? startedAt).getTime();
       return (
         <div className="flex items-center gap-3 rounded-xl border border-slate-700 bg-slate-800/60 px-4 py-2.5">
           <div>
             <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
-              Draft Timer
+              {quietActive ? "Quiet Hours" : "Draft Timer"}
             </p>
             <p className="font-mono text-xl font-bold tabular-nums text-slate-100">
               {formatCountdown(deadline, pausedAtMs)}
             </p>
           </div>
           <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-300">
-            Paused
+            {quietActive ? "Held" : "Paused"}
           </span>
         </div>
       );
@@ -371,6 +386,15 @@ function DraftHeader({
   const canTogglePause =
     !!isOwner && status === "draft_active" && !!onTogglePause;
 
+  /*
+   * The quiet hours window, rendered in the reader's own zone rather than the zone
+   * the league stores it in. Both are true at once and mean different things: the
+   * stored zone is what the server decides the window in, and this label is so each
+   * member reads the same window in the clock they actually keep.
+   */
+  const timeZone = useUserTimeZone();
+  const quietHours = resolveQuietHours(goods, timeZone, new Date(now));
+
   return (
     <header className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-xl shadow-slate-950/30">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -395,6 +419,7 @@ function DraftHeader({
             startedAt={season?.draft_pick_started_at ?? null}
             pausedAt={season?.draft_paused_at ?? null}
             now={now}
+            quietActive={quietHours.activeNow}
           />
 
           {canTogglePause && (
@@ -423,7 +448,7 @@ function DraftHeader({
               onClick={onReset}
               disabled={resetting || status === "draft_pending"}
               className="rounded-xl border border-red-800 bg-red-950/40 px-4 py-2 text-sm font-medium text-red-300 transition hover:bg-red-950/70 hover:text-red-200 disabled:cursor-not-allowed disabled:opacity-40"
-              title="Return the draft to its pre-draft state"
+              title="Return the draft to its pre-draft state, restoring each player's priority list"
             >
               {resetting ? "Resetting..." : "Reset Draft"}
             </button>
@@ -453,6 +478,28 @@ function DraftHeader({
         {slice.isSnakeReversal && !slice.isOver && (
           <span className="text-amber-400">Snake reversal</span>
         )}
+
+        {/*
+          The window itself, in the reader's zone, plus a live marker when it is
+          open right now. Shown whenever the league has quiet hours switched on,
+          not only while active: a member planning a pick needs to know when the
+          timer will be held, which is the one thing they cannot infer from a
+          countdown that is currently running.
+        */}
+        {quietHours.enabled && quietHours.label && (
+          <span
+            className={quietHours.activeNow ? "text-amber-300" : "text-slate-400"}
+            title={
+              quietHours.zone
+                ? `Set by the league in ${quietHours.zone}`
+                : undefined
+            }
+          >
+            Quiet hours {quietHours.label}
+            {quietHours.activeNow ? " · active now" : ""}
+          </span>
+        )}
+
         {slice.isOver && (
           <span className="font-semibold text-emerald-300">Complete</span>
         )}
@@ -462,11 +509,88 @@ function DraftHeader({
 }
 
 /*
- * The pick board: a grid of player columns (in draft order) and round rows.
- * Each player's card sits in its own column; each round row holds that player's
- * Pokemon card once a pick lands, so the board shows the season's picks at a
- * glance. The on-clock column and current round are highlighted.
+ * The pick board: one card per player (in draft order), showing that player's
+ * Pokemon card for each round once a pick lands, so the board shows the season's
+ * picks at a glance. The on-clock player and current round are highlighted.
+ *
+ * The player cards themselves can be arranged in a row (side by side, as they
+ * have always been) or in a column (one full-width card per row); see
+ * {@link PickBoardLayout} for why both exist.
  */
+
+/** How the draft board is presented. */
+type PickBoardLayout = "column" | "row" | "table";
+
+/** LocalStorage key persisting the member's preferred pick board layout. */
+const PICK_BOARD_LAYOUT_STORAGE_KEY =
+  "pokemon-draft-league:draft-board-layout";
+
+/**
+ * The board views offered by the header toggle, in the order they appear.
+ *
+ * Declared as data so the render has no per-view special cases, matching how the
+ * pool panel builds its own tab strip.
+ */
+const PICK_BOARD_LAYOUT_OPTIONS = [
+  {
+    key: "column",
+    label: "Column",
+    title: "One player card per row, full panel width",
+  },
+  {
+    key: "row",
+    label: "Row",
+    title: "Player cards side by side in a row",
+  },
+  {
+    key: "table",
+    label: "Table",
+    title: "One row per player, one column per round",
+  },
+] as const satisfies ReadonlyArray<{
+  key: PickBoardLayout;
+  label: string;
+  title: string;
+}>;
+
+/**
+ * Reads the stored pick board layout.
+ *
+ * Defaults to the row layout, which is the denser of the card views and the one
+ * the board opens on. An explicit choice is still honored, so a member who has
+ * switched view keeps it. Anything unrecognized or unreadable falls back to the
+ * default, so a private-mode browser or a stale key cannot leave the board
+ * unrenderable.
+ *
+ * @returns The stored layout, or `"row"` when none is stored.
+ */
+function getStoredPickBoardLayout(): PickBoardLayout {
+  if (typeof window === "undefined") {
+    return "row";
+  }
+
+  try {
+    const stored = window.localStorage.getItem(PICK_BOARD_LAYOUT_STORAGE_KEY);
+    return stored === "column" || stored === "row" || stored === "table"
+      ? stored
+      : "row";
+  } catch {
+    return "row";
+  }
+}
+
+/**
+ * Persists the pick board layout so the board opens the way it was left.
+ *
+ * @param layout - The layout to remember.
+ */
+function storePickBoardLayout(layout: PickBoardLayout) {
+  try {
+    window.localStorage.setItem(PICK_BOARD_LAYOUT_STORAGE_KEY, layout);
+  } catch {
+    // A failed write only costs the preference, never the layout itself.
+  }
+}
 
 /**
  * Resolves the dex id for a pick's pokemon id slug.
@@ -475,21 +599,57 @@ function dexOf(pokemonId: string | null): number {
   return getDexNumber(pokemonId ?? "");
 }
 
-/**
- * Renders the player-pick board: one card per player (left to right in draft
- * order) with one row per round, Pokemon cards filling in as picks are made.
- * Players come from the league roster so the board renders before start.
- *
- * @param props - {@link ArenaPanelProps}
- * @returns The pick board markup.
- */
-function PickBoardGrid({ goods, now }: ArenaPanelProps) {
-  const slice = computeDraftSlice(goods);
-  const totalRounds = goods.settings?.total_rounds ?? slice.totalRounds;
-  const rounds = Array.from({ length: totalRounds }, (_, index) => index + 1);
+/** One player, resolved for whichever board view is showing. */
+type PickBoardRow = {
+  /** The member's user id; stable across renders, so usable as a React key. */
+  userId: string;
+  /**
+   * The player's name. A board names a person, so this reads their live display
+   * name and only falls back to the draft-time team-name snapshot.
+   */
+  name: string;
+  /** Draft position, or null when none has been assigned. */
+  draftPosition: number | null;
+  /** The player's avatar, or null when they have not set one. */
+  avatarUrl: string | null;
+  /** Whether this player is on the clock right now. */
+  isOnClock: boolean;
+  /** The round on the clock when it is this player's turn, else null. */
+  currentRound: number | null;
+  /** Budget remaining and total, or null when token costs are switched off. */
+  salary: { remaining: number; budget: number } | null;
+  /** This player's picks, keyed by round number. */
+  picks: Map<number, DraftPick>;
+  /** The player's team row, once the draft has mirrored one. */
+  team: DraftTeam | null;
+  /**
+   * The overall draft pick number for one of this player's rounds.
+   *
+   * @param round - The round number to resolve.
+   * @returns The overall pick position in the draft.
+   */
+  overallPickFor: (round: number) => number;
+};
 
-  // Teams by owner so each player panel can show its drafted team name once the
-  // season has started; players still render before start via their member row.
+/**
+ * Resolves the board's per-player state, shared by the card and table views.
+ *
+ * All three views describe the same league state, so draft order, the pick
+ * lookup, the on-clock player, and the salary figures are derived once here
+ * rather than re-derived per view, where they would drift apart.
+ *
+ * @param goods - The loaded draft state.
+ * @returns One resolved row per player, in draft order.
+ */
+function usePickBoardRows(goods: DraftGoods): PickBoardRow[] {
+  const slice = computeDraftSlice(goods);
+
+  const onClockOwnerUserId = !slice.isOver
+    ? (slice.currentTeam?.owner_user_id ?? null)
+    : null;
+
+  // Teams by owner so each player can show its drafted team name once the season
+  // has started; players still resolve before start via their member row.
   const teamByOwner = useMemo(() => {
     const map = new Map<string, DraftTeam>();
     goods.teams.forEach((team) => {
@@ -498,26 +658,210 @@ function PickBoardGrid({ goods, now }: ArenaPanelProps) {
     return map;
   }, [goods.teams]);
 
-  // Order panels by the member's own draft slot, falling back to join order.
-  const withPosition = goods.members.filter(
-    (member) => member.draft_position !== null,
-  );
-  const ordered = (withPosition.length > 0 ? withPosition : goods.members).sort(
-    (a, b) =>
-      (a.draft_position ?? Number.MAX_SAFE_INTEGER) -
-      (b.draft_position ?? Number.MAX_SAFE_INTEGER),
-  );
+  // Order players by their own draft slot, falling back to join order.
+  const ordered = useMemo(() => {
+    const withPosition = goods.members.filter(
+      (member) => member.draft_position !== null,
+    );
+    return (withPosition.length > 0 ? withPosition : goods.members).sort(
+      (a, b) =>
+        (a.draft_position ?? Number.MAX_SAFE_INTEGER) -
+        (b.draft_position ?? Number.MAX_SAFE_INTEGER),
+    );
+  }, [goods.members]);
 
-  // Index picks by owner + round so each board slot resolves its card in O(1).
-  const pickCellKey = (ownerUserId: string, round: number) =>
-    `${ownerUserId}:${round}`;
-  const pickByOwnerRound = useMemo(() => {
-    const map = new Map<string, DraftPick>();
+  // Group picks by owner once, so each row can take its own without every view
+  // rebuilding the same index.
+  const picksByOwner = useMemo(() => {
+    const map = new Map<string, DraftPick[]>();
     goods.picks.forEach((pick) => {
-      map.set(pickCellKey(pick.owner_user_id, pick.round_number), pick);
+      const existing = map.get(pick.owner_user_id);
+      if (existing) {
+        existing.push(pick);
+      } else {
+        map.set(pick.owner_user_id, [pick]);
+      }
     });
     return map;
   }, [goods.picks]);
+
+  // Overall pick number for a draft slot: snakes (reverse) every even round.
+  const isSnake = (goods.settings?.draft_format ?? "snake") === "snake";
+  const numPlayers = Math.max(ordered.length, 1);
+  const costsEnabled = goods.settings?.enable_pokemon_costs === true;
+
+  return useMemo(
+    () =>
+      ordered.map((member, index) => {
+        const team = teamByOwner.get(member.user_id) ?? null;
+        const slot = member.draft_position ?? index + 1;
+        const isOnClock = onClockOwnerUserId === member.user_id;
+
+        const picks = new Map<number, DraftPick>();
+        (picksByOwner.get(member.user_id) ?? []).forEach((pick) => {
+          picks.set(pick.round_number, pick);
+        });
+
+        return {
+          userId: member.user_id,
+          name: member.display_name ?? team?.team_name ?? "Unnamed player",
+          draftPosition: member.draft_position,
+          avatarUrl: member.avatar_url,
+          isOnClock,
+          currentRound: isOnClock ? slice.roundNumber : null,
+          salary: team && costsEnabled ? getTeamSalary(goods, team.id) : null,
+          picks,
+          team,
+          overallPickFor: (round: number): number => {
+            const pickInRound =
+              isSnake && round % 2 === 0 ? numPlayers - slot + 1 : slot;
+            return (round - 1) * numPlayers + pickInRound;
+          },
+        };
+      }),
+    [ordered, teamByOwner, picksByOwner, onClockOwnerUserId, slice.roundNumber, isSnake, numPlayers, costsEnabled, goods],
+  );
+}
+
+/**
+ * The pick board panel: owns the view toggle and renders the chosen view.
+ *
+ * Three views share one header and one set of resolved rows:
+ *
+ * - "row" (the default) puts the player cards side by side in a horizontally
+ *   scrolling strip, each a narrow column with its picks stacked down it. That is
+ *   the denser read: it compares players against each other, which is what you
+ *   want mid-draft, and every round of every player is visible at once because the
+ *   cards grow to fit rather than scrolling internally.
+ * - "column" puts one full-width card per row instead, and lays that card's picks
+ *   out along a single line. A wide card reads as a per-player season summary, but
+ *   it pushes the last players below the fold, so it is the worse view for
+ *   tracking who is on the clock.
+ * - "table" drops the cards entirely for a grid of one row per player and one
+ *   column per round, carrying only names and token budgets.
+ *
+ * The layout is read in a state initializer rather than an effect: the board only
+ * mounts once `loadDraftData` has resolved on the client, so there is no
+ * server-rendered markup for it to disagree with, and seeding it lazily avoids
+ * the extra render an effect-seeded value would cost.
+ *
+ * @param props - {@link ArenaPanelProps}
+ * @returns The pick board panel markup.
+ */
+function PickBoard({ goods, now }: ArenaPanelProps) {
+  const [layout, setLayout] = useState<PickBoardLayout>(
+    getStoredPickBoardLayout,
+  );
+
+  const slice = computeDraftSlice(goods);
+  const totalRounds = goods.settings?.total_rounds ?? slice.totalRounds;
+  const rounds = useMemo(
+    () => Array.from({ length: totalRounds }, (_, index) => index + 1),
+    [totalRounds],
+  );
+
+  const rows = usePickBoardRows(goods);
+  const mine = rows.find((row) => row.userId === goods.currentUserId);
+
+  const changeLayout = (next: PickBoardLayout) => {
+    setLayout(next);
+    storePickBoardLayout(next);
+  };
+
+  return (
+    <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-5 shadow-xl shadow-slate-950/30">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">
+          Draft Board
+        </h2>
+
+        <div className="flex flex-wrap items-center gap-3">
+          {PICK_BOARD_LAYOUT_OPTIONS.map((option) => (
+            <button
+              key={option.key}
+              type="button"
+              title={option.title}
+              onClick={() => changeLayout(option.key)}
+              className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition ${
+                layout === option.key
+                  ? "border-amber-400 bg-amber-500/10 text-amber-200"
+                  : "border-slate-700 bg-slate-900 text-slate-400 hover:border-slate-600 hover:text-slate-200"
+              }`}
+            >
+              {option.label}
+            </button>
+          ))}
+
+          <span className="text-xs text-slate-500">
+            {mine ? `You: ${mine.name}` : ""}
+          </span>
+        </div>
+      </div>
+
+      {rows.length === 0 ? (
+        <div className="rounded-xl border border-slate-800 p-8 text-center text-sm text-slate-500">
+          No players in this league yet.
+        </div>
+      ) : layout === "table" ? (
+        <PickBoardTable goods={goods} rows={rows} rounds={rounds} />
+      ) : (
+        <PickBoardCards
+          goods={goods}
+          rows={rows}
+          rounds={rounds}
+          cardsInRow={layout === "row"}
+        />
+      )}
+    </section>
+  );
+}
+
+/**
+ * Renders the pick board as one card per player, in draft order, with a cell per
+ * round filling in as picks are made. Players come from the league roster so the
+ * board renders before the draft starts.
+ *
+ * @param props.goods - The loaded draft state.
+ * @param props.rows - Per-player rows from {@link usePickBoardRows}.
+ * @param props.rounds - Every round number in the draft.
+ * @param props.cardsInRow - Whether cards sit side by side or one per row.
+ * @returns The player card markup.
+ */
+function PickBoardCards({
+  goods,
+  rows,
+  rounds,
+  cardsInRow,
+}: {
+  goods: DraftGoods;
+  rows: PickBoardRow[];
+  rounds: number[];
+  cardsInRow: boolean;
+}) {
+  /*
+   * Per-layout classes for a pick cell and the text inside it, held as data
+   * because the row layout needs them in three places and the reasoning is worth
+   * stating once.
+   *
+   * The row layout's cells are the full width of their player card rather than a
+   * fixed one. A fixed-width cell had nowhere to go once it outgrew the card's
+   * 13rem: the round label, sprite, species name, and the typing and tier chips
+   * together need roughly 220px, so the cell either shrank and centered (leaving
+   * a gap down the left of every card) or overflowed and got clipped mid-chip.
+   * Filling the card removes the gap entirely and gives the content the whole
+   * width, with the board's own horizontal scroll absorbing any excess.
+   */
+  const cellLayoutClasses = cardsInRow
+    ? "flex h-[3.25rem] w-full items-center justify-start gap-2 overflow-hidden text-left"
+    : "flex h-[6.5rem] w-44 shrink-0 flex-col items-center justify-center gap-1 overflow-hidden text-center";
+
+  const pickTextBlockClasses = cardsInRow
+    ? "min-w-0 flex-1 overflow-hidden"
+    : "w-full overflow-hidden";
+
+  const chipRowClasses = cardsInRow
+    ? "mt-0.5 flex flex-nowrap items-center justify-start gap-1 overflow-hidden"
+    : "mt-0.5 flex flex-nowrap items-center justify-center gap-1 overflow-hidden";
 
   // Index pool rows by pokemon slug so picked cards resolve the exact catalog
   // sprite id, typings, and tier the pool table uses (anniversary sprites etc.).
@@ -529,202 +873,338 @@ function PickBoardGrid({ goods, now }: ArenaPanelProps) {
     return map;
   }, [goods.poolRows]);
 
-  const onClockOwnerUserId = !slice.isOver
-    ? slice.currentTeam?.owner_user_id ?? null
-    : null;
-  const mine = goods.members.find(
-    (member) => member.user_id === goods.currentUserId,
-  );
-
-  // Overall pick number for a draft slot: snakes (reverse) every even round.
-  const isSnake = (goods.settings?.draft_format ?? "snake") === "snake";
-  const overallPickFor = (slot: number, round: number): number => {
-    const numPlayers = Math.max(ordered.length, 1);
-    const pickInRound =
-      isSnake && round % 2 === 0 ? numPlayers - slot + 1 : slot;
-    return (round - 1) * numPlayers + pickInRound;
-  };
-
   return (
-    <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-5 shadow-xl shadow-slate-950/30">
-      <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">
-          Draft Board
-        </h2>
-        <span className="text-xs text-slate-500">
-          {mine
-            ? "You: " +
-              (mine.display_name ??
-                teamByOwner.get(mine.user_id)?.team_name ??
-                "")
-            : ""}
-        </span>
-      </div>
+    <div
+      className={`pb-2 ${
+        cardsInRow ? "flex gap-3 overflow-x-auto" : "flex flex-col gap-3"
+      }`}
+    >
+      {rows.map((row, index) => {
+        const { name, salary, isOnClock, currentRound } = row;
 
-      {ordered.length === 0 ? (
-        <div className="rounded-xl border border-slate-800 p-8 text-center text-sm text-slate-500">
-          No players in this league yet.
-        </div>
-      ) : (
-        <div className="flex gap-3 overflow-x-auto pb-2">
-          {ordered.map((member, index) => {
-            const team = teamByOwner.get(member.user_id) ?? null;
-            const isOnClock = onClockOwnerUserId === member.user_id;
-            const currentRound = isOnClock ? slice.roundNumber : null;
-            // A draft panel names a person, so it reads their live display name
-            // and only falls back to the draft-time team-name snapshot.
-            const panelName =
-              member.display_name ?? team?.team_name ?? "Unnamed player";
-            const salary =
-              team && goods.settings?.enable_pokemon_costs
-                ? getTeamSalary(goods, team.id)
-                : null;
+        return (
+          <div
+            key={row.userId}
+            className={`rounded-2xl border p-3 transition ${
+              cardsInRow
+                ? "min-w-[15rem] flex-1 shrink-0 sm:min-w-[16rem]"
+                : "w-full"
+            } ${
+              isOnClock
+                ? "border-amber-400 bg-amber-500/10 shadow-lg shadow-amber-500/10"
+                : "border-slate-800 bg-slate-950/50"
+            }`}
+          >
+            {/* Player card header */}
+            <div className="flex items-center gap-2">
+              {row.avatarUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={row.avatarUrl}
+                  alt=""
+                  className="h-9 w-9 shrink-0 rounded-full border border-slate-700 object-cover"
+                />
+              ) : (
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-800 text-sm font-bold text-amber-300">
+                  {name.charAt(0).toUpperCase()}
+                </span>
+              )}
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold text-slate-100">
+                  {name}
+                </p>
+                <p className="truncate text-[10px] uppercase tracking-wider text-slate-500">
+                  Pick #{row.draftPosition ?? index + 1}
+                  {row.userId === goods.currentUserId ? " · You" : ""}
+                </p>
+                {salary && (
+                  <p
+                    className={`truncate font-mono text-xs font-semibold tabular-nums ${
+                      salary.remaining < 0
+                        ? "text-red-400"
+                        : "text-emerald-300"
+                    }`}
+                  >
+                    {salary.remaining}/{salary.budget} tokens
+                  </p>
+                )}
+              </div>
+              {isOnClock && (
+                <span className="shrink-0 rounded-full bg-amber-500/15 px-2 py-0.5 text-[9px] font-bold uppercase text-amber-300">
+                  On clock
+                </span>
+              )}
+            </div>
 
-            return (
+              {/*
+                The picks for this player, one cell per round. The two layouts
+                share one scroll container and only differ on its flex axis: a
+                narrow card in the row layout stacks its picks down the card,
+                while a full-width card in the column layout has room to lay them
+                out along a single line instead. Swapping the axis rather than
+                building a second renderer keeps the round numbering, the
+                on-clock highlight, and the pick cell contents identical between
+                them.
+
+                The row layout is deliberately uncapped. It used to stop at
+                22rem and scroll internally, which hid the later rounds behind a
+                scrollbar even on a tall monitor; letting the card grow to fit its
+                rounds means a player's whole draft is readable at once, and the
+                page itself scrolls instead. The column layout keeps its
+                horizontal scroll because a single line of many rounds overflows
+                even a full-width card.
+              */}
               <div
-                key={member.user_id}
-                className={`min-w-[13rem] flex-1 shrink-0 rounded-2xl border p-3 transition sm:min-w-[14rem] ${
-                  isOnClock
-                    ? "border-amber-400 bg-amber-500/10 shadow-lg shadow-amber-500/10"
-                    : "border-slate-800 bg-slate-950/50"
+                className={`mt-3 pr-1 ${
+                  cardsInRow
+                    ? "space-y-1.5"
+                    : "flex gap-1.5 overflow-x-auto"
                 }`}
               >
-                {/* Player card header */}
-                <div className="flex items-center gap-2">
-                  {member.avatar_url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={member.avatar_url}
-                      alt=""
-                      className="h-9 w-9 shrink-0 rounded-full border border-slate-700 object-cover"
-                    />
-                  ) : (
-                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-800 text-sm font-bold text-amber-300">
-                      {panelName.charAt(0).toUpperCase()}
-                    </span>
-                  )}
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold text-slate-100">
-                      {panelName}
-                    </p>
-                    <p className="truncate text-[10px] uppercase tracking-wider text-slate-500">
-                      Pick #{member.draft_position ?? index + 1}
-                      {member.user_id === goods.currentUserId ? " · You" : ""}
-                    </p>
-                    {salary && (
-                      <p
-                        className={`truncate font-mono text-xs font-semibold tabular-nums ${
-                          salary.remaining < 0
-                            ? "text-red-400"
-                            : "text-emerald-300"
+                {rounds.map((round) => {
+                  const pick = row.picks.get(round);
+                  const isCurrentSlot = currentRound === round;
+                  return (
+                    <div
+                      key={round}
+                      className={`rounded-lg border px-2 py-1.5 transition ${
+                        isCurrentSlot
+                          ? "border-amber-400/70 bg-amber-500/10"
+                          : pick
+                            ? pick.is_pass
+                              ? "border-slate-800 bg-slate-900/60"
+                              : "border-slate-700 bg-slate-900"
+                            : "border-slate-800/80 bg-slate-950/40"
+                      } ${
+                        /*
+                         * Layout classes are chosen outright rather than
+                         * appended, because both layouts would otherwise set
+                         * align-items and gap, and Tailwind resolves same-group
+                         * utilities by stylesheet order rather than by the order
+                         * they appear in this string.
+                         *
+                         * Every cell is a fixed height so the rounds line up
+                         * evenly down a card. They have to be: a picked cell
+                         * carries a sprite, a name, and its typing chips, while a
+                         * passed or not-yet-drafted cell carries a single line of
+                         * text, so left to size themselves the rows came out at
+                         * three different heights and the board read as a ragged
+                         * list. Overflow is clipped rather than allowed to grow
+                         * the cell, which is what would reintroduce the unevenness.
+                         */
+                        cellLayoutClasses
+                      }`}
+                    >
+                      {/*
+                          * The round label spells itself out in the column
+                          * layout, which has the width for it, and stays
+                          * abbreviated to "R1" in the row layout, where the cell
+                          * shares a single line with the sprite, name, and chips
+                          * and a full word would push them all out of view. The
+                          * fixed gutter width belongs to the row layout only; the
+                          * column cell is a stack, so the label spans it instead.
+                          */}
+                      <span
+                        className={`shrink-0 text-[10px] font-bold uppercase tracking-wider text-slate-500 ${
+                          cardsInRow ? "w-7" : "w-full"
                         }`}
                       >
-                        {salary.remaining}/{salary.budget} tokens
-                      </p>
-                    )}
-                  </div>
-                  {isOnClock && (
-                    <span className="shrink-0 rounded-full bg-amber-500/15 px-2 py-0.5 text-[9px] font-bold uppercase text-amber-300">
-                      On clock
-                    </span>
-                  )}
-                </div>
-
-                {/* One row per round; each holds the player's Pokemon card. */}
-                <div className="mt-3 max-h-[22rem] space-y-1.5 overflow-y-auto pr-1">
-                  {rounds.map((round) => {
-                    const pick = pickByOwnerRound.get(
-                      pickCellKey(member.user_id, round),
-                    );
-                    const isCurrentSlot = currentRound === round;
-                    return (
-                      <div
-                        key={round}
-                        className={`flex items-center gap-2 rounded-lg border px-2 py-1.5 transition ${
-                          isCurrentSlot
-                            ? "border-amber-400/70 bg-amber-500/10"
-                            : pick
-                              ? pick.is_pass
-                                ? "border-slate-800 bg-slate-900/60"
-                                : "border-slate-700 bg-slate-900"
-                              : "border-slate-800/80 bg-slate-950/40"
-                        }`}
-                      >
-                        <span className="w-7 shrink-0 text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                          R{round}
-                        </span>
-                        {pick ? (
-                          pick.is_pass ? (
-                            <span className="text-xs font-medium text-slate-500">
-                              Pass
-                            </span>
-                          ) : (
-                            <>
-                              <Sprite
-                                spriteId={
-                                  pick.pokemon_id
-                                    ? (poolRowByPokemon.get(pick.pokemon_id)
-                                        ?.spriteId ?? dexOf(pick.pokemon_id))
-                                    : 0
-                                }
-                                name={pick.species_name ?? "Picked"}
-                                size={28}
-                              />
-                              <div className="min-w-0 flex-1">
-                                <p className="truncate text-xs font-medium text-slate-100">
-                                  {pick.species_name}
-                                </p>
-                                <div className="mt-0.5 flex flex-wrap items-center gap-1">
-                                  {(
-                                    [
-                                      poolRowByPokemon.get(
-                                        pick.pokemon_id ?? "",
-                                      )?.type_primary,
-                                      poolRowByPokemon.get(
-                                        pick.pokemon_id ?? "",
-                                      )?.type_secondary,
-                                    ] as (string | null | undefined)[]
-                                  )
-                                    .filter(Boolean)
-                                    .map((type) => (
-                                      <span
-                                        key={type}
-                                        className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${
-                                          TYPE_STYLES[type ?? ""] ??
-                                          "bg-slate-700 text-slate-200"
-                                        }`}
-                                      >
-                                        {type}
-                                      </span>
-                                    ))}
-                                  {pick.tier_value > 0 && (
-                                    <span className="rounded bg-slate-700 px-1.5 py-0.5 text-[10px] font-bold text-slate-200">
-                                      T{pick.tier_value}
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            </>
-                          )
-                        ) : (
-                          <span className="text-[11px] font-medium text-slate-500">
-                            Round {round} · Pick #
-                            {overallPickFor(
-                              member.draft_position ?? index + 1,
-                              round,
-                            )}
+                        {cardsInRow ? `R${round}` : `Round ${round}`}
+                      </span>
+                      {pick ? (
+                        pick.is_pass ? (
+                          <span className="text-xs font-medium text-slate-500">
+                            Pass
                           </span>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
+                        ) : (
+                          <>
+                            <Sprite
+                              spriteId={
+                                pick.pokemon_id
+                                  ? (poolRowByPokemon.get(pick.pokemon_id)
+                                      ?.spriteId ?? dexOf(pick.pokemon_id))
+                                  : 0
+                              }
+                              name={pick.species_name ?? "Picked"}
+                              size={28}
+                            />
+                              <div className={pickTextBlockClasses}>
+                              <p className="truncate text-xs font-medium text-slate-100">
+                                {pick.species_name}
+                              </p>
+                              <div className={chipRowClasses}>
+                                {(
+                                  [
+                                    poolRowByPokemon.get(
+                                      pick.pokemon_id ?? "",
+                                    )?.type_primary,
+                                    poolRowByPokemon.get(
+                                      pick.pokemon_id ?? "",
+                                    )?.type_secondary,
+                                  ] as (string | null | undefined)[]
+                                )
+                                  .filter(Boolean)
+                                  .map((type) => (
+                                    <span
+                                      key={type}
+                                      className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${
+                                        TYPE_STYLES[type ?? ""] ??
+                                        "bg-slate-700 text-slate-200"
+                                      }`}
+                                    >
+                                      {type}
+                                    </span>
+                                  ))}
+                                {pick.tier_value > 0 && (
+                                  <span className="rounded bg-slate-700 px-1.5 py-0.5 text-[10px] font-bold text-slate-200">
+                                    T{pick.tier_value}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </>
+                        )
+                      ) : (
+                        <span className="text-[11px] font-medium text-slate-500">
+                          Round {round} · Pick #
+                          {row.overallPickFor(round)}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
-            );
-          })}
-        </div>
-      )}
-    </section>
+            </div>
+          );
+        })}
+    </div>
+  );
+}
+
+/**
+ * Renders the pick board as a table: one row per player and one column per round.
+ *
+ * Deliberately text-only. The card views carry a sprite, the typing chips, and the
+ * tier badge per pick, which is what you want while picking but is a lot of ink for
+ * a grid this wide; the table exists to answer "who has what, and who has budget
+ * left" at a glance, so a cell holds the species name and nothing else. Tokens
+ * remaining is shown as a plain number, with the budget in the cell's tooltip for
+ * when the absolute figure matters.
+ *
+ * The player column is sticky because the round count is wide enough that scrolling
+ * right would otherwise lose track of whose row you are reading.
+ *
+ * @param props.goods - The loaded draft state, used to mark the viewer's own row.
+ * @param props.rows - Per-player rows from {@link usePickBoardRows}.
+ * @param props.rounds - Every round number in the draft.
+ * @returns The pick board table markup.
+ */
+function PickBoardTable({
+  goods,
+  rows,
+  rounds,
+}: {
+  goods: DraftGoods;
+  rows: PickBoardRow[];
+  rounds: number[];
+}) {
+  return (
+    <div className="overflow-x-auto pb-2">
+      <table className="w-full text-left text-sm">
+        <thead className="text-slate-400">
+          <tr className="border-b border-slate-800">
+            <th className="sticky left-0 z-10 bg-slate-900 px-3 py-2 font-medium">
+              Player
+            </th>
+            <th
+              className="px-3 py-2 text-left font-medium"
+              title="Tokens remaining in this player's budget"
+            >
+              Tokens
+            </th>
+            {rounds.map((round) => (
+              <th key={round} className="px-3 py-2 text-left font-medium">
+                Round {round}
+              </th>
+            ))}
+          </tr>
+        </thead>
+
+        <tbody>
+          {rows.map((row) => (
+            <tr
+              key={row.userId}
+              className={`border-b border-slate-800/80 transition ${
+                row.isOnClock ? "bg-amber-500/10" : "hover:bg-slate-800/40"
+              }`}
+            >
+              {/*
+                Sticky cells need their own opaque background or the scrolled
+                round columns show through them.
+              */}
+              <td className="sticky left-0 z-10 whitespace-nowrap bg-slate-900 px-3 py-2 font-medium text-slate-100">
+                {row.name}
+                {row.userId === goods.currentUserId && (
+                  <span className="ml-1 text-slate-500">· You</span>
+                )}
+              </td>
+
+              <td
+                className={`whitespace-nowrap px-3 py-2 text-left font-mono text-xs tabular-nums ${
+                  !row.salary
+                    ? "text-slate-600"
+                    : row.salary.remaining < 0
+                      ? "text-red-400"
+                      : "text-emerald-300"
+                }`}
+                title={
+                  row.salary
+                    ? `${row.salary.remaining} of ${row.salary.budget} tokens left`
+                    : "Token costs are off for this league"
+                }
+              >
+                {row.salary ? row.salary.remaining : "—"}
+              </td>
+
+              {rounds.map((round) => {
+                const pick = row.picks.get(round);
+                const isCurrentSlot = row.currentRound === round;
+
+                return (
+                  <td
+                    key={round}
+                    className={`max-w-[9rem] truncate px-3 py-2 ${
+                      isCurrentSlot ? "bg-amber-500/10" : ""
+                    }`}
+                    title={
+                      pick && !pick.is_pass
+                        ? `R${round}: ${pick.species_name} (pick #${row.overallPickFor(round)})`
+                        : undefined
+                    }
+                  >
+                    {!pick ? (
+                      <span className="text-slate-700">—</span>
+                    ) : pick.is_pass ? (
+                      <span className="text-slate-500">Pass</span>
+                    ) : (
+                      <span
+                        className={
+                          isCurrentSlot
+                            ? "font-semibold text-amber-200"
+                            : "text-slate-200"
+                        }
+                      >
+                        {pick.species_name}
+                      </span>
+                    )}
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -756,7 +1236,7 @@ type SortDir = "asc" | "desc";
 const SORT_LABELS: Record<SortKey, string> = {
   dex: "Dex",
   tier: "Tier",
-  bst: "Total",
+  bst: "BST",
   generation: "Gen",
   hp: "HP",
   attack: "Atk",
@@ -998,7 +1478,7 @@ function PoolPanel({
                       sortKey === "bst" ? "text-amber-300" : ""
                     }`}
                   >
-                    Total {sortKey === "bst" && (sortDir === "asc" ? "▲" : "▼")}
+                    BST {sortKey === "bst" && (sortDir === "asc" ? "▲" : "▼")}
                   </button>
                 </th>
                 {(
@@ -1299,7 +1779,7 @@ function PickConfirm({
             </div>
           </div>
           <div className="text-right">
-            <p className="text-xs text-slate-500">Total</p>
+            <p className="text-xs text-slate-500">BST</p>
             <p className="font-mono text-lg font-bold text-slate-100">
               {row.bst ?? "—"}
             </p>
@@ -2099,7 +2579,7 @@ function DraftArena({ leagueId }: { leagueId: string }) {
     const confirmed = await confirm({
       title: "Reset the draft?",
       detail:
-        "Every pick, roster, and the draft order for this season are cleared, returning it to its pre-draft state",
+        "Every pick and roster for this season are cleared, returning it to its pre-draft state. Each player's priority list is put back the way it was when the draft started",
       confirmLabel: "Reset draft",
       tone: "danger",
     });
@@ -2357,7 +2837,7 @@ function DraftArena({ leagueId }: { leagueId: string }) {
           </div>
         )}
 
-        <PickBoardGrid goods={goods} now={now} />
+        <PickBoard goods={goods} now={now} />
 
         <div className="grid min-h-0 flex-1 gap-6 lg:grid-cols-[2.2fr_1fr]">
           <PoolPanel

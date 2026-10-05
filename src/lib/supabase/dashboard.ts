@@ -140,6 +140,20 @@ export type DashboardNotification = {
   created_at: string;
 };
 
+/**
+ * The league's rules for the current season, as the dashboard panel shows them.
+ *
+ * A trimmed copy of the dashboard's own {@link LeagueRules} rather than an import,
+ * because this payload is consumed by a component that must not take a dependency
+ * on the rules module just to render a paragraph of text.
+ */
+export type DashboardRules = {
+  /** The rules text, or null when the owner has cleared them. */
+  content: string | null;
+  /** When the rules were last saved. */
+  updatedAt: string;
+};
+
 /** Everything the dashboard shell renders for the selected league. */
 export type DashboardGoods = {
   /** Latest season, or null when the league has not created one yet. */
@@ -170,8 +184,15 @@ export type DashboardGoods = {
   hasPlayoffs: boolean;
   /** League match format, used to describe the next match. */
   matchFormat: "single" | "best_of_3" | null;
-  /** Open trade proposals the member sent or received. */
+/** Open trade proposals the member sent or received. */
   pendingTradesCount: number;
+  /**
+   * The league's rules for the current season, or null when the owner has not set
+   * any. Carried here rather than fetched by the panel because the dashboard is the
+   * one page that has to render before the draft has finished, where the rules are
+   * the only thing there is to show.
+   */
+  rules: DashboardRules | null;
   /** Full standings table, ranked. */
   standings: DashboardStanding[];
   /** Open matches, the member's own first, capped at three. */
@@ -205,6 +226,15 @@ export type DashboardGoods = {
    * its own reads without re-resolving the league from the URL.
    */
   leagueId: string;
+  /**
+   * Whether the signed-in member owns this league.
+   *
+   * Carried because the rules panel words its empty state differently for the
+   * owner ("you have not set any") than for anyone else, and the shell has no other
+   * way to tell: the dashboard payload carries neither the league row nor the
+   * member's role.
+   */
+  isOwner: boolean;
 };
 
 
@@ -219,8 +249,9 @@ function emptyGoods(): DashboardGoods {
     currentWeek: null,
     totalWeeks: 0,
     hasPlayoffs: false,
-    matchFormat: null,
+matchFormat: null,
     pendingTradesCount: 0,
+    rules: null,
     standings: [],
     upcomingMatches: [],
     nextMatch: null,
@@ -231,6 +262,7 @@ function emptyGoods(): DashboardGoods {
     matchTimeAlertCount: 0,
     tradeAlertIds: [],
     tradeAlertCount: 0,
+    isOwner: false,
     leagueId: "",
   };
 }
@@ -297,14 +329,14 @@ export async function loadDashboardData(
     return emptyGoods();
   }
 
-  const [settingsResult, teamResult, standingsResult, matchResult] =
+const [settingsResult, teamResult, standingsResult, matchResult, rulesResult, leagueResult] =
     await Promise.all([
       supabase
         .from("league_settings")
         .select("regular_season_weeks, match_format")
         .eq("season_id", season.id)
         .limit(1)
-        .maybeSingle(),
+.maybeSingle(),
       supabase
         .from("teams")
         .select(
@@ -322,12 +354,47 @@ export async function loadDashboardData(
         .eq("league_id", leagueId)
         .eq("season_id", season.id)
         .order("week_number", { ascending: true }),
+      /*
+       * The rules for this season. A failure here is deliberately not fatal: the
+       * dashboard has a dozen other panels, and a league whose rules row is
+       * unreadable should still show its standings rather than an error page. The
+       * panel falls back to saying no rules are set.
+       */
+      supabase
+        .from("rules_documents")
+        .select("content, updated_at")
+        .eq("league_id", leagueId)
+        .eq("season_id", season.id)
+        .maybeSingle(),
+      /*
+       * The league's owner, so the shell can tell the owner apart from everyone
+       * else when wording the rules panel. Read last so the destructuring above
+       * lines up.
+       */
+      supabase
+        .from("leagues")
+        .select("owner_id")
+        .eq("id", leagueId)
+        .maybeSingle(),
     ]);
 
   const settings = settingsResult.data as {
     regular_season_weeks?: number | null;
     match_format?: "single" | "best_of_3" | null;
   } | null;
+
+  const isOwner =
+    (leagueResult.data as { owner_id?: string | null } | null)?.owner_id ===
+    userId;
+
+  const rulesRow = rulesResult.data as {
+    content: string | null;
+    updated_at: string;
+  } | null;
+
+  const rules: DashboardRules | null = rulesRow
+    ? { content: rulesRow.content, updatedAt: rulesRow.updated_at }
+    : null;
 
   const teams = ((teamResult.data ?? []) as {
     id: string;
@@ -533,6 +600,7 @@ export async function loadDashboardData(
     hasPlayoffs: matches.some((match) => match.is_playoff),
     matchFormat: settings?.match_format ?? null,
     pendingTradesCount: (tradeResult.data ?? []).length,
+    rules,
     standings,
     upcomingMatches: sortedOpen.slice(0, UPCOMING_MATCH_LIMIT),
     nextMatch:
@@ -550,6 +618,7 @@ export async function loadDashboardData(
     tradeAlertIds: tradeAlerts.ids,
     tradeAlertCount: tradeAlerts.count,
     leagueId,
+    isOwner,
   };
 }
 

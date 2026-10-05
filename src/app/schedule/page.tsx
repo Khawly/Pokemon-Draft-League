@@ -101,6 +101,7 @@ import {
   proposalOutcomeTone,
   proposalWeekLabel,
   respondToMatchProposal,
+  seasonPhaseLabel,
   submitGameResult,
   updateGameResult,
   type ProposalHistoryEntry,
@@ -887,6 +888,23 @@ function SchedulePageContent({
     }
     return null;
   }, [regularMatches, weekProgress]);
+
+  /*
+   * What the header calls the phase the league is in.
+   *
+   * Derived from the regular season rather than from the week pointer alone, so
+   * a league that has not started a week yet reads as the preseason instead of
+   * claiming the postseason.
+   */
+  const phaseLabel = useMemo(
+    () =>
+      seasonPhaseLabel({
+        currentWeek,
+        regularSeasonCompleted: weekProgress?.regular_season_completed === true,
+        regularMatches,
+      }),
+    [currentWeek, regularMatches, weekProgress],
+  );
 
   const selectedMatch = useMemo(
     () => goods?.matches.find((match) => match.id === selectedMatchId) ?? null,
@@ -1744,7 +1762,7 @@ function SchedulePageContent({
               <h1 className="text-3xl font-bold text-white">{goods.league.name}</h1>
               <p className="mt-1 text-sm text-slate-400">
                 Schedule • {formatSeasonLabel(goods.season)}
-                {currentWeek != null ? ` • Current week ${currentWeek}` : " • Postseason"}
+                {` • ${phaseLabel}`}
                 {" • All times in "}
                 <span className="text-slate-300">{formatTimeZoneLabel(timeZone)}</span>
               </p>

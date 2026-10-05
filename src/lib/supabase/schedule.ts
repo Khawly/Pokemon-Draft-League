@@ -1051,3 +1051,53 @@ export function proposalWeekLabel(group: {
 
   return `Week ${group.week_number}`;
 }
+
+/** Match statuses that are settled: nothing more will be decided about them. */
+const SETTLED_MATCH_STATUSES: ReadonlySet<ScheduleMatch["status"]> = new Set([
+  "completed",
+  "forfeit",
+  "cancelled",
+]);
+
+/**
+ * Labels the competitive phase a season is in.
+ *
+ * The phase is derived rather than stored because no single column tracks it:
+ * `seasons.status` only covers the draft, `league_settings.current_week` is the
+ * progression pointer, and the playoff flags live on individual matches. The
+ * trap is reading a missing current week as "the season is over" — a league
+ * still in its draft, or one that has not generated a schedule yet, has no
+ * current week either, so that reading labelled every new season "Postseason".
+ * The postseason now requires the regular season to actually be behind us,
+ * which is either the deadline sweep having closed the final week or every
+ * regular match already decided (a league that never ran a deadline and simply
+ * finished its schedule).
+ *
+ * @param input - The current week pointer, whether the regular season has been
+ *   frozen by the deadline sweep, and the season's non-playoff matches.
+ * @returns A label such as "Current week 3", "Preseason", or "Postseason".
+ */
+export function seasonPhaseLabel(input: {
+  currentWeek: number | null;
+  regularSeasonCompleted: boolean;
+  regularMatches: Pick<ScheduleMatch, "status">[];
+}): string {
+  const { currentWeek, regularSeasonCompleted, regularMatches } = input;
+
+  // Checked before the week pointer because the sweep deliberately leaves
+  // current_week parked on the final week when it freezes the regular season.
+  const regularSeasonOver =
+    regularSeasonCompleted ||
+    (regularMatches.length > 0 &&
+      regularMatches.every((match) => SETTLED_MATCH_STATUSES.has(match.status)));
+
+  if (regularSeasonOver) {
+    return "Postseason";
+  }
+
+  if (currentWeek != null) {
+    return `Current week ${currentWeek}`;
+  }
+
+  return "Preseason";
+}

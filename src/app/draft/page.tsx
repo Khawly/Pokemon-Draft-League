@@ -1264,14 +1264,51 @@ function PoolPanel({
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [tab, setTab] = useState<"table" | "tiers">("table");
 
+  /*
+   * The type filter chips, each labelled with how many Pokemon of that type are
+   * still unclaimed in the pool.
+   *
+   * A dual-type Pokemon counts toward both of its types, which is the same rule
+   * the filter itself matches on (a row passes when either its primary or
+   * secondary type equals the selected type), so the number on a chip always
+   * equals the number of rows that chip would show. Drafted Pokemon are
+   * subtracted from the pool total, so each chip counts down as the draft runs.
+   * That needs no local bookkeeping: goods.picks is the whole season's ledger
+   * and is refreshed on the draft poll interval and by realtime invalidation.
+   *
+   * Types whose count reaches zero stay on the bar rather than disappearing, so
+   * an exhausted type reads as a 0 instead of the chip vanishing mid-draft.
+   */
   const typeOptions = useMemo(() => {
-    const types = new Set<string>();
+    const counts = new Map<string, number>();
+    const add = (type: string | null, delta: number) => {
+      if (!type) {
+        return;
+      }
+      counts.set(type, (counts.get(type) ?? 0) + delta);
+    };
+
     goods.poolRows.forEach((row) => {
-      if (row.type_primary) types.add(row.type_primary);
-      if (row.type_secondary) types.add(row.type_secondary);
+      add(row.type_primary, 1);
+      add(row.type_secondary, 1);
     });
-    return [...types].sort();
-  }, [goods.poolRows]);
+
+    const poolByPokemon = new Map(
+      goods.poolRows.map((row) => [row.pokemon_id, row]),
+    );
+    goods.picks.forEach((pick) => {
+      const row = pick.pokemon_id ? poolByPokemon.get(pick.pokemon_id) : null;
+      if (!row) {
+        return;
+      }
+      add(row.type_primary, -1);
+      add(row.type_secondary, -1);
+    });
+
+    return [...counts.entries()]
+      .map(([type, count]) => ({ type, count: Math.max(0, count) }))
+      .sort((a, b) => a.type.localeCompare(b.type));
+  }, [goods.poolRows, goods.picks]);
 
   const picked = useMemo(
     () => new Set(goods.picks.map((pick) => pick.pokemon_id)),
@@ -1410,20 +1447,39 @@ function PoolPanel({
           >
             All
           </button>
-          {typeOptions.map((type) => (
+          {typeOptions.map(({ type, count }) => (
             <button
               key={type}
               type="button"
               onClick={() =>
                 setTypeFilter((current) => (current === type ? null : type))
               }
-              className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+              title={`${count} ${type}-type Pokémon left in the pool`}
+              className={`rounded-full px-2.5 py-1 text-xs font-semibold transition ${
+                TYPE_STYLES[type] ?? "bg-slate-700 text-slate-200"
+              } ${
                 typeFilter === type
-                  ? "bg-amber-500/15 text-amber-300"
-                  : "bg-slate-800 text-slate-400 hover:bg-slate-700"
+                  ? "ring-2 ring-amber-400 ring-offset-2 ring-offset-slate-950"
+                  : typeFilter == null
+                    ? "hover:brightness-110"
+                    : "opacity-50 hover:opacity-100"
               }`}
             >
-              {type.charAt(0).toUpperCase() + type.slice(1)}
+              <span className="flex items-center gap-1.5">
+                {type.charAt(0).toUpperCase() + type.slice(1)}
+                {/*
+                  Remaining count for the type. Dimmed to 0 once the type is
+                  exhausted, so a chip reads as spent rather than as data the
+                  page forgot to load.
+                */}
+                <span
+                  className={`rounded-full bg-slate-900/70 px-1.5 text-[10px] font-bold tabular-nums ${
+                    count === 0 ? "text-slate-500" : "text-slate-300"
+                  }`}
+                >
+                  {count}
+                </span>
+              </span>
             </button>
           ))}
         </div>
@@ -1635,7 +1691,7 @@ function PoolPanel({
                       {group.rows.length} Pokémon
                     </span>
                   </h2>
-                  <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="grid gap-3 sm:grid-cols-3">
                     {group.rows.map((row) => {
                       const isTaken = picked.has(row.pokemon_id);
                       const canPick = canPickRow(row);
@@ -2579,7 +2635,7 @@ function DraftArena({ leagueId }: { leagueId: string }) {
     const confirmed = await confirm({
       title: "Reset the draft?",
       detail:
-        "Every pick and roster for this season are cleared, returning it to its pre-draft state. Each player's priority list is put back the way it was when the draft started",
+        "This returns the season to its pre-draft state. Every pick and roster are cleared, and any matches, reported results and trades for this season are deleted with them, since they were built on the rosters being discarded. Each player's priority list is put back the way it was when the draft started",
       confirmLabel: "Reset draft",
       tone: "danger",
     });

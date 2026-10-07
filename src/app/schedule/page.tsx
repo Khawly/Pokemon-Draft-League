@@ -61,6 +61,7 @@ import { formatSeasonLabel } from "@/lib/supabase/seasons";
 import { deleteMatch } from "@/lib/supabase/teams";
 import { useUserTimeZone } from "@/lib/user-timezone";
 import { useRealtimeInvalidation } from "@/lib/use-realtime-invalidation";
+import { getSpriteUrl } from "@/lib/pokeapi";
 import {
   datePartOfInputValue,
   formatDateTimeInZone,
@@ -89,6 +90,8 @@ import {
 import {
   cancelMatchProposal,
   forfeitMatch,
+  ownerForfeitMatch,
+  ownerRevertForfeit,
   gameRecord,
   generatePlayoffRound,
   generateSchedule,
@@ -108,6 +111,7 @@ import {
   type ProposalHistoryGroup,
   type ScheduleMatch,
   type ScheduleMatchResult,
+  type ScheduleRosterSprite,
   type SchedulePageGoods,
 } from "@/lib/supabase/schedule";
 
@@ -198,6 +202,7 @@ function MatchupHistoryCard({
   hideSpoilers,
   selected,
   onSelect,
+  rostersByTeam,
 }: {
   /** The completed match to render. */
   match: ScheduleMatch;
@@ -211,6 +216,8 @@ function MatchupHistoryCard({
   selected: boolean;
   /** Loads this match into the Matchup section. */
   onSelect: () => void;
+  /** Sprite rosters keyed by team id, so each side shows its Pokemon. */
+  rostersByTeam: Record<string, ScheduleRosterSprite[]>;
 }) {
   const rows = buildGameRows(match, matchFormat);
   const winnerSide = (teamId: string) =>
@@ -218,13 +225,16 @@ function MatchupHistoryCard({
 
   const side = (teamId: string, name: string, avatarUrl: string | null) => (
     <div className="flex flex-1 flex-col items-center gap-1 text-center">
-      <Avatar name={name} avatarUrl={avatarUrl} size={40} winner={winnerSide(teamId)} />
+      <Avatar name={name} avatarUrl={avatarUrl} size={80} winner={winnerSide(teamId)} />
       <span className="font-semibold text-slate-100">{name}</span>
       {gameRecord(match, teamId) && (
         <Spoiler hidden={hideSpoilers}>
           <span className="text-sm text-slate-400">{gameRecord(match, teamId)}</span>
         </Spoiler>
       )}
+      <div className="mt-1">
+        <RosterSprites roster={rostersByTeam[teamId] ?? []} />
+      </div>
     </div>
   );
 
@@ -248,6 +258,9 @@ function MatchupHistoryCard({
       <div className="flex w-full items-center justify-between gap-3">
         {side(match.player_1_team_id, match.player_1_name, match.player_1_avatar_url)}
         <div className="flex flex-col items-center gap-1">
+          <span className="text-xs font-bold uppercase tracking-widest text-slate-500">
+            vs
+          </span>
           <span className="rounded-full bg-slate-800 px-3 py-1 text-xs font-semibold text-slate-300">
             {matchFormat === "single" ? "Single" : "Best of 3"}
           </span>
@@ -277,6 +290,11 @@ function MatchupHistoryCard({
                       <span className="text-slate-400">• {result.pokemon_left_alive} alive</span>
                     </Spoiler>
                   )}
+                  {result.reporter_name && (
+                    <span className="text-xs text-slate-500">
+                      Submitted by {result.reporter_name}
+                    </span>
+                  )}
                 </div>
                 {result.replay_url && (
                   <span
@@ -295,6 +313,12 @@ function MatchupHistoryCard({
             );
           })}
         </div>
+      )}
+
+      {match.status === "forfeit" && match.forfeited_by_name && (
+        <p className="mt-3 border-t border-slate-800 pt-3 text-xs text-slate-500">
+          Forfeited by {match.forfeited_by_name}
+        </p>
       )}
     </button>
   );
@@ -319,6 +343,17 @@ const STATUS_LABELS: Record<string, string> = {
   forfeit: "Forfeit",
   cancelled: "Cancelled",
 };
+
+/**
+ * Groups a match into its Upcoming matches week: one key per regular-season week,
+ * and a single shared key for the whole postseason.
+ *
+ * @param match - The match to classify.
+ * @returns A stable key such as "week-3" or "postseason".
+ */
+function upcomingWeekKeyOf(match: ScheduleMatch): string {
+  return match.is_playoff ? "postseason" : `week-${match.week_number}`;
+}
 
 /** A player's avatar: owner image or an initial-based circle. */
 function Avatar({
@@ -351,6 +386,78 @@ function Avatar({
         <span>{name?.charAt(0)?.toUpperCase() || "?"}</span>
       )}
     </div>
+  );
+}
+
+/** Props for {@link RosterSprites}. */
+interface RosterSpritesProps {
+  /** The team's roster to draw, richest Pokemon first. */
+  roster: ScheduleRosterSprite[];
+  /** Horizontal alignment of the row, so it matches the side's name. */
+  align?: "center" | "start";
+  /** Whether to print each Pokemon's name under its sprite. Off by default. */
+  showNames?: boolean;
+}
+
+/**
+ * One team's roster as sprites, shown under a player's name on a matchup card.
+ * A rostered Pokemon with no sprite falls back to a "?" tile, and a team with
+ * nothing rostered says so rather than rendering an empty row.
+ *
+ * With `showNames`, each name sits under its sprite. The sprite tile keeps its
+ * size; the name gets its own slot below it, so nothing shrinks to make room.
+ *
+ * @param props - {@link RosterSpritesProps}
+ * @returns A wrapping row of roster sprites, or a short empty-state line.
+ */
+function RosterSprites({ roster, align = "center", showNames = false }: RosterSpritesProps) {
+  if (roster.length === 0) {
+    return <p className="text-xs text-slate-500">No Pokémon yet</p>;
+  }
+
+  return (
+    <ul
+      className={
+        showNames
+          ? // Named sprites sit in a fixed three-column grid so a team reads as two rows of three.
+            "grid grid-cols-3 justify-items-center gap-x-1 gap-y-2"
+          : `flex flex-wrap items-start gap-1 ${
+              align === "center" ? "justify-center" : "justify-start"
+            }`
+      }
+    >
+      {roster.map((pokemon) => (
+        <li key={pokemon.id} className="flex flex-col items-center gap-1">
+          <div className="relative flex h-16 w-16 items-center justify-center overflow-hidden rounded-full border-2 border-slate-900 bg-[linear-gradient(to_bottom,#dc2626_0_45%,#0f172a_45%_55%,#f8fafc_55%)] shadow-md shadow-slate-950/50">
+            {/* Pokeball centre button, drawn beneath the sprite. */}
+            <span
+              aria-hidden="true"
+              className="absolute left-1/2 top-1/2 h-1/5 w-1/5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-slate-900 bg-white"
+            />
+            {pokemon.spriteId > 0 ? (
+              <img
+                src={getSpriteUrl(pokemon.spriteId)}
+                alt={pokemon.name}
+                title={pokemon.name}
+                width={48}
+                height={48}
+                loading="lazy"
+                className="relative h-12 w-12 object-contain"
+              />
+            ) : (
+              <span className="relative flex h-12 w-12 items-center justify-center rounded-full bg-slate-700 text-sm text-slate-400">
+                ?
+              </span>
+            )}
+          </div>
+          {showNames && (
+            <span className="w-20 break-words text-center text-[10px] leading-tight text-slate-300">
+              {pokemon.name}
+            </span>
+          )}
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -649,6 +756,10 @@ function SchedulePageContent({
   } | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>("Schedule");
   const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
+  /** The week picked in the Upcoming matches dropdown; null follows the current week. */
+  const [upcomingWeekKey, setUpcomingWeekKey] = useState<string | null>(null);
+  /** The week picked in the Match history dropdown; null follows the latest week. */
+  const [historyWeekKey, setHistoryWeekKey] = useState<string | null>(null);
 
   const [form, setForm] = useState({
     weeks: 0,
@@ -1058,6 +1169,23 @@ function SchedulePageContent({
     [goods, selectedMatch, myMatch],
   );
 
+  /*
+   * The league owner's actions on any open match, including one between two other
+   * teams: file a result (Add Replay, for matches they do not play) and forfeit
+   * either player or both. Scheduling stays with the participants (canAct).
+   */
+  const canOwnerActs = useMemo(
+    () =>
+      Boolean(
+        goods?.isOwner &&
+          selectedMatch &&
+          selectedMatch.status !== "completed" &&
+          selectedMatch.status !== "forfeit" &&
+          selectedMatch.status !== "cancelled",
+      ),
+    [goods?.isOwner, selectedMatch],
+  );
+
   /**
    * Labels a team by its owner's live display name, falling back to the team name.
    *
@@ -1269,6 +1397,93 @@ function SchedulePageContent({
       return aTime - bTime;
     });
   }, [goods]);
+
+  /*
+   * The week selector on the Upcoming matches panel. Options are only the weeks
+   * (and postseason) that still have an open match, since a completed week has
+   * nothing left to show there. Keys are stable strings so the selection survives
+   * a refetch.
+   */
+  const upcomingWeekOptions = useMemo(() => {
+    const options = new Map<string, { key: string; label: string; order: number }>();
+    for (const match of upcomingMatches) {
+      const key = upcomingWeekKeyOf(match);
+      if (!options.has(key)) {
+        options.set(key, {
+          key,
+          label: match.is_playoff ? "Postseason" : `Week ${match.week_number}`,
+          order: match.is_playoff ? Number.MAX_SAFE_INTEGER : match.week_number,
+        });
+      }
+    }
+    return [...options.values()].sort((a, b) => a.order - b.order);
+  }, [upcomingMatches]);
+
+  // The current week is the default; falls back to the first week with open matches.
+  const defaultUpcomingWeekKey = useMemo(() => {
+    const current =
+      currentWeek != null ? `week-${currentWeek}` : null;
+    if (current && upcomingWeekOptions.some((option) => option.key === current)) {
+      return current;
+    }
+    return upcomingWeekOptions[0]?.key ?? null;
+  }, [currentWeek, upcomingWeekOptions]);
+
+  // A user's pick wins only while that week is still among the options.
+  const activeUpcomingWeekKey =
+    upcomingWeekKey != null &&
+    upcomingWeekOptions.some((option) => option.key === upcomingWeekKey)
+      ? upcomingWeekKey
+      : defaultUpcomingWeekKey;
+
+  const visibleUpcomingMatches = useMemo(
+    () =>
+      activeUpcomingWeekKey == null
+        ? []
+        : upcomingMatches.filter(
+            (match) => upcomingWeekKeyOf(match) === activeUpcomingWeekKey,
+          ),
+    [upcomingMatches, activeUpcomingWeekKey],
+  );
+
+  /*
+   * The week selector on the Match history card. Options are only the weeks (and
+   * postseason) that have a closed match, oldest first. The default is the most
+   * recent of those, since that is what a reader is usually after.
+   */
+  const historyWeekOptions = useMemo(() => {
+    const options = new Map<string, { key: string; label: string; order: number }>();
+    for (const match of completedMatches) {
+      const key = upcomingWeekKeyOf(match);
+      if (!options.has(key)) {
+        options.set(key, {
+          key,
+          label: match.is_playoff ? "Postseason" : `Week ${match.week_number}`,
+          order: match.is_playoff ? Number.MAX_SAFE_INTEGER : match.week_number,
+        });
+      }
+    }
+    return [...options.values()].sort((a, b) => a.order - b.order);
+  }, [completedMatches]);
+
+  const defaultHistoryWeekKey = historyWeekOptions[historyWeekOptions.length - 1]?.key ?? null;
+
+  // A user's pick wins only while that week still has a completed match.
+  const activeHistoryWeekKey =
+    historyWeekKey != null &&
+    historyWeekOptions.some((option) => option.key === historyWeekKey)
+      ? historyWeekKey
+      : defaultHistoryWeekKey;
+
+  const visibleCompletedMatches = useMemo(
+    () =>
+      activeHistoryWeekKey == null
+        ? []
+        : completedMatches.filter(
+            (match) => upcomingWeekKeyOf(match) === activeHistoryWeekKey,
+          ),
+    [completedMatches, activeHistoryWeekKey],
+  );
 
   const playoffColumns = useMemo(() => {
     if (!goods) {
@@ -1697,6 +1912,68 @@ function SchedulePageContent({
     setNotice("Match forfeited.");
   }
 
+  /**
+   * Owner forfeit of the selected match: one player (who takes the loss and the
+   * forfeit KO penalty) or both. Confirmed first, since it cannot be undone here.
+   *
+   * @param side - `player_1` or `player_2` forfeits that side; `both` for a double forfeit.
+   */
+  async function handleOwnerForfeit(side: "player_1" | "player_2" | "both") {
+    if (!goods || !selectedMatch) {
+      return;
+    }
+    const p1 = selectedMatch.player_1_name;
+    const p2 = selectedMatch.player_2_name;
+
+    const forfeiting = await confirm({
+      title:
+        side === "both"
+          ? "Forfeit both players?"
+          : `Forfeit ${side === "player_1" ? p1 : p2}?`,
+      detail:
+        side === "both"
+          ? `${p1} and ${p2} both take the loss and the forfeit KO penalty. Nobody wins this match.`
+          : side === "player_1"
+            ? `${p1} takes the loss and the forfeit KO penalty. ${p2} takes the win.`
+            : `${p2} takes the loss and the forfeit KO penalty. ${p1} takes the win.`,
+      confirmLabel: "Forfeit",
+      tone: "danger",
+    });
+
+    if (!forfeiting) {
+      return;
+    }
+    await canRunMutation(
+      () => ownerForfeitMatch(selectedMatch.id, side),
+      goods.league.id,
+    );
+    setNotice("Match forfeited.");
+  }
+
+  /**
+   * Owner revert of a forfeited match: returns it to its reported or agreed state.
+   * Confirmed first, since it discards who forfeited and who won by forfeit.
+   */
+  async function handleRevertForfeit() {
+    if (!goods || !selectedMatch) {
+      return;
+    }
+
+    const reverting = await confirm({
+      title: "Revert this forfeit?",
+      detail:
+        "The match returns to its reported games or agreed time, and the forfeit penalty is removed from the standings.",
+      confirmLabel: "Revert forfeit",
+      tone: "danger",
+    });
+
+    if (!reverting) {
+      return;
+    }
+    await canRunMutation(() => ownerRevertForfeit(selectedMatch.id), goods.league.id);
+    setNotice("Forfeit reverted.");
+  }
+
   async function handleDeleteMatch(match: ScheduleMatch) {
     if (!goods) {
       return;
@@ -1930,9 +2207,13 @@ function SchedulePageContent({
             </div>
             <p className="mt-4 text-sm text-slate-400">
               Generate button is enabled once regular season weeks is a valid
-              integer of at least 1. Generating replaces the current season&apos;s
-              schedule. The playoff bracket is advanced from the Playoffs tab
-              once the draft is complete.
+              integer of at least 1. Generating replaces the current
+              season&apos;s schedule and draws every matchup and home/away side at
+              random, so regenerating produces a different schedule. Each team
+              meets each other team once per round-robin pass, so weeks beyond a
+              full pass re-draw the matchups instead of replaying them. The
+              playoff bracket is advanced from the Playoffs tab once the draft is
+              complete.
             </p>
           </SectionCard>
         )}
@@ -1993,7 +2274,7 @@ function SchedulePageContent({
                         <Avatar
                           name={selectedMatch.player_1_name}
                           avatarUrl={selectedMatch.player_1_avatar_url}
-                          size={44}
+                          size={88}
                           winner={
                             !hideSpoilers &&
                             selectedMatch.winner_team_id ===
@@ -2010,8 +2291,17 @@ function SchedulePageContent({
                             </span>
                           </Spoiler>
                         )}
+                        <div className="mt-1">
+                          <RosterSprites
+                            showNames
+                            roster={goods.rostersByTeam[selectedMatch.player_1_team_id] ?? []}
+                          />
+                        </div>
                       </div>
                       <div className="flex flex-col items-center gap-1">
+                        <span className="text-xs font-bold uppercase tracking-widest text-slate-500">
+                          vs
+                        </span>
                         <span className="rounded-full bg-slate-800 px-3 py-1 text-xs font-semibold text-slate-300">
                           {matchFormat === "single" ? "Single" : "Best of 3"}
                         </span>
@@ -2021,7 +2311,7 @@ function SchedulePageContent({
                         <Avatar
                           name={selectedMatch.player_2_name}
                           avatarUrl={selectedMatch.player_2_avatar_url}
-                          size={44}
+                          size={88}
                           winner={
                             !hideSpoilers &&
                             selectedMatch.winner_team_id ===
@@ -2038,6 +2328,12 @@ function SchedulePageContent({
                             </span>
                           </Spoiler>
                         )}
+                        <div className="mt-1">
+                          <RosterSprites
+                            showNames
+                            roster={goods.rostersByTeam[selectedMatch.player_2_team_id] ?? []}
+                          />
+                        </div>
                       </div>
                     </div>
 
@@ -2074,6 +2370,12 @@ function SchedulePageContent({
                         this matchup is scheduled.
                       </p>
                     )}
+                    {selectedMatch.status === "forfeit" &&
+                      selectedMatch.forfeited_by_name && (
+                        <p className="text-center text-xs text-slate-500">
+                          Forfeited by {selectedMatch.forfeited_by_name}
+                        </p>
+                      )}
                     {selectedMatch.notes && (
                       <p className="text-sm italic text-slate-400">
                         “{selectedMatch.notes}”
@@ -2151,6 +2453,58 @@ function SchedulePageContent({
                       </div>
                     )}
                   </div>
+
+                  {canOwnerActs && (
+                    <div className="flex flex-wrap justify-center gap-2">
+                      {!myMatch && (
+                        <button
+                          type="button"
+                          disabled={isBusy}
+                          onClick={openReporting}
+                          className="rounded-xl border border-slate-700 bg-slate-800 px-3.5 py-2 text-sm font-medium text-slate-100 transition hover:bg-slate-700 disabled:opacity-50"
+                        >
+                          Add Replay
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        disabled={isBusy}
+                        onClick={() => handleOwnerForfeit("player_1")}
+                        className="rounded-xl border border-rose-800 bg-rose-950/50 px-3.5 py-2 text-sm font-medium text-rose-300 transition hover:bg-rose-900/50 disabled:opacity-50"
+                      >
+                        Forfeit {selectedMatch.player_1_name}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={isBusy}
+                        onClick={() => handleOwnerForfeit("player_2")}
+                        className="rounded-xl border border-rose-800 bg-rose-950/50 px-3.5 py-2 text-sm font-medium text-rose-300 transition hover:bg-rose-900/50 disabled:opacity-50"
+                      >
+                        Forfeit {selectedMatch.player_2_name}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={isBusy}
+                        onClick={() => handleOwnerForfeit("both")}
+                        className="rounded-xl border border-rose-800 bg-rose-950/50 px-3.5 py-2 text-sm font-medium text-rose-300 transition hover:bg-rose-900/50 disabled:opacity-50"
+                      >
+                        Forfeit both
+                      </button>
+                    </div>
+                  )}
+
+                  {goods.isOwner && selectedMatch.status === "forfeit" && (
+                    <div className="flex flex-wrap justify-center gap-2">
+                      <button
+                        type="button"
+                        disabled={isBusy}
+                        onClick={handleRevertForfeit}
+                        className="rounded-xl border border-slate-700 bg-slate-800 px-3.5 py-2 text-sm font-medium text-slate-100 transition hover:bg-slate-700 disabled:opacity-50"
+                      >
+                        Revert forfeit
+                      </button>
+                    </div>
+                  )}
 
                   {schedulingMatchId === selectedMatch.id && (
                     <div className="grid gap-4 rounded-xl border border-slate-700 bg-slate-950/60 p-4 md:grid-cols-2">
@@ -2570,6 +2924,11 @@ function SchedulePageContent({
                                       </span>
                                     </Spoiler>
                                   )}
+                                  {result.reporter_name && (
+                                    <span className="text-xs text-slate-500">
+                                      Submitted by {result.reporter_name}
+                                    </span>
+                                  )}
                                 </div>
                                 <div className="flex items-center gap-2">
                                   {result.replay_url && (
@@ -2604,48 +2963,134 @@ function SchedulePageContent({
               )}
             </SectionCard>
 
-            <SectionCard title="Upcoming matches">
+            <SectionCard
+              title="Upcoming matches"
+              action={
+                upcomingWeekOptions.length > 0 ? (
+                  <select
+                    aria-label="Week"
+                    value={activeUpcomingWeekKey ?? ""}
+                    onChange={(event) => setUpcomingWeekKey(event.target.value)}
+                    className="rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-100 focus:border-amber-500 focus:outline-none"
+                  >
+                    {upcomingWeekOptions.map((option) => (
+                      <option key={option.key} value={option.key}>
+                        {option.label}
+                        {option.key === defaultUpcomingWeekKey ? " (current)" : ""}
+                      </option>
+                    ))}
+                  </select>
+                ) : null
+              }
+            >
               {upcomingMatches.length === 0 ? (
                 <p className="text-sm text-slate-400">
                   No upcoming matches in the regular season.
                 </p>
+              ) : visibleUpcomingMatches.length === 0 ? (
+                <p className="text-sm text-slate-400">
+                  No upcoming matches in this week.
+                </p>
               ) : (
                 <div className="space-y-2">
-                  {upcomingMatches.map((match) => (
+                  {visibleUpcomingMatches.map((match) => (
                     <button
                       key={match.id}
                       type="button"
                       onClick={() => setSelectedMatchId(match.id)}
-                      className={`flex w-full items-center justify-between gap-3 rounded-xl border p-3 text-left transition ${
+                      className={`flex w-full flex-col rounded-xl border p-3 text-left transition ${
                         selectedMatchId === match.id
                           ? "border-amber-500/60 bg-slate-800/80"
                           : "border-slate-700 bg-slate-800/50 hover:bg-slate-800"
                       }`}
                     >
-                      <div>
+                      <div className="flex w-full items-start justify-between gap-3">
                         <p className="font-semibold text-slate-100">
                           {match.is_playoff ? "Postseason" : `Week ${match.week_number}`} •{" "}
                           {match.player_1_name} vs {match.player_2_name}
                         </p>
+                        <StatusBadge status={match.status} />
+                      </div>
+                      {match.scheduled_at && (
                         <p className="mt-0.5 text-sm text-slate-400">
                           {formatDateTimeInZone(match.scheduled_at, timeZone)}
                         </p>
+                      )}
+                      <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center">
+                        <div className="flex min-w-0 flex-1 flex-col items-center">
+                          <div className="flex min-w-0 max-w-full items-center justify-center gap-2">
+                            <Avatar
+                              name={match.player_1_name}
+                              avatarUrl={match.player_1_avatar_url}
+                              size={48}
+                            />
+                            <p className="truncate text-xs font-medium text-slate-400">
+                              {match.player_1_name}
+                            </p>
+                          </div>
+                          <div className="mt-1 w-full">
+                            <RosterSprites
+                              roster={goods.rostersByTeam[match.player_1_team_id] ?? []}
+                            />
+                          </div>
+                        </div>
+                        <span className="flex shrink-0 items-center justify-center self-center text-center text-xs font-bold uppercase tracking-widest text-slate-500">
+                          vs
+                        </span>
+                        <div className="flex min-w-0 flex-1 flex-col items-center">
+                          <div className="flex min-w-0 max-w-full items-center justify-center gap-2">
+                            <Avatar
+                              name={match.player_2_name}
+                              avatarUrl={match.player_2_avatar_url}
+                              size={48}
+                            />
+                            <p className="truncate text-xs font-medium text-slate-400">
+                              {match.player_2_name}
+                            </p>
+                          </div>
+                          <div className="mt-1 w-full">
+                            <RosterSprites
+                              roster={goods.rostersByTeam[match.player_2_team_id] ?? []}
+                            />
+                          </div>
+                        </div>
                       </div>
-                      <StatusBadge status={match.status} />
                     </button>
                   ))}
                 </div>
               )}
             </SectionCard>
 
-            <SectionCard title="Match history">
+            <SectionCard
+              title="Match history"
+              action={
+                historyWeekOptions.length > 0 ? (
+                  <select
+                    aria-label="Week"
+                    value={activeHistoryWeekKey ?? ""}
+                    onChange={(event) => setHistoryWeekKey(event.target.value)}
+                    className="rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-100 focus:border-amber-500 focus:outline-none"
+                  >
+                    {historyWeekOptions.map((option) => (
+                      <option key={option.key} value={option.key}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                ) : null
+              }
+            >
               {completedMatches.length === 0 ? (
                 <p className="text-sm text-slate-400">
                   No completed matchups yet.
                 </p>
+              ) : visibleCompletedMatches.length === 0 ? (
+                <p className="text-sm text-slate-400">
+                  No completed matchups in this week.
+                </p>
               ) : (
                 <div className="space-y-3">
-                  {completedMatches.map((match) => (
+                  {visibleCompletedMatches.map((match) => (
                     <MatchupHistoryCard
                       key={match.id}
                       match={match}
@@ -2653,6 +3098,7 @@ function SchedulePageContent({
                       timeZone={timeZone}
                       hideSpoilers={hideSpoilers}
                       selected={selectedMatchId === match.id}
+                      rostersByTeam={goods.rostersByTeam}
                       onSelect={() => {
                         setSelectedMatchId(match.id);
                         setSchedulingMatchId(null);
@@ -2678,6 +3124,7 @@ function SchedulePageContent({
                     <th className="px-4 py-3 text-center font-semibold">W</th>
                     <th className="px-4 py-3 text-center font-semibold">L</th>
                     <th className="px-4 py-3 text-center font-semibold">KO Diff</th>
+                    <th className="px-4 py-3 text-left font-semibold">Pokemon</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800 bg-slate-900">
@@ -2710,6 +3157,29 @@ function SchedulePageContent({
                       </td>
                       <td className="px-4 py-3 text-center font-medium text-slate-100">
                         {row.ko_diff}
+                      </td>
+                      <td className="px-4 py-3">
+                        <ul className="flex flex-wrap items-center gap-1.5">
+                          {(goods.rostersByTeam[row.team_id] ?? []).map((pokemon) => (
+                            <li key={pokemon.id}>
+                              {pokemon.spriteId > 0 ? (
+                                <img
+                                  src={getSpriteUrl(pokemon.spriteId)}
+                                  alt={pokemon.name}
+                                  title={pokemon.name}
+                                  width={56}
+                                  height={56}
+                                  loading="lazy"
+                                  className="h-14 w-14 object-contain"
+                                />
+                              ) : (
+                                <span className="flex h-14 w-14 items-center justify-center rounded-full bg-slate-700 text-base text-slate-400">
+                                  ?
+                                </span>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
                       </td>
                     </tr>
                   ))}
@@ -2847,7 +3317,7 @@ function SchedulePageContent({
                 <p className="text-sm text-slate-400">No games have been posted yet.</p>
               ) : (
                 <div className="space-y-2">
-                  {history.map(({ match, id, winner_team_id, game_number, replay_url, submitted_at }) => (
+                  {history.map(({ match, id, winner_team_id, game_number, replay_url, submitted_at, reporter_name }) => (
                   <div
                     key={id}
                     className="flex items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-950/50 p-3 text-sm"
@@ -2868,6 +3338,11 @@ function SchedulePageContent({
                         </span>{" "}
                         won • {formatDateTimeInZone(submitted_at, timeZone)}
                       </p>
+                      {reporter_name && (
+                        <p className="mt-0.5 text-xs text-slate-500">
+                          Submitted by {reporter_name}
+                        </p>
+                      )}
                     </div>
                     <div className="flex items-center gap-2">
                       {replay_url && (

@@ -585,7 +585,8 @@ poolRows: poolRowsMapped,
  * @param pokemonId - The slug of the Pokemon to draft, or null to pass.
  * @returns A Promise resolving to the new pick/status result payload.
  * @throws If the database rejects the pick (not your turn, not in the pool,
- *   already drafted, or salary would go negative).
+ *   already drafted, or salary would go negative), or if the pick slot was taken
+ *   by the server between the click and the write.
  */
 export async function submitDraftPick(
   leagueId: string,
@@ -597,6 +598,17 @@ export async function submitDraftPick(
   });
 
   if (error) {
+    /*
+     * draft_picks_slot_uk is unique on (league_id, season_id, overall_pick), so a
+     * click that lands after the server heartbeat has already resolved the turn
+     * collides on it. That is a race the member did not cause and losing it is not
+     * actionable, so say so rather than showing them a Postgres constraint name.
+     */
+    if (error.code === "23505" || error.message.includes("draft_picks_slot_uk")) {
+      throw new Error(
+        "That pick slot was just taken as your clock ran out. The draft has moved on.",
+      );
+    }
     throw new Error(error.message || "Unable to record that pick.");
   }
 

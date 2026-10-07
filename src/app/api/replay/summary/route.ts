@@ -67,7 +67,7 @@ export async function POST(request: Request) {
 
   const { data: match, error: matchError } = await supabase
     .from("matches")
-    .select("id, player_1_team_id, player_2_team_id")
+    .select("id, league_id, player_1_team_id, player_2_team_id")
     .eq("id", matchId)
     .maybeSingle();
 
@@ -110,10 +110,17 @@ export async function POST(request: Request) {
     };
   });
 
-  // Mirror submit_game_result: only a participant resolves replays for a match.
-  if (!participants.some((team) => team.ownerUserId === user.id)) {
+  // Mirror submit_game_result: a participant or the league owner may resolve replays.
+  const { data: league } = await supabase
+    .from("leagues")
+    .select("owner_id")
+    .eq("id", match.league_id)
+    .maybeSingle();
+  const isLeagueOwner = league?.owner_id === user.id;
+
+  if (!isLeagueOwner && !participants.some((team) => team.ownerUserId === user.id)) {
     return NextResponse.json(
-      { error: "Only the participants can read a replay for this match." },
+      { error: "Only the participants or the league owner can read a replay for this match." },
       { status: 403 },
     );
   }

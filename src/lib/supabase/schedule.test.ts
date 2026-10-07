@@ -39,6 +39,7 @@ function matchWith(player1Wins: number, player2Wins: number): ScheduleMatch {
       winner_team_id: player1,
       replay_url: null,
       game_number: index + 1,
+      reporter_name: null,
       pokemon_left_alive: null,
       submitted_at: "2026-07-01T00:00:00.000Z",
     })),
@@ -47,12 +48,14 @@ function matchWith(player1Wins: number, player2Wins: number): ScheduleMatch {
       winner_team_id: player2,
       replay_url: null,
       game_number: player1Wins + index + 1,
+      reporter_name: null,
       pokemon_left_alive: null,
       submitted_at: "2026-07-01T00:00:00.000Z",
     })),
   ];
 
   return {
+    forfeited_by_name: null,
     id: "match-1",
     week_number: 1,
     is_playoff: false,

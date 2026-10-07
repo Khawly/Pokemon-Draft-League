@@ -12,14 +12,31 @@
  * server or a self-hosted Node build), not for per-request serverless
  * instances.
  *
- * Every sweep prints one line to the server console so liveness (and any RPC
- * failure) is always visible: errors are caught rather than crashing the
- * process, and an in-flight guard skips ticks so a hung request can never
- * stack up connections or stall the schedule.
+ * Errors are caught rather than crashing the process, and an in-flight guard
+ * skips ticks so a hung request can never stack up connections or stall the
+ * schedule.
+ *
+ * Logging is deliberately throttled. The sweep runs every 15 seconds for the life
+ * of the process, so logging every tick produced 5,760 lines a day per active
+ * draft, and on a long draft the overwhelming majority recorded that nothing had
+ * happened. It now logs a line whenever a turn actually resolves, one "still
+ * alive" line every LIVENESS_LOG_INTERVAL_MS so a heartbeat that has stopped is
+ * still provable, and one line per distinct RPC error rather than one per tick.
  */
 import { createClient } from "@supabase/supabase-js";
 
 const HEARTBEAT_INTERVAL_MS = 15_000;
+
+/**
+ * How often the sweep reports "still alive" while no draft is due.
+ *
+ * The sweep itself has to stay at HEARTBEAT_INTERVAL_MS so a pick is never late,
+ * but a liveness line does not need that resolution: 15 minutes is far more often
+ * than anyone reads a server log, and it cuts the idle log volume by roughly 60x
+ * against the previous every-tick line. A turn that resolves always logs
+ * immediately regardless of this, so the events that matter are never throttled.
+ */
+const LIVENESS_LOG_INTERVAL_MS = 900_000;
 
 // Reads the first defined environment variable from the given candidate keys.
 const getEnvValue = (...keys: string[]) => {
@@ -40,6 +57,21 @@ type HeartbeatState = {
 };
 
 /**
+ * Log throttling bookkeeping for one heartbeat instance.
+ *
+ * Per instance rather than per module, so restarting the heartbeat resets it.
+ * lastLivenessLogAt starts at 0 so the very first sweep always reports itself: a
+ * heartbeat that started and then died has to be visible in the log within one
+ * tick of going quiet.
+ */
+type HeartbeatLogState = {
+  /** When the last "still alive" line was written. */
+  lastLivenessLogAt: number;
+  /** Last distinct RPC error message, so a failure that persists is logged once. */
+  lastErrorMessage: string | null;
+};
+
+/**
  * Runs a single overdue-draft sweep with the public anon client.
  *
  * Guarantees one sweep-at-a-time: a promise that never settles holds the
@@ -47,16 +79,54 @@ type HeartbeatState = {
  * requests. Any thrown error or supabase RPC error is logged, never swallowed
  * as an unhandled rejection — so the schedule survives and the cause is
  * always visible in the server console.
+ *
+ * @param client - Shared Supabase client to issue the sweep RPC with.
+ * @param logState - Throttling bookkeeping for this heartbeat instance.
+ *
+ * Exported for the throttle tests; not part of the module's intended surface.
  */
-async function runSweep(client: import("@supabase/supabase-js").SupabaseClient) {
+export async function runSweep(
+  client: import("@supabase/supabase-js").SupabaseClient,
+  logState: HeartbeatLogState,
+) {
   const result = await client.rpc("advance_overdue_drafts");
+  const advanced = Number(result.data ?? 0);
+
   if (result.error) {
-    console.error("[draft-heartbeat] sweep RPC error:", result.error.message);
+    /*
+     * A failure that outlives one tick would otherwise reprint the same message
+     * every 15 seconds until it was fixed, which buries the rest of the log in
+     * the one thing that is already broken. Log the first occurrence and any
+     * change of message, and stay quiet in between.
+     */
+    if (result.error.message !== logState.lastErrorMessage) {
+      console.error("[draft-heartbeat] sweep RPC error:", result.error.message);
+      logState.lastErrorMessage = result.error.message;
+    }
     return;
   }
-  console.log(
-    `[draft-heartbeat] sweep ok (advanced=${String(result.data)})`,
-  );
+
+  logState.lastErrorMessage = null;
+
+  // A sweep that resolved something is the event worth recording, always logged.
+  if (advanced > 0) {
+    console.log(`[draft-heartbeat] advanced ${String(advanced)} draft turn(s)`);
+    logState.lastLivenessLogAt = Date.now();
+    return;
+  }
+
+  /*
+   * Nothing was due. The heartbeat still has to be provably alive, since this
+   * console line is the only liveness signal now that the heartbeat tables no
+   * longer record idle sweeps (see 20261112). Report it periodically instead of
+   * on every tick: "still idle" repeated 5,760 times a day is noise, and the
+   * events that matter have already returned above.
+   */
+  const now = Date.now();
+  if (now - logState.lastLivenessLogAt >= LIVENESS_LOG_INTERVAL_MS) {
+    console.log("[draft-heartbeat] alive, no drafts due");
+    logState.lastLivenessLogAt = now;
+  }
 }
 
 /**
@@ -97,6 +167,11 @@ export function startDraftHeartbeat(intervalMs = HEARTBEAT_INTERVAL_MS): void {
   // sweep tick via the closure below.
   const client = createClient(supabaseUrl, supabaseAnonKey);
 
+  const logState: HeartbeatLogState = {
+    lastLivenessLogAt: 0,
+    lastErrorMessage: null,
+  };
+
   let inFlight = false;
   const sweep = async () => {
     if (inFlight) {
@@ -107,7 +182,7 @@ export function startDraftHeartbeat(intervalMs = HEARTBEAT_INTERVAL_MS): void {
     }
     inFlight = true;
     try {
-      await runSweep(client);
+      await runSweep(client, logState);
     } catch (err) {
       console.error(
         "[draft-heartbeat] sweep failed:",
@@ -118,10 +193,11 @@ export function startDraftHeartbeat(intervalMs = HEARTBEAT_INTERVAL_MS): void {
     }
   };
 
-  void sweep();
   registry[HEARTBEAT_REGISTRY] = {
     interval: setInterval(() => void sweep(), intervalMs),
   };
+
+  void sweep();
   console.log(
     `[draft-heartbeat] active, sweeping overdue drafts every ${intervalMs}ms`,
   );

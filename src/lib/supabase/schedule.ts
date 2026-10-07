@@ -11,6 +11,18 @@
  */
 import { supabase } from "@/lib/supabase/client";
 import { loadLatestSeason } from "@/lib/supabase/seasons";
+import { getPokemonEntryBySlug } from "@/lib/pokeapi";
+
+/**
+ * The minimal roster entry a matchup card needs: a picture and its alt text.
+ * Cards show sprites only, so typing and BST are deliberately not carried.
+ */
+export type ScheduleRosterSprite = {
+  id: string;
+  /** Used as the sprite's alt text so a screen reader still names the Pokemon. */
+  name: string;
+  spriteId: number;
+};
 
 
 /** Lifecycle status of a season (subset used by the schedule page). */
@@ -58,6 +70,8 @@ export type ScheduleMatchResult = {
   game_number: number;
   pokemon_left_alive: number | null;
   submitted_at: string;
+  /** The reporter's display name, or null when they have not set one. */
+  reporter_name: string | null;
 };
 
 /** A time one participant has offered the other for a match. */
@@ -96,6 +110,11 @@ export type ScheduleMatch = {
   player_1_user_id: string;
   player_2_user_id: string;
   results: ScheduleMatchResult[];
+  /**
+   * Display name of whoever filed the forfeit. Falls back to the league owner's
+   * name when no filer was recorded; null only if that name is unset too.
+   */
+  forfeited_by_name: string | null;
   /**
    * The proposal still waiting for an answer, when there is one. Its presence is
    * what makes a matchup read as "waiting on the other player" rather than
@@ -359,7 +378,7 @@ export async function loadProposalHistory(
  * owner rather than reading `teams.team_name`.
  */
 const MATCHES_WITH_PARTICIPANTS_SELECT =
-  "id, week_number, is_playoff, bracket_phase, scheduled_at, status, winner_team_id, notes, player_1_team_id, player_2_team_id, player_1: player_1_team_id (team_name, owner_user_id, owner: owner_user_id (display_name, avatar_url)), player_2: player_2_team_id (team_name, owner_user_id, owner: owner_user_id (display_name, avatar_url))";
+  "id, week_number, is_playoff, bracket_phase, scheduled_at, status, winner_team_id, notes, player_1_team_id, player_2_team_id, player_1: player_1_team_id (team_name, owner_user_id, owner: owner_user_id (display_name, avatar_url)), player_2: player_2_team_id (team_name, owner_user_id, owner: owner_user_id (display_name, avatar_url)), forfeited_by: forfeited_by_user_id (display_name)";
 
 /** Complete schedule page payload for a league. */
 export type SchedulePageGoods = {
@@ -373,6 +392,11 @@ export type SchedulePageGoods = {
   teams: ScheduleTeam[];
   /** Matches for the current season, ordered by week then created time. */
   matches: ScheduleMatch[];
+  /**
+   * Sprite-only roster for every team in the season, keyed by team id and richest
+   * Pokemon first. Backs the sprite rows on the matchup cards.
+   */
+  rostersByTeam: Record<string, ScheduleRosterSprite[]>;
   standings: StandingsRow[];
   currentUserId: string;
   userRole: "owner" | "admin" | "member" | null;
@@ -382,6 +406,7 @@ export type SchedulePageGoods = {
 };
 
 type ScheduleMatchRow = {
+  forfeited_by?: { display_name?: string | null } | null;
   id: string;
   week_number: number;
   is_playoff: boolean;
@@ -459,6 +484,7 @@ export async function loadSchedulePageData(
     settings: null,
     teams: [],
     matches: [],
+    rostersByTeam: {},
     standings: [],
     currentUserId: user.id,
     userRole: null,
@@ -583,12 +609,65 @@ export async function loadSchedulePageData(
 
   const matchIds = (matchRows ?? []).map((row) => row.id);
 
+  /*
+   * The league owner's display name, used to attribute a forfeit whose filer was
+   * not recorded (forfeits filed before attribution existed). A missing profile
+   * or a failed read just leaves the name unset rather than failing the page.
+   */
+  const { data: ownerProfile } = await supabase
+    .from("profiles")
+    .select("display_name")
+    .eq("id", league.owner_id)
+    .maybeSingle();
+  const ownerDisplayName =
+    (ownerProfile as { display_name?: string | null } | null)?.display_name ?? null;
+
+  /*
+   * Rosters for every team in the season, so each matchup card can show both
+   * sides' Pokemon. One query for all teams rather than one per card; the card
+   * only reads the sprite fields, so the rest of the row is not selected.
+   */
+  const rostersByTeam: Record<string, ScheduleRosterSprite[]> = {};
+  const teamIds = teams.map((team) => team.id);
+  if (teamIds.length > 0) {
+    const { data: rosterRows, error: rosterError } = await supabase
+      .from("team_roster")
+      .select("id, team_id, pokemon_id, tier_value")
+      .in("team_id", teamIds);
+
+    if (rosterError) {
+      throw new Error("Team rosters could not be loaded.");
+    }
+
+    const rows = (rosterRows ?? []) as {
+      id: string;
+      team_id: string;
+      pokemon_id: string;
+      tier_value: number;
+    }[];
+
+    for (const teamId of teamIds) {
+      rostersByTeam[teamId] = rows
+        .filter((row) => row.team_id === teamId)
+        // Richest first, matching the order the roster panels use.
+        .sort((a, b) => b.tier_value - a.tier_value || a.id.localeCompare(b.id))
+        .map<ScheduleRosterSprite>((row) => {
+          const catalog = getPokemonEntryBySlug(row.pokemon_id);
+          return {
+            id: row.id,
+            name: catalog?.name ?? row.pokemon_id,
+            spriteId: catalog?.spriteId ?? 0,
+          };
+        });
+    }
+  }
+
   const resultsByMatch = new Map<string, ScheduleMatchResult[]>();
   if (matchIds.length > 0) {
     const { data: resultRows, error: resultsError } = await supabase
       .from("match_results")
       .select(
-        "id, match_id, winner_team_id, replay_url, game_number, pokemon_left_alive, submitted_at",
+        "id, match_id, winner_team_id, replay_url, game_number, pokemon_left_alive, submitted_at, reporter: reporter_user_id (display_name)",
       )
       .in("match_id", matchIds);
 
@@ -596,8 +675,12 @@ export async function loadSchedulePageData(
       throw new Error("Match results could not be loaded.");
     }
 
-    for (const row of (resultRows ?? []) as (Omit<ScheduleMatchResult, "match_id"> & {
+    for (const row of (resultRows ?? []) as unknown as (Omit<
+      ScheduleMatchResult,
+      "match_id" | "reporter_name"
+    > & {
       match_id: string;
+      reporter?: { display_name?: string | null } | null;
     })[]) {
       const current = resultsByMatch.get(row.match_id) ?? [];
       current.push({
@@ -607,6 +690,7 @@ export async function loadSchedulePageData(
         game_number: row.game_number,
         pokemon_left_alive: row.pokemon_left_alive,
         submitted_at: row.submitted_at,
+        reporter_name: row.reporter?.display_name ?? null,
       });
       resultsByMatch.set(row.match_id, current);
     }
@@ -673,6 +757,8 @@ export async function loadSchedulePageData(
       player_1_user_id: row.player_1?.owner_user_id ?? "",
       player_2_user_id: row.player_2?.owner_user_id ?? "",
       results: resultsByMatch.get(row.id) ?? [],
+      // A forfeit with no recorded filer is attributed to the league owner.
+      forfeited_by_name: row.forfeited_by?.display_name ?? ownerDisplayName,
       pending_proposal: pendingProposals.get(row.id) ?? null,
     }),
   );
@@ -683,6 +769,7 @@ export async function loadSchedulePageData(
     settings,
     teams,
     matches,
+    rostersByTeam,
     standings,
     userRole,
     isOwner: userRole === "owner",
@@ -892,6 +979,44 @@ export async function forfeitMatch(matchId: string): Promise<void> {
 
   if (error) {
     throw new Error(error.message || "The match could not be forfeited.");
+  }
+}
+
+/**
+ * Forfeits a match on behalf of one or both players (league owner only).
+ *
+ * @param matchId - The match to forfeit.
+ * @param side - `player_1` or `player_2` forfeits that side and the other wins;
+ *   `both` closes the match as a double forfeit with no winner.
+ */
+export async function ownerForfeitMatch(
+  matchId: string,
+  side: "player_1" | "player_2" | "both",
+): Promise<void> {
+  const { error } = await supabase.rpc("owner_forfeit_match", {
+    p_match_id: matchId,
+    p_side: side,
+  });
+
+  if (error) {
+    throw new Error(error.message || "The match could not be forfeited.");
+  }
+}
+
+/**
+ * Reverts a forfeited match to its real state (league owner only). The database
+ * restores the status from the reported games and any agreed time.
+ *
+ * @param matchId - The forfeited match to reopen.
+ * @throws If the match is not forfeited or the caller is not the league owner.
+ */
+export async function ownerRevertForfeit(matchId: string): Promise<void> {
+  const { error } = await supabase.rpc("owner_revert_forfeit", {
+    p_match_id: matchId,
+  });
+
+  if (error) {
+    throw new Error(error.message || "The forfeit could not be reverted.");
   }
 }
 

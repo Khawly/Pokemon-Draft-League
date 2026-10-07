@@ -1,15 +1,17 @@
 /*
  * Main dashboard shell displayed after a user selects a league.
  *
- * Renders the league header, stat cards, standings table, schedule, upcoming
- * matches, notifications, and the user's current team roster. Every value comes
- * from the dashboard payload loaded by the page; each panel degrades to an
- * explicit empty state when the league has no data for it yet.
+ * Renders the league header (which carries an image-only strip of the signed-in
+ * member's roster), stat cards, standings table, schedule, upcoming matches,
+ * notifications, and the user's current team roster. Every value comes from the
+ * dashboard payload loaded by the page; each panel degrades to an explicit empty
+ * state when the league has no data for it yet.
  */
 "use client";
 
 import { useRouter } from "next/navigation";
 import { signOut } from "@/lib/supabase/auth";
+import { Fragment } from "react";
 import { getSpriteUrl } from "@/lib/pokeapi";
 import { TabNotification } from "@/components/nav-alert-badge";
 import {
@@ -17,6 +19,8 @@ import {
   formatNotificationAge,
   matchStatusLabel,
   type DashboardGoods,
+  type DashboardRosterPokemon,
+  type DashboardRosterSprite,
   type DashboardRules,
 } from "@/lib/supabase/dashboard";
 import { formatSeasonLabel } from "@/lib/supabase/seasons";
@@ -40,37 +44,6 @@ const TAB_ROUTES: Record<string, string> = {
 function routeFor(slug: string, leagueId?: string | null): string {
   return leagueId ? `/${slug}?leagueId=${leagueId}` : `/${slug}`;
 }
-
-/** Rank dot colors cycled down the standings table. */
-const RANK_ACCENTS = [
-  "bg-amber-500",
-  "bg-cyan-500",
-  "bg-emerald-500",
-  "bg-violet-500",
-  "bg-rose-500",
-];
-
-/** Type badge colors keyed by normalized type name (matches the teams page). */
-const TYPE_BADGE_STYLES: Record<string, string> = {
-  normal: "bg-slate-600 text-slate-100",
-  fire: "bg-red-600 text-slate-50",
-  water: "bg-blue-600 text-slate-50",
-  electric: "bg-yellow-500 text-slate-900",
-  grass: "bg-green-600 text-slate-50",
-  ice: "bg-cyan-500 text-slate-900",
-  fighting: "bg-orange-700 text-slate-50",
-  poison: "bg-purple-600 text-slate-50",
-  ground: "bg-amber-700 text-slate-50",
-  flying: "bg-sky-500 text-slate-50",
-  psychic: "bg-pink-600 text-slate-50",
-  bug: "bg-lime-600 text-slate-50",
-  rock: "bg-stone-600 text-slate-50",
-  ghost: "bg-indigo-700 text-slate-50",
-  dragon: "bg-violet-700 text-slate-50",
-  dark: "bg-neutral-800 text-slate-100",
-  steel: "bg-slate-500 text-slate-50",
-  fairy: "bg-pink-400 text-slate-900",
-};
 
 /** Props for the {@link DashboardShell} component. */
 export interface DashboardShellProps {
@@ -188,6 +161,167 @@ function RulesPanel({ rules, timeZone, isOwner, leagueId }: RulesPanelProps) {
   );
 }
 
+/** Props for the {@link RosterStrip} component. */
+interface RosterStripProps {
+  /** The signed-in member's roster, richest Pokemon first. */
+  roster: DashboardRosterPokemon[];
+}
+
+/**
+ * Image-only view of the signed-in member's roster, shown in the dashboard
+ * header so their team is visible on arrival without opening a panel.
+ *
+ * Deliberately sprites with no names, typing or tiers: the header answers "what
+ * is my team at a glance", and the "My team" panel below carries the detail.
+ * A rostered Pokemon with no sprite (a token movement) falls back to the same
+ * "?" tile the roster panel uses rather than a broken image.
+ *
+ * @param props - {@link RosterStripProps}
+ * @returns A labelled row of roster sprites, or an empty-state line.
+ */
+function RosterStrip({ roster }: RosterStripProps) {
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+        My team
+      </p>
+
+      {roster.length === 0 ? (
+        <p className="text-sm text-slate-500">No Pokémon rostered yet.</p>
+      ) : (
+        <ul className="flex flex-wrap items-center gap-2">
+          {roster.map((pokemon) => (
+            <li
+              key={pokemon.id}
+              className="relative flex h-[88px] w-[88px] items-center justify-center overflow-hidden rounded-full border-2 border-slate-900 bg-[linear-gradient(to_bottom,#dc2626_0_45%,#0f172a_45%_55%,#f8fafc_55%)] shadow-md shadow-slate-950/50"
+            >
+              {/* Pokeball centre button, drawn beneath the sprite. */}
+              <span
+                aria-hidden="true"
+                className="absolute left-1/2 top-1/2 h-1/5 w-1/5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-slate-900 bg-white"
+              />
+              {pokemon.spriteId > 0 ? (
+                <img
+                  src={getSpriteUrl(pokemon.spriteId)}
+                  alt={pokemon.name}
+                  width={64}
+                  height={64}
+                  loading="lazy"
+                  className="relative h-16 w-16 object-contain"
+                />
+              ) : (
+                <span className="relative flex h-16 w-16 items-center justify-center rounded-full bg-slate-700 text-base text-slate-400">
+                  ?
+                </span>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/**
+ * The "vs" separator placed between the two sides' rosters in a matchup card.
+ *
+ * @returns A centred, muted "vs" label that sits in the middle grid column.
+ */
+function VsLabel() {
+  return (
+    <span className="flex shrink-0 items-center justify-center self-center text-center text-xs font-bold uppercase tracking-widest text-slate-500">
+      vs
+    </span>
+  );
+}
+
+/** Props for the {@link SideLabel} component. */
+interface SideLabelProps {
+  /** The player's display name. */
+  name: string;
+  /** The owner's avatar, or null to show an initial in its place. */
+  avatarUrl: string | null;
+}
+
+/**
+ * A player's name with their avatar in front of it, used as the label above each
+ * side's sprites in a matchup card.
+ *
+ * @param props - {@link SideLabelProps}
+ * @returns A single-line avatar and name, truncated to fit its column.
+ */
+function SideLabel({ name, avatarUrl }: SideLabelProps) {
+  return (
+    <div className="flex min-w-0 items-center justify-center gap-2">
+      <span className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full border border-slate-700 bg-slate-800 text-lg font-bold text-slate-200">
+        {avatarUrl ? (
+          <img src={avatarUrl} alt={name} className="h-full w-full object-cover" />
+        ) : (
+          <span>{name?.charAt(0)?.toUpperCase() || "?"}</span>
+        )}
+      </span>
+      <p className="truncate text-xs font-medium text-slate-400">{name}</p>
+    </div>
+  );
+}
+
+/** Props for the {@link LineupSprites} component. */
+interface LineupSpritesProps {
+  /** The roster to render, richest Pokemon first. */
+  roster: DashboardRosterSprite[];
+}
+
+/**
+ * One team's roster as sprites and nothing else.
+ *
+ * Used by the Next Match panel, where the point is to show both sides of a
+ * matchup at a glance. Deliberately no names, typing, tiers or BST: the names are
+ * already in the panel's own heading and the matchup page carries the detail.
+ *
+ * A rostered Pokemon with no sprite (a token movement) falls back to the same "?"
+ * tile the roster panels use rather than a broken image, and a team with nothing
+ * rostered says so instead of rendering an empty row.
+ *
+ * @param props - {@link LineupSpritesProps}
+ * @returns A wrapping row of roster sprites, or a short empty-state line.
+ */
+function LineupSprites({ roster }: LineupSpritesProps) {
+  if (roster.length === 0) {
+    return <p className="mt-1 text-xs text-slate-500">No Pokémon yet</p>;
+  }
+
+  return (
+    <ul className="mt-1 flex flex-wrap items-center justify-center gap-1.5">
+      {roster.map((pokemon) => (
+        <li
+          key={pokemon.id}
+          className="relative flex h-[72px] w-[72px] items-center justify-center overflow-hidden rounded-full border-2 border-slate-900 bg-[linear-gradient(to_bottom,#dc2626_0_45%,#0f172a_45%_55%,#f8fafc_55%)] shadow-md shadow-slate-950/50"
+        >
+          {/* Pokeball centre button, drawn beneath the sprite. */}
+          <span
+            aria-hidden="true"
+            className="absolute left-1/2 top-1/2 h-1/5 w-1/5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-slate-900 bg-white"
+          />
+          {pokemon.spriteId > 0 ? (
+            <img
+              src={getSpriteUrl(pokemon.spriteId)}
+              alt={pokemon.name}
+              width={48}
+              height={48}
+              loading="lazy"
+              className="relative h-12 w-12 object-contain"
+            />
+          ) : (
+            <span className="relative flex h-12 w-12 items-center justify-center rounded-full bg-slate-700 text-sm text-slate-400">
+              ?
+            </span>
+          )}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 /**
  * Full dashboard layout for a selected league.
  *
@@ -240,6 +374,23 @@ export function DashboardShell({
     goods.season?.status === "draft_complete" || goods.season?.status === "archived";
 
   /*
+   * The member's own row in the standings, backing the record and place chips
+   * beside their name in the header.
+   *
+   * standings arrives already ranked by the season_standings RPC and the table
+   * below numbers it with index + 1, so the place chip reads the rank the same
+   * way: the header and the table can never disagree about a member's position.
+   * Null when they have no team, or no row for it (a league mid-setup), in which
+   * case the chips are omitted rather than showing a misleading 0-0.
+   */
+  const myStandingIndex =
+    goods.myTeam == null
+      ? -1
+      : goods.standings.findIndex((row) => row.team_id === goods.myTeam?.id);
+  const myStanding = myStandingIndex >= 0 ? goods.standings[myStandingIndex] : null;
+  const myRank = myStandingIndex >= 0 ? myStandingIndex + 1 : null;
+
+  /*
    * Which of the header tabs can carry a bubble, and what each would be counting.
    * Declared as data so the render below has no per-tab special cases, matching how
    * the Trades page builds its own strip.
@@ -274,6 +425,17 @@ export function DashboardShell({
         : "Schedule not set";
   const matchFormatLabel =
     goods.matchFormat === "single" ? "Single game" : "Best of 3";
+  /*
+   * The Schedule panel lists the week's matchups without the member's own, which
+   * the Next match panel already shows. The data still carries it for that panel.
+   */
+  const otherWeekMatches = goods.currentWeekMatches.filter(
+    (match) =>
+      goods.myTeam == null ||
+      (match.player_1_team_id !== goods.myTeam.id &&
+        match.player_2_team_id !== goods.myTeam.id),
+  );
+
   const statCards = [
     {
       label: "Teams",
@@ -325,10 +487,29 @@ export function DashboardShell({
               <div className="flex-1">
                 <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-slate-300">
                   <span>{displayName}</span>
+
+                  {myStanding && myRank != null ? (
+                    <>
+                      <span
+                        title="Season record"
+                        className="rounded-full bg-slate-800 px-2.5 py-1 text-xs font-semibold text-slate-100"
+                      >
+                        {myStanding.wins}-{myStanding.losses}
+                      </span>
+                      <span
+                        title="Standing in the league"
+                        className="rounded-full bg-slate-800 px-2.5 py-1 text-xs font-semibold text-slate-300"
+                      >
+                        #{myRank} of {goods.standings.length}
+                      </span>
+                    </>
+                  ) : null}
                 </div>
               </div>
             </div>
           </div>
+
+          <RosterStrip roster={goods.myRoster} />
         </div>
 
         <div className="mt-5 flex flex-wrap gap-2 border-t border-slate-700 pt-4">
@@ -401,66 +582,171 @@ export function DashboardShell({
         </section>
 
         <section className="grid gap-6 xl:grid-cols-[1.5fr_0.9fr]">
+          <div className="xl:col-span-2 rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-lg shadow-slate-950/30">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">
+                Notifications
+              </p>
+              {/*
+               * Always rendered, and disabled rather than hidden on an empty
+               * list. Hiding it meant a member whose panel was empty had no
+               * visible way to clear anything and no way to tell the control
+               * existed, which reads as the feature being missing. Disabled
+               * still says there is nothing to do, while the panel keeps
+               * offering the option the moment something arrives.
+               */}
+              {onClearNotifications && (
+                <button
+                  type="button"
+                  disabled={
+                    isClearingNotifications || goods.notifications.length === 0
+                  }
+                  onClick={onClearNotifications}
+                  title={
+                    goods.notifications.length === 0
+                      ? "There are no notifications to clear"
+                      : "Clear every notification for this league"
+                  }
+                  className="rounded-lg border border-slate-700 px-2.5 py-1 text-xs font-medium text-slate-300 transition hover:border-rose-800 hover:text-rose-300 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-slate-700 disabled:hover:text-slate-300"
+                >
+                  {isClearingNotifications ? "Clearing..." : "Clear all"}
+                </button>
+              )}
+            </div>
+            {notificationError && (
+              <p className="mt-3 text-xs text-rose-300">{notificationError}</p>
+            )}
+            {!notificationError && notificationNotice && (
+              <p className="mt-3 text-xs text-emerald-300">
+                {notificationNotice}
+              </p>
+            )}
+            {goods.notifications.length === 0 ? (
+              <p className="mt-4 text-sm text-slate-500">
+                You have no notifications yet.
+              </p>
+            ) : (
+              <ul className="mt-4 space-y-3">
+                {goods.notifications.map((item) => (
+                  <li
+                    key={item.id}
+                    className="flex gap-3 rounded-xl bg-slate-800/70 p-3 text-sm text-slate-200"
+                  >
+                    <span
+                      className={`mt-1 h-2 w-2 shrink-0 rounded-full ${
+                        item.is_read ? "bg-slate-600" : "bg-amber-400"
+                      }`}
+                    />
+                    <div>
+                      <p>{item.message}</p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        {formatNotificationAge(item.created_at, timeZone)}
+                      </p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
           <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-lg shadow-slate-950/30">
             <div className="flex items-center justify-between gap-4">
               <div>
                 <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">
-                  Standings
+                  Schedule
                 </p>
                 <h2 className="mt-2 text-xl font-bold text-white">
-                  Season snapshot
+                  {goods.currentWeek != null
+                    ? `Week ${goods.currentWeek} matchups`
+                    : "Upcoming matches"}
                 </h2>
               </div>
               <button
                 type="button"
                 onClick={() => router.push(scheduleRoute)}
-                className="rounded-xl bg-amber-500 px-3 py-2 text-sm font-semibold text-slate-950 transition hover:bg-amber-400"
+                className="rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-sm font-medium text-slate-100 transition hover:border-slate-500 hover:bg-slate-700"
               >
-                View full table
+                Manage calendar
               </button>
             </div>
 
-            {goods.standings.length === 0 ? (
+            {otherWeekMatches.length === 0 ? (
               <p className="mt-5 rounded-xl border border-slate-800 bg-slate-950/60 p-4 text-sm text-slate-500">
-                No teams have been added to this season yet.
+                {/*
+                  Three different empty states, and saying "nothing on the
+                  schedule" for a season that is already finished reads as though
+                  the league never generated one. totalWeeks is the tell: only
+                  generate_schedule sets regular_season_weeks, so it being zero is
+                  what "no schedule has been generated" actually means.
+                */}
+                {goods.currentWeekMatches.length > 0
+                  ? "You have no other matchups this week."
+                  : goods.totalWeeks === 0
+                    ? "Nothing on the schedule yet. Generate one from the Schedule page."
+                    : goods.currentWeek == null
+                      ? "Every match in this season has been reported."
+                      : "Every matchup in this week has been reported."}
               </p>
             ) : (
-              <div className="mt-5 overflow-hidden rounded-xl border border-slate-800">
-                <table className="min-w-full divide-y divide-slate-800 text-left text-sm">
-                  <thead className="bg-slate-950 text-slate-300">
-                    <tr>
-                      <th className="px-4 py-3 font-semibold">Rank</th>
-                      <th className="px-4 py-3 font-semibold">Trainer</th>
-                      <th className="px-4 py-3 font-semibold">W</th>
-                      <th className="px-4 py-3 font-semibold">L</th>
-                      <th className="px-4 py-3 font-semibold">KO Diff</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-800 bg-slate-900">
-                    {goods.standings.map((row, index) => (
-                      <tr key={row.team_id} className="hover:bg-slate-800/80">
-                        <td className="px-4 py-3 font-medium text-slate-100">
-                          {index + 1}
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-3">
-                            <span
-                              className={`h-2.5 w-2.5 rounded-full ${RANK_ACCENTS[index % RANK_ACCENTS.length]}`}
+              <div className="mt-5 space-y-3">
+                {otherWeekMatches.map((match) => (
+                  <div
+                    key={match.id}
+                    className="flex flex-col gap-3 rounded-xl border border-slate-700 bg-slate-800/70 p-4"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="font-semibold text-slate-100">
+                          {match.player_1_name} vs {match.player_2_name}
+                        </p>
+                        <p className="mt-1 text-sm text-slate-400">
+                          {[
+                            match.is_playoff
+                              ? "Postseason"
+                              : `Week ${match.week_number}`,
+                            formatMatchTime(match.scheduled_at, timeZone),
+                          ]
+                            .filter(Boolean)
+                            .join(", ")}
+                        </p>
+                      </div>
+                      <span
+                        className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${
+                          match.status === "in_progress"
+                            ? "bg-amber-500/15 text-amber-300"
+                            : "bg-emerald-500/15 text-emerald-300"
+                        }`}
+                      >
+                        {matchStatusLabel(match.status)}
+                      </span>
+                    </div>
+                    {/* Both sides' Pokemon, sprites only, as on the Next Match panel. */}
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                      {[
+                        {
+                          teamId: match.player_1_team_id,
+                          name: match.player_1_name,
+                          avatarUrl: match.player_1_avatar_url,
+                        },
+                        {
+                          teamId: match.player_2_team_id,
+                          name: match.player_2_name,
+                          avatarUrl: match.player_2_avatar_url,
+                        },
+                      ].map((side, index) => (
+                        <Fragment key={side.teamId}>
+                          {index === 1 && <VsLabel />}
+                          <div className="min-w-0 flex-1">
+                            <SideLabel name={side.name} avatarUrl={side.avatarUrl} />
+                            <LineupSprites
+                              roster={goods.rostersByTeam[side.teamId] ?? []}
                             />
-                            <span className="font-medium text-slate-100">
-                              {teamLabel(row.team_id, row.team_name)}
-                            </span>
                           </div>
-                        </td>
-                        <td className="px-4 py-3 text-slate-300">{row.wins}</td>
-                        <td className="px-4 py-3 text-slate-300">{row.losses}</td>
-                        <td className="px-4 py-3 font-medium text-slate-100">
-                          {row.ko_diff > 0 ? `+${row.ko_diff}` : row.ko_diff}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                        </Fragment>
+                      ))}
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>
@@ -477,12 +763,47 @@ export function DashboardShell({
                     {goods.nextMatch.player_2_name}
                   </h3>
                   <p className="mt-2 text-sm text-slate-300">
-                    {goods.nextMatch.is_playoff
-                      ? "Postseason"
-                      : `Week ${goods.nextMatch.week_number}`}{" "}
-                    • {formatMatchTime(goods.nextMatch.scheduled_at, timeZone)} •{" "}
-                    {matchFormatLabel}
+                      {[
+                        goods.nextMatch.is_playoff
+                          ? "Postseason"
+                          : `Week ${goods.nextMatch.week_number}`,
+                        formatMatchTime(goods.nextMatch.scheduled_at, timeZone),
+                        matchFormatLabel,
+                      ]
+                        .filter(Boolean)
+                        .join(", ")}
                   </p>
+
+                  {/*
+                    Both lineups, sprites only. The panel answers "what am I
+                    about to face", and six pictures per side does that faster than
+                    a list of names; the matchup page carries the detail.
+                  */}
+                  <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-center">
+                    {[
+                      {
+                        teamId: goods.nextMatch.player_1_team_id,
+                        name: goods.nextMatch.player_1_name,
+                        avatarUrl: goods.nextMatch.player_1_avatar_url,
+                      },
+                      {
+                        teamId: goods.nextMatch.player_2_team_id,
+                        name: goods.nextMatch.player_2_name,
+                        avatarUrl: goods.nextMatch.player_2_avatar_url,
+                      },
+                    ].map((side, index) => (
+                      <Fragment key={side.teamId}>
+                        {index === 1 && <VsLabel />}
+                        <div className="min-w-0 flex-1">
+                          <SideLabel name={side.name} avatarUrl={side.avatarUrl} />
+                          <LineupSprites
+                            roster={goods.rostersByTeam[side.teamId] ?? []}
+                          />
+                        </div>
+                      </Fragment>
+                    ))}
+                  </div>
+
                   <button
                     type="button"
                     onClick={() => router.push(scheduleRoute)}
@@ -501,206 +822,71 @@ export function DashboardShell({
             </div>
 
             <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-lg shadow-slate-950/30">
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">
-                  Notifications
-                </p>
-                {/*
-                 * Always rendered, and disabled rather than hidden on an empty
-                 * list. Hiding it meant a member whose panel was empty had no
-                 * visible way to clear anything and no way to tell the control
-                 * existed, which reads as the feature being missing. Disabled
-                 * still says there is nothing to do, while the panel keeps
-                 * offering the option the moment something arrives.
-                 */}
-                {onClearNotifications && (
-                  <button
-                    type="button"
-                    disabled={
-                      isClearingNotifications || goods.notifications.length === 0
-                    }
-                    onClick={onClearNotifications}
-                    title={
-                      goods.notifications.length === 0
-                        ? "There are no notifications to clear"
-                        : "Clear every notification for this league"
-                    }
-                    className="rounded-lg border border-slate-700 px-2.5 py-1 text-xs font-medium text-slate-300 transition hover:border-rose-800 hover:text-rose-300 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-slate-700 disabled:hover:text-slate-300"
-                  >
-                    {isClearingNotifications ? "Clearing..." : "Clear all"}
-                  </button>
-                )}
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">
+                    Standings
+                  </p>
+                  <h2 className="mt-2 text-xl font-bold text-white">
+                    Season snapshot
+                  </h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => router.push(scheduleRoute)}
+                  className="rounded-xl bg-amber-500 px-3 py-2 text-sm font-semibold text-slate-950 transition hover:bg-amber-400"
+                >
+                  View full table
+                </button>
               </div>
-              {notificationError && (
-                <p className="mt-3 text-xs text-rose-300">{notificationError}</p>
-              )}
-              {!notificationError && notificationNotice && (
-                <p className="mt-3 text-xs text-emerald-300">
-                  {notificationNotice}
-                </p>
-              )}
-              {goods.notifications.length === 0 ? (
-                <p className="mt-4 text-sm text-slate-500">
-                  You have no notifications yet.
+
+              {goods.standings.length === 0 ? (
+                <p className="mt-5 rounded-xl border border-slate-800 bg-slate-950/60 p-4 text-sm text-slate-500">
+                  No teams have been added to this season yet.
                 </p>
               ) : (
-                <ul className="mt-4 space-y-3">
-                  {goods.notifications.map((item) => (
-                    <li
-                      key={item.id}
-                      className="flex gap-3 rounded-xl bg-slate-800/70 p-3 text-sm text-slate-200"
-                    >
-                      <span
-                        className={`mt-1 h-2 w-2 shrink-0 rounded-full ${
-                          item.is_read ? "bg-slate-600" : "bg-amber-400"
-                        }`}
-                      />
-                      <div>
-                        <p>{item.message}</p>
-                        <p className="mt-1 text-xs text-slate-500">
-                          {formatNotificationAge(item.created_at, timeZone)}
-                        </p>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
+                <div className="mt-5 overflow-x-auto rounded-xl border border-slate-800">
+                  {/*
+                    overflow-x-auto rather than overflow-hidden so every column stays
+                    reachable when names are long or the viewport is narrow; a hidden
+                    overflow would clip the right hand columns with no way to reach them.
+                  */}
+                  <table className="min-w-full divide-y divide-slate-800 text-left text-sm">
+                    <thead className="bg-slate-950 text-slate-300">
+                      <tr>
+                        <th className="px-4 py-3 font-semibold">Rank</th>
+                        <th className="px-4 py-3 font-semibold">Trainer</th>
+                        <th className="px-4 py-3 font-semibold">W</th>
+                        <th className="px-4 py-3 font-semibold">L</th>
+                        <th className="px-4 py-3 text-center font-semibold">KO Diff</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800 bg-slate-900">
+                      {goods.standings.map((row, index) => (
+                        <tr key={row.team_id} className="hover:bg-slate-800/80">
+                          <td className="px-4 py-3 font-medium text-slate-100">
+                            {index + 1}
+                          </td>
+                          <td className="px-4 py-3">
+                          <span className="font-medium text-slate-100">
+                            {teamLabel(row.team_id, row.team_name)}
+                          </span>
+                          </td>
+                          <td className="px-4 py-3 text-slate-300">{row.wins}</td>
+                          <td className="px-4 py-3 text-slate-300">{row.losses}</td>
+                          <td className="px-4 py-3 text-center font-medium text-slate-100">
+                            {row.ko_diff > 0 ? `+${row.ko_diff}` : row.ko_diff}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </div>
           </aside>
         </section>
 
-        <section className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-          <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-lg shadow-slate-950/30">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">
-                  Schedule
-                </p>
-                <h2 className="mt-2 text-xl font-bold text-white">
-                  Upcoming matches
-                </h2>
-              </div>
-              <button
-                type="button"
-                onClick={() => router.push(scheduleRoute)}
-                className="rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-sm font-medium text-slate-100 transition hover:border-slate-500 hover:bg-slate-700"
-              >
-                Manage calendar
-              </button>
-            </div>
-
-            {goods.upcomingMatches.length === 0 ? (
-              <p className="mt-5 rounded-xl border border-slate-800 bg-slate-950/60 p-4 text-sm text-slate-500">
-                Nothing on the schedule yet. Generate one from the Schedule page.
-              </p>
-            ) : (
-              <div className="mt-5 space-y-3">
-                {goods.upcomingMatches.map((match) => (
-                  <div
-                    key={match.id}
-                    className="flex items-center justify-between gap-4 rounded-xl border border-slate-700 bg-slate-800/70 p-4"
-                  >
-                    <div>
-                      <p className="font-semibold text-slate-100">
-                        {match.player_1_name} vs {match.player_2_name}
-                      </p>
-                      <p className="mt-1 text-sm text-slate-400">
-                        {match.is_playoff
-                          ? "Postseason"
-                          : `Week ${match.week_number}`}{" "}
-                        • {formatMatchTime(match.scheduled_at, timeZone)}
-                      </p>
-                    </div>
-                    <span
-                      className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
-                        match.status === "in_progress"
-                          ? "bg-amber-500/15 text-amber-300"
-                          : "bg-emerald-500/15 text-emerald-300"
-                      }`}
-                    >
-                      {matchStatusLabel(match.status)}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-lg shadow-slate-950/30">
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">
-              My team
-            </p>
-            <h2 className="mt-2 text-xl font-bold text-white">
-              {goods.myTeam
-                ? (goods.myTeam.owner_name ?? goods.myTeam.team_name)
-                : "No team yet"}
-            </h2>
-
-            {!goods.myTeam ? (
-              <p className="mt-5 rounded-xl border border-slate-800 bg-slate-950/60 p-4 text-sm text-slate-500">
-                You do not have a team in this season.
-              </p>
-            ) : goods.myRoster.length === 0 ? (
-              <p className="mt-5 rounded-xl border border-slate-800 bg-slate-950/60 p-4 text-sm text-slate-500">
-                Your roster is empty. Draft or pick up Pokémon to fill it.
-              </p>
-            ) : (
-              <div className="mt-5 space-y-3">
-                {goods.myRoster.map((pokemon) => (
-                  <div
-                    key={pokemon.id}
-                    className="flex items-center justify-between gap-3 rounded-xl border border-slate-700 bg-slate-800/70 px-4 py-3"
-                  >
-                    <div className="flex min-w-0 items-center gap-3">
-                      {pokemon.spriteId > 0 ? (
-                        <img
-                          src={getSpriteUrl(pokemon.spriteId)}
-                          alt={pokemon.name}
-                          width={32}
-                          height={32}
-                          loading="lazy"
-                          className="h-8 w-8 shrink-0 object-contain"
-                        />
-                      ) : (
-                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-700 text-xs text-slate-400">
-                          ?
-                        </span>
-                      )}
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          <p className="font-medium text-slate-100">
-                            {pokemon.name}
-                          </p>
-                          {pokemon.types.map((type) => (
-                            <span
-                              key={type}
-                              className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold capitalize ${
-                                TYPE_BADGE_STYLES[type.toLowerCase()] ??
-                                "bg-slate-700 text-slate-200"
-                              }`}
-                            >
-                              {type}
-                            </span>
-                          ))}
-                        </div>
-                        {pokemon.bst != null && (
-                          <p className="text-xs text-slate-500">
-                            {pokemon.bst} BST
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                    <span className="shrink-0 rounded-full bg-amber-500/15 px-2 py-1 text-xs font-semibold text-amber-300">
-                      {pokemon.tier_value === 0
-                        ? "Unranked"
-                        : `Tier ${pokemon.tier_value}`}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </section>
         </>
       )}
 

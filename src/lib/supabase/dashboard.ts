@@ -16,9 +16,6 @@ import { getPokemonEntryBySlug } from "@/lib/pokeapi";
 /** Page size used when walking the draft pool's in-pool rows past the cap. */
 const POOL_PAGE_SIZE = 1000;
 
-/** How many open matches the dashboard's schedule list shows. */
-const UPCOMING_MATCH_LIMIT = 3;
-
 /** How many recent notifications the dashboard's notification list shows. */
 const NOTIFICATION_LIMIT = 5;
 
@@ -65,8 +62,37 @@ const TRADE_EVENT_TYPES = [
 const OPEN_TRADE_STATUSES = ["awaiting_response", "pending_approval", "approved"];
 
 
-/** Match statuses that count as still open (not yet decided). */
-const OPEN_MATCH_STATUSES = ["scheduled", "in_progress"] as const;
+/**
+ * Match statuses that count as still open (not yet decided).
+ *
+ * `unscheduled` belongs here and is the load-bearing entry. generate_schedule
+ * inserts its matchups with a literal 'scheduled' but no scheduled_at, and the
+ * matches_default_unscheduled trigger rewrites exactly that case to
+ * 'unscheduled' (20261026_match_scheduling_agreement.sql). So every match in a
+ * freshly generated schedule is unscheduled, and omitting it here made a league
+ * that had just set its schedule read as having no weeks at all: the Current Week
+ * card showed "Schedule not set" because the derived week had no open match to
+ * point at. The list has to stay in step with matches_status_check.
+ */
+export const OPEN_MATCH_STATUSES = [
+  "unscheduled",
+  "scheduled",
+  "in_progress",
+] as const;
+
+/**
+ * Match statuses that mean the match is over, so its week is decided.
+ *
+ * The complement of {@link OPEN_MATCH_STATUSES} against matches_status_check.
+ * Exported so the tests can assert the two lists still partition that
+ * constraint, which is what stops a future status being added to one list and
+ * forgotten in the other.
+ */
+export const DECIDED_MATCH_STATUSES = [
+  "completed",
+  "forfeit",
+  "cancelled",
+] as const;
 
 /** Lifecycle status of the season the dashboard summarizes. */
 export type DashboardSeasonStatus =
@@ -110,6 +136,9 @@ export type DashboardMatch = {
   player_2_team_id: string;
   player_1_name: string;
   player_2_name: string;
+  /** Owner avatar for each side, or null when the owner has none set. */
+  player_1_avatar_url: string | null;
+  player_2_avatar_url: string | null;
 };
 
 /** A ranked standings row, already ordered by the database. */
@@ -130,6 +159,22 @@ export type DashboardRosterPokemon = {
   types: string[];
   tier_value: number;
   bst: number | null;
+};
+
+/**
+ * The minimal shape a roster sprite needs.
+ *
+ * Matchup cards show pictures and nothing else, and a league's cards put every
+ * team's roster on the page at once. Carrying {@link DashboardRosterPokemon}'s
+ * typing and BST arrays for all of them would triple the payload for fields no
+ * card reads, so the sprite map uses this instead and only the member's own
+ * detailed roster uses the full shape.
+ */
+export type DashboardRosterSprite = {
+  id: string;
+  /** Used as the sprite's alt text, so a screen reader still names the Pokemon. */
+  name: string;
+  spriteId: number;
 };
 
 /** One of the signed-in member's notifications. */
@@ -193,12 +238,27 @@ export type DashboardGoods = {
    * the only thing there is to show.
    */
   rules: DashboardRules | null;
-  /** Full standings table, ranked. */
+/** Full standings table, ranked. */
   standings: DashboardStanding[];
-  /** Open matches, the member's own first, capped at three. */
-  upcomingMatches: DashboardMatch[];
+  /**
+   * Every open match in the current week, soonest first, backing the Schedule
+   * panel. Uncapped, because the point of the panel is to show the whole week's
+   * slate rather than a preview of it. Falls back to every open match once the
+   * regular season is over, where playoff rounds are not in a week.
+   */
+  currentWeekMatches: DashboardMatch[];
   /** The member's own next open match, when they have one. */
   nextMatch: DashboardMatch | null;
+  /**
+   * Roster sprites for every team that appears in a matchup card on this page,
+   * keyed by team id and richest Pokemon first.
+   *
+   * Covers the teams in {@link DashboardGoods.nextMatch} and in
+   * {@link DashboardGoods.currentWeekMatches}, which is what the Next Match and
+   * Schedule panels draw. Every team's roster is already read by the loader, so
+   * this slices what is in hand rather than issuing another query.
+   */
+  rostersByTeam: Record<string, DashboardRosterSprite[]>;
   /** The member's team in this season, when they own one. */
   myTeam: DashboardTeam | null;
   /** The member's roster, richest Pokemon first. */
@@ -252,9 +312,10 @@ function emptyGoods(): DashboardGoods {
 matchFormat: null,
     pendingTradesCount: 0,
     rules: null,
-    standings: [],
-    upcomingMatches: [],
+standings: [],
+    currentWeekMatches: [],
     nextMatch: null,
+    rostersByTeam: {},
     myTeam: null,
     myRoster: [],
     notifications: [],
@@ -265,6 +326,67 @@ matchFormat: null,
     isOwner: false,
     leagueId: "",
   };
+}
+
+/** The fields {@link deriveCurrentWeek} reads from a match. */
+type WeekDerivationMatch = Pick<
+  DashboardMatch,
+  "is_playoff" | "status" | "week_number"
+>;
+
+/**
+ * The regular-season week the league is in: the earliest week that still has an
+ * undecided match.
+ *
+ * A week is undecided while any of its regular-season matches is in
+ * {@link OPEN_MATCH_STATUSES}. A freshly generated schedule counts throughout,
+ * because every one of its matches is `unscheduled` until both sides agree a
+ * time, and treating that as decided is what made a just-configured league read
+ * as having no schedule. Playoff matches are ignored: a bracket round never
+ * decides a regular-season week.
+ *
+ * @param matches - Every match in the season, playoff rounds included.
+ * @returns The week number, or null when nothing regular is undecided.
+ */
+export function deriveCurrentWeek(matches: WeekDerivationMatch[]): number | null {
+  let earliest: number | null = null;
+
+  for (const match of matches) {
+    if (match.is_playoff) continue;
+    if (!(OPEN_MATCH_STATUSES as readonly string[]).includes(match.status)) continue;
+    if (earliest === null || match.week_number < earliest) {
+      earliest = match.week_number;
+    }
+  }
+
+  return earliest;
+}
+
+/**
+ * The open matches the dashboard's Schedule panel shows: the current week's whole
+ * slate, in the order given.
+ *
+ * Filtering to the league's actual week is what keeps the panel consistent with
+ * the Current Week card. A league that played through week 2 sees week 3's
+ * matchups rather than the leftovers of every week, which is what an uncapped
+ * "all open matches" list would show.
+ *
+ * Once the regular season is over `currentWeek` is null and playoff rounds are not
+ * in a week at all, so everything open is returned rather than leaving the panel
+ * blank through the postseason.
+ *
+ * @param openMatches - Open matches, already in display order.
+ * @param currentWeek - The week the league is in, or null outside the regular season.
+ * @returns The matches to render.
+ */
+export function selectCurrentWeekMatches(
+  openMatches: DashboardMatch[],
+  currentWeek: number | null,
+): DashboardMatch[] {
+  if (currentWeek == null) {
+    return openMatches;
+  }
+  return openMatches.filter((match) => match.week_number === currentWeek);
 }
 
 /** The sort key for a match's scheduled time, treating an unset time as last. */
@@ -349,7 +471,7 @@ const [settingsResult, teamResult, standingsResult, matchResult, rulesResult, le
       supabase
         .from("matches")
         .select(
-          "id, week_number, is_playoff, scheduled_at, status, player_1_team_id, player_2_team_id, player_1: player_1_team_id (team_name, owner_user_id, owner: owner_user_id (display_name)), player_2: player_2_team_id (team_name, owner_user_id, owner: owner_user_id (display_name))",
+          "id, week_number, is_playoff, scheduled_at, status, player_1_team_id, player_2_team_id, player_1: player_1_team_id (team_name, owner_user_id, owner: owner_user_id (display_name, avatar_url)), player_2: player_2_team_id (team_name, owner_user_id, owner: owner_user_id (display_name, avatar_url))",
         )
         .eq("league_id", leagueId)
         .eq("season_id", season.id)
@@ -423,12 +545,12 @@ const [settingsResult, teamResult, standingsResult, matchResult, rulesResult, le
     player_1?: {
       team_name?: string | null;
       owner_user_id?: string;
-      owner?: { display_name?: string | null } | null;
+      owner?: { display_name?: string | null; avatar_url?: string | null } | null;
     } | null;
     player_2?: {
       team_name?: string | null;
       owner_user_id?: string;
-      owner?: { display_name?: string | null } | null;
+      owner?: { display_name?: string | null; avatar_url?: string | null } | null;
     } | null;
   }[]).map<DashboardMatch>((row) => ({
     id: row.id,
@@ -441,6 +563,8 @@ const [settingsResult, teamResult, standingsResult, matchResult, rulesResult, le
     // The owner's live display name; `team_name` is only a draft-time snapshot.
     player_1_name: row.player_1?.owner?.display_name ?? row.player_1?.team_name ?? "Team 1",
     player_2_name: row.player_2?.owner?.display_name ?? row.player_2?.team_name ?? "Team 2",
+    player_1_avatar_url: row.player_1?.owner?.avatar_url ?? null,
+    player_2_avatar_url: row.player_2?.owner?.avatar_url ?? null,
   }));
 
 
@@ -465,17 +589,7 @@ const [settingsResult, teamResult, standingsResult, matchResult, rulesResult, le
   // The current week is the earliest regular-season week that still has an
   // undecided match; once every regular match is decided the season is either
   // in the postseason or finished.
-  const regularWeeks = [
-    ...new Set(
-      matches.filter((match) => !match.is_playoff).map((match) => match.week_number),
-    ),
-  ].sort((a, b) => a - b);
-  const derivedWeek =
-    regularWeeks.find((week) =>
-      openMatches.some(
-        (match) => !match.is_playoff && match.week_number === week,
-      ),
-    ) ?? null;
+  const derivedWeek = deriveCurrentWeek(matches);
 
   /*
    * The league's official week pointer, when the weekly deadline maintains it.
@@ -559,23 +673,85 @@ const [settingsResult, teamResult, standingsResult, matchResult, rulesResult, le
     tier_value: number;
   }[];
 
-  // A Pokemon on any roster is no longer a free agent even though the draft
+// A Pokemon on any roster is no longer a free agent even though the draft
   // engine leaves is_in_pool TRUE for drafted species.
   const claimedPokemon = new Set(rosterRows.map((row) => row.pokemon_id));
-  const myRoster = rosterRows
-    .filter((row) => myTeam != null && row.team_id === myTeam.id)
-    .map<DashboardRosterPokemon>((row) => {
-      const catalog = getPokemonEntryBySlug(row.pokemon_id);
-      return {
-        id: row.id,
-        name: catalog?.name ?? row.pokemon_id,
-        spriteId: catalog?.spriteId ?? 0,
-        types: catalog?.types ?? [],
-        tier_value: row.tier_value,
-        bst: catalog?.bst ?? null,
-      };
-    })
-    .sort((a, b) => b.tier_value - a.tier_value);
+
+  /** Enriches one roster row with its catalog display data, richest first. */
+  const toRosterPokemon = (
+    rows: typeof rosterRows,
+  ): DashboardRosterPokemon[] =>
+    rows
+      .map<DashboardRosterPokemon>((row) => {
+        const catalog = getPokemonEntryBySlug(row.pokemon_id);
+        return {
+          id: row.id,
+          name: catalog?.name ?? row.pokemon_id,
+          spriteId: catalog?.spriteId ?? 0,
+          types: catalog?.types ?? [],
+          tier_value: row.tier_value,
+          bst: catalog?.bst ?? null,
+        };
+      })
+      .sort((a, b) => b.tier_value - a.tier_value);
+
+  const myRoster =
+    myTeam == null
+      ? []
+      : toRosterPokemon(rosterRows.filter((row) => row.team_id === myTeam.id));
+
+  /*
+   * The Schedule panel shows the current week's whole slate, not a preview of it.
+   * Filtering to the week the league is actually in is what makes the panel match
+   * the Current Week card: a league that played through week 2 should see week 3's
+   * matchups, not the leftovers of every week.
+   *
+   * Once the regular season is over currentWeek is null and the playoff rounds are
+   * not in a week at all, so the panel falls back to every open match rather than
+   * going blank during the postseason.
+   */
+  const currentWeekMatches = selectCurrentWeekMatches(sortedOpen, currentWeek);
+
+  const myNextMatch =
+    sortedOpen.find(
+      (match) =>
+        myTeam != null &&
+        (match.player_1_team_id === myTeam.id ||
+          match.player_2_team_id === myTeam.id),
+    ) ?? null;
+
+  /*
+   * Sprite-only roster for one team, richest Pokemon first. Deliberately a
+   * narrower shape than DashboardRosterPokemon: matchup cards draw pictures, and
+   * a league's cards would otherwise carry every team's typing and BST arrays for
+   * fields no card reads.
+   */
+  const toRosterSprites = (rows: typeof rosterRows): DashboardRosterSprite[] =>
+    [...rows]
+      // Richest first, ordered on the row's tier so a card matches the order the
+      // roster panels use, then mapped down to the sprite shape.
+      .sort((a, b) => b.tier_value - a.tier_value || a.id.localeCompare(b.id))
+      .map<DashboardRosterSprite>((row) => {
+        const catalog = getPokemonEntryBySlug(row.pokemon_id);
+        return {
+          id: row.id,
+          name: catalog?.name ?? row.pokemon_id,
+          spriteId: catalog?.spriteId ?? 0,
+        };
+      });
+
+  const rostersByTeam: Record<string, DashboardRosterSprite[]> = {};
+  const cardTeamIds = new Set<string>();
+  for (const match of [myNextMatch, ...currentWeekMatches]) {
+    if (!match) continue;
+    cardTeamIds.add(match.player_1_team_id);
+    cardTeamIds.add(match.player_2_team_id);
+  }
+  for (const teamId of cardTeamIds) {
+    rostersByTeam[teamId] = toRosterSprites(
+      rosterRows.filter((row) => row.team_id === teamId),
+    );
+  }
 
   const notifications = ((notificationResult.data ?? []) as {
     id: string;
@@ -601,15 +777,10 @@ const [settingsResult, teamResult, standingsResult, matchResult, rulesResult, le
     matchFormat: settings?.match_format ?? null,
     pendingTradesCount: (tradeResult.data ?? []).length,
     rules,
-    standings,
-    upcomingMatches: sortedOpen.slice(0, UPCOMING_MATCH_LIMIT),
-    nextMatch:
-      sortedOpen.find(
-        (match) =>
-          myTeam != null &&
-          (match.player_1_team_id === myTeam.id ||
-            match.player_2_team_id === myTeam.id),
-      ) ?? null,
+standings,
+    currentWeekMatches,
+    nextMatch: myNextMatch,
+    rostersByTeam,
     myTeam,
     myRoster,
     notifications,
@@ -912,8 +1083,9 @@ async function loadFreeAgentPokemon(
 }
 
 /**
- * Formats a scheduled match time as a short date/time, or an em dash when the
- * match has no time set.
+ * Formats a scheduled match time as a short date/time, or an empty string when
+ * the match has no valid time set. Callers omit the segment rather than showing
+ * a placeholder.
  *
  * The zone is passed in rather than read from the browser so the dashboard reads
  * times the same way the rest of the league pages do: in the zone the member
@@ -921,17 +1093,17 @@ async function loadFreeAgentPokemon(
  *
  * @param value - An ISO timestamp, or null.
  * @param timeZone - IANA time zone to render the timestamp in.
- * @returns The formatted date/time.
+ * @returns The formatted date/time, or "" when there is no valid time.
  */
 export function formatMatchTime(value: string | null, timeZone: string): string {
   if (!value) {
-    return "—";
+    return "";
   }
 
   const date = new Date(value);
 
   if (Number.isNaN(date.getTime())) {
-    return "—";
+    return "";
   }
 
   return new Intl.DateTimeFormat(undefined, {

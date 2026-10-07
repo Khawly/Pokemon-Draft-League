@@ -656,7 +656,7 @@ function DefensiveTypingGrid({
                   scope="row"
                   className="sticky left-0 bg-slate-900 px-2 py-1.5 text-left text-xs font-semibold uppercase tracking-wider text-red-300"
                 >
-                  Weaknesses
+                  TOTAL Weaknesses
                 </th>
                 {TYPE_LIST.map((type) => (
                   <td
@@ -674,7 +674,7 @@ function DefensiveTypingGrid({
                   scope="row"
                   className="sticky left-0 bg-slate-900 px-2 py-1.5 text-left text-xs font-semibold uppercase tracking-wider text-green-300"
                 >
-                  Resists
+                  TOTAL Resists
                 </th>
                 {TYPE_LIST.map((type) => (
                   <td
@@ -844,6 +844,8 @@ function TeamsPageContent({
   const [goods, setGoods] = useState<TeamPageGoods | null>(null);
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
   const [compareTeamId, setCompareTeamId] = useState<string | null>(null);
+  /** Whether the comparison shows each roster in its own table or both in one. */
+  const [compareLayout, setCompareLayout] = useState<"separate" | "together">("separate");
   const [isLoading, setIsLoading] = useState(true);
   const [isBusy, setIsBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -970,6 +972,13 @@ function TeamsPageContent({
   const compareRoster = useMemo(
     () => (goods && compareTeamId ? goods.rostersByTeam.get(compareTeamId) ?? [] : []),
     [goods, compareTeamId],
+  );
+
+  // Both rosters in one list for the "Together" layout. Roster row ids are unique,
+  // so the combined list keys cleanly even though it spans two teams.
+  const combinedRoster = useMemo(
+    () => [...selectedRoster, ...compareRoster],
+    [selectedRoster, compareRoster],
   );
 
   const selectedSalary = useMemo(
@@ -1150,6 +1159,17 @@ function TeamsPageContent({
                       ))}
                     </select>
                   </label>
+                  <select
+                    value={compareLayout}
+                    onChange={(event) =>
+                      setCompareLayout(event.target.value as "separate" | "together")
+                    }
+                    className="rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm font-medium text-slate-100 outline-none transition focus:border-amber-400"
+                    aria-label="Comparison layout"
+                  >
+                    <option value="separate">Separate</option>
+                    <option value="together">Together</option>
+                  </select>
                   <button
                     type="button"
                     onClick={() => setCompareTeamId(null)}
@@ -1209,22 +1229,34 @@ function TeamsPageContent({
           </div>
         ) : (
           <>
-            <TeamStatsTable
-              teamName={selectedTeamLabel}
-              roster={selectedRoster}
-              isMine={selectedTeamId === goods.myTeamId}
-              canDrop={canDrop}
-              onDrop={handleDrop}
-            />
-
-            {compareTeam && (
+            {!(compareTeam && compareLayout === "together") && (
               <TeamStatsTable
-                teamName={`${compareTeamLabel} (comparison)`}
-                roster={compareRoster}
+                teamName={selectedTeamLabel}
+                roster={selectedRoster}
+                isMine={selectedTeamId === goods.myTeamId}
+                canDrop={canDrop}
+                onDrop={handleDrop}
+              />
+            )}
+
+            {compareTeam && compareLayout === "together" ? (
+              <TeamStatsTable
+                teamName={`${selectedTeamLabel} + ${compareTeamLabel}`}
+                roster={combinedRoster}
                 isMine={false}
                 canDrop={false}
                 onDrop={() => undefined}
               />
+            ) : (
+              compareTeam && (
+                <TeamStatsTable
+                  teamName={`${compareTeamLabel} (comparison)`}
+                  roster={compareRoster}
+                  isMine={false}
+                  canDrop={false}
+                  onDrop={() => undefined}
+                />
+              )
             )}
 
             <DefensiveTypingGrid

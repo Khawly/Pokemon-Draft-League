@@ -14,7 +14,9 @@
                     "db:login":  "supabase login",
                     "db:link":  "supabase link",
                     "db:push":  "supabase db push",
-                    "seed:bots":  "node scripts/seed-test-bots.mjs"
+                    "seed:bots":  "node scripts/seed-test-bots.mjs",
+                    "seed:standings":  "node scripts/seed-standings-results.mjs",
+                    "test:playoffs":  "node scripts/simulate-playoff-bracket.mjs"
                 },
     "dependencies":  {
                          "@supabase/server":  "^1.6.0",

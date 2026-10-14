@@ -13,11 +13,14 @@
  * its tier into the team's token salary, removes it from the roster, re-lists
  * it on the free agents, and records a transaction (all enforced by the
  * `drop_roster_pokemon` RPC). Match history timestamps are shown in the time
- * zone the member picked in user settings.
+ * zone the member picked in user settings. Every member display name is rendered
+ * through `MemberName`, so the page shows each name in the colour its owner
+ * picked; the team `<select>` options are the exception, since an option cannot
+ * hold a styled span.
  */
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { AbilityTooltip } from "@/components/ability-tooltip";
@@ -28,6 +31,7 @@ import { formatDateTimeInZone } from "@/lib/datetime";
 import { useUserTimeZone } from "@/lib/user-timezone";
 import { TYPE_LIST, getDefensiveMatchup, getEmphasisGlow, getMatchupColor, type PokemonType } from "@/lib/typechart";
 import { useConfirm } from "@/components/confirm-dialog";
+import { MemberName } from "@/components/member-name";
 import {
   deleteMatch,
   dropRosterPokemon,
@@ -226,8 +230,12 @@ function TeamStatsTable({
   canDrop,
   onDrop,
 }: {
-  /** Team name shown in the table header. */
-  teamName: string;
+  /**
+   * Heading naming the team. A node rather than a plain string because the
+   * compare layouts join two owners into one heading, and each name has to be
+   * rendered in the colour its owner picked rather than as one string.
+   */
+  teamName: ReactNode;
   /** Roster Pokémon to display. */
   roster: TeamRosterPokemon[];
   /** True when this table belongs to the signed-in user's own team. */
@@ -553,8 +561,12 @@ function DefensiveTypingGrid({
   teamName,
   roster,
 }: {
-  /** Team name shown in the grid header. */
-  teamName: string;
+  /**
+   * Heading naming the team. A node rather than a plain string because the
+   * compare layout appends a qualifier to one owner's name, and that name has to
+   * be rendered in the colour its owner picked.
+   */
+  teamName: ReactNode;
   /** Roster Pokémon to evaluate. */
   roster: TeamRosterPokemon[];
 }) {
@@ -714,8 +726,11 @@ function MatchHistory({
   isStaff,
   onDelete,
 }: {
-  /** Team name shown in the history header. */
-  teamName: string;
+  /**
+   * Heading naming the team. A node rather than a plain string so the name can be
+   * rendered in the colour its owner picked.
+   */
+  teamName: ReactNode;
   /** The selected player's matches, oldest first. */
   matches: TeamMatch[];
   /** True when the signed-in user is a league owner or admin. */
@@ -766,8 +781,16 @@ function MatchHistory({
                     Week {match.week_number}
                   </td>
                   <td className="px-4 py-3 font-medium text-slate-100">
-                    <span className="whitespace-nowrap">
-                      {match.player_1_name} vs {match.player_2_name}
+                    <span className="inline-flex items-baseline gap-x-1 whitespace-nowrap">
+                      <MemberName
+                        name={match.player_1_name}
+                        color={match.player_1_name_color}
+                      />
+                      <span>vs</span>
+                      <MemberName
+                        name={match.player_2_name}
+                        color={match.player_2_name_color}
+                      />
                     </span>
                     {match.is_playoff && (
                       <span className="ml-2 rounded-full bg-violet-500/15 px-2 py-0.5 text-xs font-semibold text-violet-300">
@@ -776,7 +799,11 @@ function MatchHistory({
                     )}
                   </td>
                   <td className="whitespace-nowrap px-4 py-3 text-slate-200">
-                    {match.winner_name ?? (match.status === "forfeit" ? "Forfeit" : "—")}
+                    <MemberName
+                      name={match.winner_name}
+                      color={match.winner_name_color}
+                      fallback={match.status === "forfeit" ? "Forfeit" : "—"}
+                    />
                   </td>
                   <td className="whitespace-nowrap px-4 py-3 text-slate-300">
                     {formatDateTimeInZone(match.date_time, timeZone)}
@@ -1088,6 +1115,45 @@ function TeamsPageContent({
 
   const teamOptions = goods.teams.length > 0 ? goods.teams : [];
 
+  /*
+   * The section headings, built as nodes rather than strings: each one names a
+   * member, and a name is only coloured where it is an element of its own, so the
+   * compare layouts compose their two owners as siblings instead of concatenating
+   * the labels into one string. The labels themselves are already non-empty
+   * (they fall back to the team name, then to "Selected team"), so no fallback is
+   * needed here.
+   */
+  const selectedTeamHeading = (
+    <MemberName
+      name={selectedTeamLabel}
+      color={selectedTeam?.owner_name_color}
+    />
+  );
+
+  const compareTeamHeading = (
+    <MemberName
+      name={compareTeamLabel}
+      color={compareTeam?.owner_name_color}
+    />
+  );
+
+  const comparisonSuffix = "(comparison)";
+
+  const combinedTeamHeading = (
+    <span className="inline-flex flex-wrap items-baseline gap-x-1.5">
+      {selectedTeamHeading}
+      <span>+</span>
+      {compareTeamHeading}
+    </span>
+  );
+
+  const comparedTeamHeading = (
+    <span className="inline-flex flex-wrap items-baseline gap-x-1.5">
+      {compareTeamHeading}
+      <span>{comparisonSuffix}</span>
+    </span>
+  );
+
   return (
     <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
       <div className="mx-auto max-w-7xl space-y-6">
@@ -1186,9 +1252,12 @@ function TeamsPageContent({
             <div className="mt-5 flex flex-wrap gap-4 border-t border-slate-700 pt-4 text-sm text-slate-300">
               <span>
                 Owner:{" "}
-                <span className="font-medium text-slate-100">
-                  {selectedTeam.owner_name ?? "Unknown"}
-                </span>
+                <MemberName
+                  name={selectedTeam.owner_name}
+                  color={selectedTeam.owner_name_color}
+                  className="font-medium text-slate-100"
+                  fallback="Unknown"
+                />
               </span>
               {goods.settings?.enable_pokemon_costs ? (
                 <span>
@@ -1231,7 +1300,7 @@ function TeamsPageContent({
           <>
             {!(compareTeam && compareLayout === "together") && (
               <TeamStatsTable
-                teamName={selectedTeamLabel}
+                teamName={selectedTeamHeading}
                 roster={selectedRoster}
                 isMine={selectedTeamId === goods.myTeamId}
                 canDrop={canDrop}
@@ -1241,7 +1310,7 @@ function TeamsPageContent({
 
             {compareTeam && compareLayout === "together" ? (
               <TeamStatsTable
-                teamName={`${selectedTeamLabel} + ${compareTeamLabel}`}
+                teamName={combinedTeamHeading}
                 roster={combinedRoster}
                 isMine={false}
                 canDrop={false}
@@ -1250,7 +1319,7 @@ function TeamsPageContent({
             ) : (
               compareTeam && (
                 <TeamStatsTable
-                  teamName={`${compareTeamLabel} (comparison)`}
+                  teamName={comparedTeamHeading}
                   roster={compareRoster}
                   isMine={false}
                   canDrop={false}
@@ -1260,19 +1329,19 @@ function TeamsPageContent({
             )}
 
             <DefensiveTypingGrid
-              teamName={selectedTeamLabel}
+              teamName={selectedTeamHeading}
               roster={selectedRoster}
             />
 
             {compareTeam && (
               <DefensiveTypingGrid
-                teamName={`${compareTeamLabel} (comparison)`}
+                teamName={comparedTeamHeading}
                 roster={compareRoster}
               />
             )}
 
             <MatchHistory
-              teamName={selectedTeamLabel}
+              teamName={selectedTeamHeading}
               matches={selectedMatches}
               isStaff={goods.isStaff}
               onDelete={handleDeleteMatch}

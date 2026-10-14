@@ -81,6 +81,10 @@ export type DraftMember = {
   role: "owner" | "admin" | "member";
   display_name: string | null;
   avatar_url: string | null;
+  /** Stored name colour, passed through raw for render-time normalization. */
+  name_color: string | null;
+  /** Stored avatar initials, passed through raw for render-time normalization. */
+  avatar_initials: string | null;
   /** Draft order slot (1-based), set on the league member pre-start. */
   draft_position: number | null;
 };
@@ -94,8 +98,10 @@ export type DraftPick = {
    * The team's draft-time name snapshot. Not for labelling a person: that is
    * `picker_display_name`, which reads the live profile and so survives a rename.
    */
-  team_name: string;
+team_name: string;
   picker_display_name: string | null;
+  /** The picker's stored name colour, raw, or null when they have none set. */
+  picker_name_color: string | null;
   round_number: number;
   pick_in_round: number;
   overall_pick: number;
@@ -214,8 +220,8 @@ type PickLedgerRow = {
   cost_delta: number;
   is_pass: boolean;
   created_at: string;
-  teams?: { team_name?: string; owner_user_id?: string } | null;
-  profiles?: { display_name?: string | null } | null;
+teams?: { team_name?: string; owner_user_id?: string } | null;
+  profiles?: { display_name?: string | null; name_color?: string | null } | null;
 };
 
 /**
@@ -308,13 +314,13 @@ const [
         .order("draft_position", { ascending: true, nullsFirst: false }),
       supabase
         .from("league_members")
-        .select("user_id, role, draft_position, profiles: user_id (display_name, avatar_url, timezone)")
+        .select("user_id, role, draft_position, profiles: user_id (display_name, avatar_url, name_color, avatar_initials, timezone)")
         .eq("league_id", leagueId)
         .eq("is_active", true),
       supabase
         .from("draft_picks")
         .select(
-          "id, team_id, round_number, pick_in_round, overall_pick, pokemon_id, species_name, tier_value, cost_delta, is_pass, created_at, teams: team_id (team_name, owner_user_id), profiles: user_id (display_name)",
+          "id, team_id, round_number, pick_in_round, overall_pick, pokemon_id, species_name, tier_value, cost_delta, is_pass, created_at, teams: team_id (team_name, owner_user_id), profiles: user_id (display_name, name_color)",
         )
         .eq("league_id", leagueId)
         .order("overall_pick", { ascending: true }),
@@ -401,6 +407,8 @@ const memberRows = (memberResult.data ?? []) as {
     profiles?: {
       display_name?: string | null;
       avatar_url?: string | null;
+      name_color?: string | null;
+      avatar_initials?: string | null;
       timezone?: string | null;
     } | null;
   }[];
@@ -410,6 +418,8 @@ const memberRows = (memberResult.data ?? []) as {
     role: row.role,
     display_name: row.profiles?.display_name ?? null,
     avatar_url: row.profiles?.avatar_url ?? null,
+    name_color: row.profiles?.name_color ?? null,
+    avatar_initials: row.profiles?.avatar_initials ?? null,
     draft_position: row.draft_position,
   }));
 
@@ -439,7 +449,8 @@ const memberRows = (memberResult.data ?? []) as {
     team_id: row.team_id,
     owner_user_id: row.teams?.owner_user_id ?? "",
     team_name: row.teams?.team_name ?? "—",
-    picker_display_name: row.profiles?.display_name ?? null,
+picker_display_name: row.profiles?.display_name ?? null,
+    picker_name_color: row.profiles?.name_color ?? null,
     round_number: row.round_number,
     pick_in_round: row.pick_in_round,
     overall_pick: row.overall_pick,

@@ -17,6 +17,10 @@ export type DraftboardMember = {
   role: "owner" | "admin" | "member";
   display_name: string | null;
   avatar_url: string | null;
+  /** Stored name colour, passed through raw for render-time normalization. */
+  name_color: string | null;
+  /** Stored avatar initials, passed through raw for render-time normalization. */
+  avatar_initials: string | null;
   draft_position: number | null;
 };
 
@@ -52,9 +56,11 @@ type MemberRow = {
   user_id: string;
   role: "owner" | "admin" | "member";
   draft_position: number | null;
-  profiles?: {
+profiles?: {
     display_name?: string | null;
     avatar_url?: string | null;
+    name_color?: string | null;
+    avatar_initials?: string | null;
   } | null;
 };
 
@@ -115,7 +121,7 @@ export async function loadDraftboardData(
       ? supabase
           .from("league_members")
           .select(
-            "user_id, role, draft_position, profiles: user_id (display_name, avatar_url)",
+            "user_id, role, draft_position, profiles: user_id (display_name, avatar_url, name_color, avatar_initials)",
           )
           .eq("league_id", leagueId)
           .eq("is_active", true)
@@ -146,7 +152,9 @@ export async function loadDraftboardData(
     user_id: row.user_id,
     role: row.role,
     display_name: row.profiles?.display_name ?? null,
-    avatar_url: row.profiles?.avatar_url ?? null,
+avatar_url: row.profiles?.avatar_url ?? null,
+    name_color: row.profiles?.name_color ?? null,
+    avatar_initials: row.profiles?.avatar_initials ?? null,
     draft_position: row.draft_position,
   }));
 

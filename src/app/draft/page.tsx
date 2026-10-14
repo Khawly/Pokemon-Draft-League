@@ -13,6 +13,9 @@
  *
  * The page is split into a Suspense wrapper (to satisfy useSearchParams) and a
  * client content component that owns polling, the timer, and all mutations.
+ *
+ * Player names on the pick board render through MemberName, so each one carries
+ * the colour that member chose in their own profile.
  */
 
 /*
@@ -52,6 +55,8 @@ import {
   DraftPriorityEntry,
 } from "@/lib/supabase/draft";
 import { AbilityTooltip } from "@/components/ability-tooltip";
+import { MemberName } from "@/components/member-name";
+import { MemberAvatar } from "@/components/member-avatar";
 import {
   getDexNumber,
   getPokemonDetailsBySlug,
@@ -608,10 +613,21 @@ type PickBoardRow = {
    * name and only falls back to the draft-time team-name snapshot.
    */
   name: string;
+  /**
+   * The player's stored name colour, carried alongside the name so each board
+   * view can render it in the colour they chose. Null leaves the name inheriting
+   * its container's text colour.
+   */
+  nameColor: string | null;
   /** Draft position, or null when none has been assigned. */
   draftPosition: number | null;
   /** The player's avatar, or null when they have not set one. */
   avatarUrl: string | null;
+  /**
+   * The player's stored avatar initials, or null when they have not picked any,
+   * in which case the shared derivation from their name is used instead.
+   */
+  avatarInitials: string | null;
   /** Whether this player is on the clock right now. */
   isOnClock: boolean;
   /** The round on the clock when it is this player's turn, else null. */
@@ -705,8 +721,10 @@ function usePickBoardRows(goods: DraftGoods): PickBoardRow[] {
         return {
           userId: member.user_id,
           name: member.display_name ?? team?.team_name ?? "Unnamed player",
+          nameColor: member.name_color ?? null,
           draftPosition: member.draft_position,
           avatarUrl: member.avatar_url,
+          avatarInitials: member.avatar_initials ?? null,
           isOnClock,
           currentRound: isOnClock ? slice.roundNumber : null,
           salary: team && costsEnabled ? getTeamSalary(goods, team.id) : null,
@@ -793,7 +811,14 @@ function PickBoard({ goods, now }: ArenaPanelProps) {
           ))}
 
           <span className="text-xs text-slate-500">
-            {mine ? `You: ${mine.name}` : ""}
+            {mine ? (
+              <>
+                You:{" "}
+                <MemberName name={mine.name} color={mine.nameColor} />
+              </>
+            ) : (
+              ""
+            )}
           </span>
         </div>
       </div>
@@ -880,7 +905,7 @@ function PickBoardCards({
       }`}
     >
       {rows.map((row, index) => {
-        const { name, salary, isOnClock, currentRound } = row;
+        const { name, nameColor, salary, isOnClock, currentRound } = row;
 
         return (
           <div
@@ -897,22 +922,19 @@ function PickBoardCards({
           >
             {/* Player card header */}
             <div className="flex items-center gap-2">
-              {row.avatarUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={row.avatarUrl}
-                  alt=""
-                  className="h-9 w-9 shrink-0 rounded-full border border-slate-700 object-cover"
-                />
-              ) : (
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-800 text-sm font-bold text-amber-300">
-                  {name.charAt(0).toUpperCase()}
-                </span>
-              )}
+              <MemberAvatar
+                name={name}
+                color={nameColor}
+                avatarUrl={row.avatarUrl}
+                initials={row.avatarInitials}
+                size={36}
+              />
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold text-slate-100">
-                  {name}
-                </p>
+                <MemberName
+                  name={name}
+                  color={nameColor}
+                  className="truncate text-sm font-semibold text-slate-100"
+                />
                 <p className="truncate text-[10px] uppercase tracking-wider text-slate-500">
                   Pick #{row.draftPosition ?? index + 1}
                   {row.userId === goods.currentUserId ? " · You" : ""}
@@ -1143,7 +1165,7 @@ function PickBoardTable({
                 round columns show through them.
               */}
               <td className="sticky left-0 z-10 whitespace-nowrap bg-slate-900 px-3 py-2 font-medium text-slate-100">
-                {row.name}
+                <MemberName name={row.name} color={row.nameColor} />
                 {row.userId === goods.currentUserId && (
                   <span className="ml-1 text-slate-500">· You</span>
                 )}

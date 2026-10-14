@@ -2,10 +2,15 @@
  * Main dashboard shell displayed after a user selects a league.
  *
  * Renders the league header (which carries an image-only strip of the signed-in
- * member's roster), stat cards, standings table, schedule, upcoming matches,
- * notifications, and the user's current team roster. Every value comes from the
- * dashboard payload loaded by the page; each panel degrades to an explicit empty
- * state when the league has no data for it yet.
+ * member's roster), notifications, schedule, upcoming matches, standings, and
+ * the league rules. Every value comes from the dashboard payload loaded by the
+ * page; each panel degrades to an explicit empty state when the league has no
+ * data for it yet.
+ *
+ * Every member name here goes through MemberName, so a member's chosen name
+ * colour follows them into the header, the schedule, the matchup cards, and the
+ * standings table. A "vs" heading is split into sibling elements rather than one
+ * interpolated string, because a single element can only carry one colour.
  */
 "use client";
 
@@ -13,6 +18,8 @@ import { useRouter } from "next/navigation";
 import { signOut } from "@/lib/supabase/auth";
 import { Fragment } from "react";
 import { getSpriteUrl } from "@/lib/pokeapi";
+import { MemberName } from "@/components/member-name";
+import { MemberAvatar } from "@/components/member-avatar";
 import { TabNotification } from "@/components/nav-alert-badge";
 import {
   formatMatchTime,
@@ -28,7 +35,15 @@ import { useUserTimeZone } from "@/lib/user-timezone";
 import { formatDateTimeInZone } from "@/lib/datetime";
 
 /** Navigation tab labels displayed in the league header. */
-const tabs = ["Overview", "Draft Board", "Teams", "Pokémon", "Schedule", "Trades", "Rules"];
+const tabs = [
+  "Dashboard",
+  "Draft Board",
+  "Teams",
+  "Pokémon",
+  "Schedule",
+  "Trades",
+  "Rules",
+];
 
 /** Maps the navigable header tabs to their route slugs (leagueId is appended). */
 const TAB_ROUTES: Record<string, string> = {
@@ -53,6 +68,18 @@ export interface DashboardShellProps {
   email: string;
   /** Optional URL for the user's avatar image. Falls back to an initial-based placeholder. */
   avatarUrl?: string | null;
+  /**
+   * The signed-in member's stored avatar initials, shown in the header when they
+   * have no uploaded picture. Null falls back to the shared derivation from their
+   * display name, which is what a member who never picked letters has always seen.
+   */
+  avatarInitials?: string | null;
+  /**
+   * The signed-in member's stored name colour, applied to their name in the
+   * header. Undefined for a member who has not chosen one, which leaves the name
+   * exactly as it rendered before.
+   */
+  nameColor?: string | null;
   /** Name of the currently selected league. Defaults to "League Name". */
   leagueName?: string;
   /** ID of the currently selected league, used to build navigation links. */
@@ -146,8 +173,7 @@ function RulesPanel({ rules, timeZone, isOwner, leagueId }: RulesPanelProps) {
             {rules.content}
           </div>
           <p className="mt-2 text-xs text-slate-500">
-            Last updated{" "}
-            {formatDateTimeInZone(rules.updatedAt, timeZone)}
+            Last updated {formatDateTimeInZone(rules.updatedAt, timeZone)}
           </p>
         </>
       ) : (
@@ -239,28 +265,42 @@ function VsLabel() {
 interface SideLabelProps {
   /** The player's display name. */
   name: string;
+  /** The player's stored name colour, or null when they have not chosen one. */
+  nameColor?: string | null;
   /** The owner's avatar, or null to show an initial in its place. */
   avatarUrl: string | null;
+  /**
+   * The player's stored avatar initials, or null to derive them from their name.
+   */
+  initials?: string | null;
 }
 
 /**
  * A player's name with their avatar in front of it, used as the label above each
  * side's sprites in a matchup card.
  *
+ * The name is rendered through MemberName so it carries the player's chosen
+ * colour; the avatar placeholder beside it keeps the badge's own text colour,
+ * since an initial is not a name.
+ *
  * @param props - {@link SideLabelProps}
  * @returns A single-line avatar and name, truncated to fit its column.
  */
-function SideLabel({ name, avatarUrl }: SideLabelProps) {
+function SideLabel({ name, nameColor, avatarUrl, initials }: SideLabelProps) {
   return (
     <div className="flex min-w-0 items-center justify-center gap-2">
-      <span className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full border border-slate-700 bg-slate-800 text-lg font-bold text-slate-200">
-        {avatarUrl ? (
-          <img src={avatarUrl} alt={name} className="h-full w-full object-cover" />
-        ) : (
-          <span>{name?.charAt(0)?.toUpperCase() || "?"}</span>
-        )}
-      </span>
-      <p className="truncate text-xs font-medium text-slate-400">{name}</p>
+      <MemberAvatar
+        name={name}
+        color={nameColor}
+        avatarUrl={avatarUrl}
+        initials={initials}
+        size={48}
+      />
+      <MemberName
+        name={name}
+        color={nameColor}
+        className="truncate text-xs font-medium text-slate-400"
+      />
     </div>
   );
 }
@@ -325,9 +365,9 @@ function LineupSprites({ roster }: LineupSpritesProps) {
 /**
  * Full dashboard layout for a selected league.
  *
- * Displays league metadata, summary stat cards, standings, schedule,
- * notifications, and the current team roster. Provides navigation to the
- * draft board, teams, Pokémon (free agent) and settings pages.
+ * Displays league metadata, notifications, schedule, standings, and the league
+ * rules. Provides navigation to the draft board, teams, Pokémon (free agent)
+ * and settings pages.
  *
  * @param props - {@link DashboardShellProps}
  * @returns A grid-based dashboard layout.
@@ -336,6 +376,8 @@ export function DashboardShell({
   displayName,
   email,
   avatarUrl,
+  avatarInitials = null,
+  nameColor,
   leagueName = "League Name",
   leagueId,
   goods,
@@ -371,7 +413,8 @@ export function DashboardShell({
    * as finished: an archived season's draft is over, not pending.
    */
   const draftFinished =
-    goods.season?.status === "draft_complete" || goods.season?.status === "archived";
+    goods.season?.status === "draft_complete" ||
+    goods.season?.status === "archived";
 
   /*
    * The member's own row in the standings, backing the record and place chips
@@ -387,7 +430,8 @@ export function DashboardShell({
     goods.myTeam == null
       ? -1
       : goods.standings.findIndex((row) => row.team_id === goods.myTeam?.id);
-  const myStanding = myStandingIndex >= 0 ? goods.standings[myStandingIndex] : null;
+  const myStanding =
+    myStandingIndex >= 0 ? goods.standings[myStandingIndex] : null;
   const myRank = myStandingIndex >= 0 ? myStandingIndex + 1 : null;
 
   /*
@@ -414,15 +458,15 @@ export function DashboardShell({
     return team?.owner_name || fallbackName;
   };
 
-  // The stat cards read off the same payload, so their detail lines describe
-  // whatever the league has actually configured (an unset schedule reads as
-  // "Schedule not set" rather than implying a week count of zero).
-  const weekDetail =
-    goods.currentWeek != null
-      ? `of ${goods.totalWeeks} regular weeks`
-      : goods.hasPlayoffs
-        ? "Postseason"
-        : "Schedule not set";
+  /*
+   * The stored colour for the same owner, so a standings row is tinted to match
+   * the name it labels. Read off the same team entry `teamLabel` resolves, which
+   * means a row for a team missing from the payload simply has no colour and
+   * renders as it did before.
+   */
+  const teamNameColor = (teamId: string) =>
+    goods.teams.find((entry) => entry.id === teamId)?.owner_name_color ?? null;
+
   const matchFormatLabel =
     goods.matchFormat === "single" ? "Single game" : "Best of 3";
   /*
@@ -435,29 +479,6 @@ export function DashboardShell({
       (match.player_1_team_id !== goods.myTeam.id &&
         match.player_2_team_id !== goods.myTeam.id),
   );
-
-  const statCards = [
-    {
-      label: "Teams",
-      value: String(goods.teamsCount),
-      detail: `${goods.rosteredPokemonCount} Pokémon rostered`,
-    },
-    {
-      label: "Free Agents",
-      value: String(goods.freeAgentCount),
-      detail: "Pokémon available",
-    },
-    {
-      label: "Current Week",
-      value: goods.currentWeek != null ? String(goods.currentWeek) : "—",
-      detail: weekDetail,
-    },
-    {
-      label: "Open Trades",
-      value: String(goods.pendingTradesCount),
-      detail: "Awaiting you or approval",
-    },
-  ];
 
   return (
     <div className="space-y-6">
@@ -472,21 +493,17 @@ export function DashboardShell({
             </div>
 
             <div className="flex items-center gap-4">
-              <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full border border-slate-700 bg-amber-500 text-sm font-bold text-slate-950">
-                {avatarUrl ? (
-                  <img
-                    src={avatarUrl}
-                    alt={displayName}
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  <span>{displayName?.charAt(0)?.toUpperCase() || "T"}</span>
-                )}
-              </div>
+              <MemberAvatar
+                name={displayName}
+                color={nameColor}
+                avatarUrl={avatarUrl}
+                initials={avatarInitials}
+                size={48}
+              />
 
               <div className="flex-1">
                 <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-slate-300">
-                  <span>{displayName}</span>
+                  <MemberName name={displayName} color={nameColor} />
 
                   {myStanding && myRank != null ? (
                     <>
@@ -568,201 +585,235 @@ export function DashboardShell({
       {/* Every panel below the header depends on a draft that has happened. */}
       {draftFinished && (
         <>
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {statCards.map((item) => (
-            <div
-              key={item.label}
-              className="rounded-2xl border border-slate-800 bg-slate-900/80 p-5 shadow-lg shadow-slate-950/30"
-            >
-              <p className="text-sm text-slate-400">{item.label}</p>
-              <p className="mt-3 text-3xl font-bold text-white">{item.value}</p>
-              <p className="mt-1 text-sm text-slate-400">{item.detail}</p>
-            </div>
-          ))}
-        </section>
+          <section className="grid gap-6 xl:grid-cols-[1.5fr_0.9fr]">
+            <div className="xl:col-span-2 rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-lg shadow-slate-950/30">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">
+                  Notifications
+                </p>
+                {/*
+                 * Always rendered, and disabled rather than hidden on an empty
+                 * list. Hiding it meant a member whose panel was empty had no
+                 * visible way to clear anything and no way to tell the control
+                 * existed, which reads as the feature being missing. Disabled
+                 * still says there is nothing to do, while the panel keeps
+                 * offering the option the moment something arrives.
+                 */}
+                {onClearNotifications && (
+                  <button
+                    type="button"
+                    disabled={
+                      isClearingNotifications ||
+                      goods.notifications.length === 0
+                    }
+                    onClick={onClearNotifications}
+                    title={
+                      goods.notifications.length === 0
+                        ? "There are no notifications to clear"
+                        : "Clear every notification for this league"
+                    }
+                    className="rounded-lg border border-slate-700 px-2.5 py-1 text-xs font-medium text-slate-300 transition hover:border-rose-800 hover:text-rose-300 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-slate-700 disabled:hover:text-slate-300"
+                  >
+                    {isClearingNotifications ? "Clearing..." : "Clear all"}
+                  </button>
+                )}
+              </div>
+              {notificationError && (
+                <p className="mt-3 text-xs text-rose-300">
+                  {notificationError}
+                </p>
+              )}
+              {!notificationError && notificationNotice && (
+                <p className="mt-3 text-xs text-emerald-300">
+                  {notificationNotice}
+                </p>
+              )}
+              {goods.notifications.length === 0 ? (
+                <p className="mt-4 text-sm text-slate-500">
+                  You have no notifications yet.
+                </p>
+              ) : (
+                /*
+                Capped at roughly four entries with the rest behind a scrollbar.
+                The list is unbounded -- a busy trade week fills it -- and an
+                uncapped one pushed the Schedule panel down the page, so a member
+                arriving for their next match had to scroll past everything they had
+                already seen.
 
-        <section className="grid gap-6 xl:grid-cols-[1.5fr_0.9fr]">
-          <div className="xl:col-span-2 rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-lg shadow-slate-950/30">
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">
-                Notifications
-              </p>
-              {/*
-               * Always rendered, and disabled rather than hidden on an empty
-               * list. Hiding it meant a member whose panel was empty had no
-               * visible way to clear anything and no way to tell the control
-               * existed, which reads as the feature being missing. Disabled
-               * still says there is nothing to do, while the panel keeps
-               * offering the option the moment something arrives.
-               */}
-              {onClearNotifications && (
-                <button
-                  type="button"
-                  disabled={
-                    isClearingNotifications || goods.notifications.length === 0
-                  }
-                  onClick={onClearNotifications}
-                  title={
-                    goods.notifications.length === 0
-                      ? "There are no notifications to clear"
-                      : "Clear every notification for this league"
-                  }
-                  className="rounded-lg border border-slate-700 px-2.5 py-1 text-xs font-medium text-slate-300 transition hover:border-rose-800 hover:text-rose-300 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-slate-700 disabled:hover:text-slate-300"
-                >
-                  {isClearingNotifications ? "Clearing..." : "Clear all"}
-                </button>
+                The height is in rem because entries are not a fixed size: a
+                one-line message and a two-line one differ, so the cap lands on
+                "about four" rather than exactly four. scrollbar-gutter reserves the
+                gutter up front so the panel does not shift sideways when the list
+                becomes scrollable as a new notification arrives.
+              */
+                <ul className="mt-4 max-h-[18rem] space-y-3 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent [scrollbar-gutter:stable]">
+                  {goods.notifications.map((item) => (
+                    <li
+                      key={item.id}
+                      className="flex gap-3 rounded-xl bg-slate-800/70 p-3 text-sm text-slate-200"
+                    >
+                      <span
+                        className={`mt-1 h-2 w-2 shrink-0 rounded-full ${
+                          item.is_read ? "bg-slate-600" : "bg-amber-400"
+                        }`}
+                      />
+                      <div>
+                        <p>{item.message}</p>
+                        <p className="mt-1 text-xs text-slate-500">
+                          {formatNotificationAge(item.created_at, timeZone)}
+                        </p>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
               )}
             </div>
-            {notificationError && (
-              <p className="mt-3 text-xs text-rose-300">{notificationError}</p>
-            )}
-            {!notificationError && notificationNotice && (
-              <p className="mt-3 text-xs text-emerald-300">
-                {notificationNotice}
-              </p>
-            )}
-            {goods.notifications.length === 0 ? (
-              <p className="mt-4 text-sm text-slate-500">
-                You have no notifications yet.
-              </p>
-            ) : (
-              <ul className="mt-4 space-y-3">
-                {goods.notifications.map((item) => (
-                  <li
-                    key={item.id}
-                    className="flex gap-3 rounded-xl bg-slate-800/70 p-3 text-sm text-slate-200"
-                  >
-                    <span
-                      className={`mt-1 h-2 w-2 shrink-0 rounded-full ${
-                        item.is_read ? "bg-slate-600" : "bg-amber-400"
-                      }`}
-                    />
-                    <div>
-                      <p>{item.message}</p>
-                      <p className="mt-1 text-xs text-slate-500">
-                        {formatNotificationAge(item.created_at, timeZone)}
-                      </p>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
 
-          <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-lg shadow-slate-950/30">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">
-                  Schedule
-                </p>
-                <h2 className="mt-2 text-xl font-bold text-white">
-                  {goods.currentWeek != null
-                    ? `Week ${goods.currentWeek} matchups`
-                    : "Upcoming matches"}
-                </h2>
+            <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-lg shadow-slate-950/30">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">
+                    Schedule
+                  </p>
+                  <h2 className="mt-2 text-xl font-bold text-white">
+                    {goods.currentWeek != null
+                      ? `Week ${goods.currentWeek} matchups`
+                      : "Upcoming matches"}
+                  </h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => router.push(scheduleRoute)}
+                  className="rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-sm font-medium text-slate-100 transition hover:border-slate-500 hover:bg-slate-700"
+                >
+                  Manage Schedule
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => router.push(scheduleRoute)}
-                className="rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-sm font-medium text-slate-100 transition hover:border-slate-500 hover:bg-slate-700"
-              >
-                Manage calendar
-              </button>
-            </div>
 
-            {otherWeekMatches.length === 0 ? (
-              <p className="mt-5 rounded-xl border border-slate-800 bg-slate-950/60 p-4 text-sm text-slate-500">
-                {/*
+              {otherWeekMatches.length === 0 ? (
+                <p className="mt-5 rounded-xl border border-slate-800 bg-slate-950/60 p-4 text-sm text-slate-500">
+                  {/*
                   Three different empty states, and saying "nothing on the
                   schedule" for a season that is already finished reads as though
                   the league never generated one. totalWeeks is the tell: only
                   generate_schedule sets regular_season_weeks, so it being zero is
                   what "no schedule has been generated" actually means.
                 */}
-                {goods.currentWeekMatches.length > 0
-                  ? "You have no other matchups this week."
-                  : goods.totalWeeks === 0
-                    ? "Nothing on the schedule yet. Generate one from the Schedule page."
-                    : goods.currentWeek == null
-                      ? "Every match in this season has been reported."
-                      : "Every matchup in this week has been reported."}
-              </p>
-            ) : (
-              <div className="mt-5 space-y-3">
-                {otherWeekMatches.map((match) => (
-                  <div
-                    key={match.id}
-                    className="flex flex-col gap-3 rounded-xl border border-slate-700 bg-slate-800/70 p-4"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="font-semibold text-slate-100">
-                          {match.player_1_name} vs {match.player_2_name}
-                        </p>
-                        <p className="mt-1 text-sm text-slate-400">
-                          {[
-                            match.is_playoff
-                              ? "Postseason"
-                              : `Week ${match.week_number}`,
-                            formatMatchTime(match.scheduled_at, timeZone),
-                          ]
-                            .filter(Boolean)
-                            .join(", ")}
-                        </p>
-                      </div>
-                      <span
-                        className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${
-                          match.status === "in_progress"
-                            ? "bg-amber-500/15 text-amber-300"
-                            : "bg-emerald-500/15 text-emerald-300"
-                        }`}
-                      >
-                        {matchStatusLabel(match.status)}
-                      </span>
-                    </div>
-                    {/* Both sides' Pokemon, sprites only, as on the Next Match panel. */}
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                      {[
-                        {
-                          teamId: match.player_1_team_id,
-                          name: match.player_1_name,
-                          avatarUrl: match.player_1_avatar_url,
-                        },
-                        {
-                          teamId: match.player_2_team_id,
-                          name: match.player_2_name,
-                          avatarUrl: match.player_2_avatar_url,
-                        },
-                      ].map((side, index) => (
-                        <Fragment key={side.teamId}>
-                          {index === 1 && <VsLabel />}
-                          <div className="min-w-0 flex-1">
-                            <SideLabel name={side.name} avatarUrl={side.avatarUrl} />
-                            <LineupSprites
-                              roster={goods.rostersByTeam[side.teamId] ?? []}
+                  {goods.currentWeekMatches.length > 0
+                    ? "You have no other matchups this week."
+                    : goods.totalWeeks === 0
+                      ? "Nothing on the schedule yet. Generate one from the Schedule page."
+                      : goods.currentWeek == null
+                        ? "Every match in this season has been reported."
+                        : "Every matchup in this week has been reported."}
+                </p>
+              ) : (
+                <div className="mt-5 space-y-3">
+                  {otherWeekMatches.map((match) => (
+                    <div
+                      key={match.id}
+                      className="flex flex-col gap-3 rounded-xl border border-slate-700 bg-slate-800/70 p-4"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          {/*
+                          Split rather than interpolated: one element can only carry
+                          one text colour, so the two sides would otherwise
+                          collapse onto whichever colour the container happened to
+                          have. `items-baseline` keeps them on a shared baseline
+                          now that they are flex items instead of one text run.
+                        */}
+                          <p className="flex flex-wrap items-baseline gap-x-2 font-semibold text-slate-100">
+                            <MemberName
+                              name={match.player_1_name}
+                              color={match.player_1_name_color}
                             />
-                          </div>
-                        </Fragment>
-                      ))}
+                            <span>vs</span>
+                            <MemberName
+                              name={match.player_2_name}
+                              color={match.player_2_name_color}
+                            />
+                          </p>
+                          <p className="mt-1 text-sm text-slate-400">
+                            {[
+                              match.is_playoff
+                                ? "Postseason"
+                                : `Week ${match.week_number}`,
+                              formatMatchTime(match.scheduled_at, timeZone),
+                            ]
+                              .filter(Boolean)
+                              .join(", ")}
+                          </p>
+                        </div>
+                        <span
+                          className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${
+                            match.status === "in_progress"
+                              ? "bg-amber-500/15 text-amber-300"
+                              : "bg-emerald-500/15 text-emerald-300"
+                          }`}
+                        >
+                          {matchStatusLabel(match.status)}
+                        </span>
+                      </div>
+                      {/* Both sides' Pokemon, sprites only, as on the Next Match panel. */}
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                        {[
+                          {
+                            teamId: match.player_1_team_id,
+                            name: match.player_1_name,
+                            nameColor: match.player_1_name_color,
+                            avatarUrl: match.player_1_avatar_url,
+                            initials: match.player_1_avatar_initials,
+                          },
+                          {
+                            teamId: match.player_2_team_id,
+                            name: match.player_2_name,
+                            nameColor: match.player_2_name_color,
+                            avatarUrl: match.player_2_avatar_url,
+                            initials: match.player_2_avatar_initials,
+                          },
+                        ].map((side, index) => (
+                          <Fragment key={side.teamId}>
+                            {index === 1 && <VsLabel />}
+                            <div className="min-w-0 flex-1">
+                              <SideLabel
+                                name={side.name}
+                                nameColor={side.nameColor}
+                                avatarUrl={side.avatarUrl}
+                                initials={side.initials}
+                              />
+                              <LineupSprites
+                                roster={goods.rostersByTeam[side.teamId] ?? []}
+                              />
+                            </div>
+                          </Fragment>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+                  ))}
+                </div>
+              )}
+            </div>
 
-          <aside className="space-y-6">
-            <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-lg shadow-slate-950/30">
-              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">
-                Next match
-              </p>
-              {goods.nextMatch ? (
-                <>
-                  <h3 className="mt-3 text-xl font-bold text-white">
-                    {goods.nextMatch.player_1_name} vs{" "}
-                    {goods.nextMatch.player_2_name}
-                  </h3>
-                  <p className="mt-2 text-sm text-slate-300">
+            <aside className="space-y-6">
+              <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-lg shadow-slate-950/30">
+                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">
+                  Next match
+                </p>
+                {goods.nextMatch ? (
+                  <>
+                    <h3 className="mt-3 flex flex-wrap items-baseline gap-x-2 text-xl font-bold text-white">
+                      <MemberName
+                        name={goods.nextMatch.player_1_name}
+                        color={goods.nextMatch.player_1_name_color}
+                      />
+                      <span>vs</span>
+                      <MemberName
+                        name={goods.nextMatch.player_2_name}
+                        color={goods.nextMatch.player_2_name_color}
+                      />
+                    </h3>
+                    <p className="mt-2 text-sm text-slate-300">
                       {[
                         goods.nextMatch.is_playoff
                           ? "Postseason"
@@ -772,121 +823,142 @@ export function DashboardShell({
                       ]
                         .filter(Boolean)
                         .join(", ")}
-                  </p>
+                    </p>
 
-                  {/*
+                    {/*
                     Both lineups, sprites only. The panel answers "what am I
                     about to face", and six pictures per side does that faster than
                     a list of names; the matchup page carries the detail.
                   */}
-                  <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-center">
-                    {[
-                      {
-                        teamId: goods.nextMatch.player_1_team_id,
-                        name: goods.nextMatch.player_1_name,
-                        avatarUrl: goods.nextMatch.player_1_avatar_url,
-                      },
-                      {
-                        teamId: goods.nextMatch.player_2_team_id,
-                        name: goods.nextMatch.player_2_name,
-                        avatarUrl: goods.nextMatch.player_2_avatar_url,
-                      },
-                    ].map((side, index) => (
-                      <Fragment key={side.teamId}>
-                        {index === 1 && <VsLabel />}
-                        <div className="min-w-0 flex-1">
-                          <SideLabel name={side.name} avatarUrl={side.avatarUrl} />
-                          <LineupSprites
-                            roster={goods.rostersByTeam[side.teamId] ?? []}
-                          />
-                        </div>
-                      </Fragment>
-                    ))}
-                  </div>
+                    <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-center">
+                      {[
+                        {
+                          teamId: goods.nextMatch.player_1_team_id,
+                          name: goods.nextMatch.player_1_name,
+                          nameColor: goods.nextMatch.player_1_name_color,
+                          avatarUrl: goods.nextMatch.player_1_avatar_url,
+                          initials: goods.nextMatch.player_1_avatar_initials,
+                        },
+                        {
+                          teamId: goods.nextMatch.player_2_team_id,
+                          name: goods.nextMatch.player_2_name,
+                          nameColor: goods.nextMatch.player_2_name_color,
+                          avatarUrl: goods.nextMatch.player_2_avatar_url,
+                          initials: goods.nextMatch.player_2_avatar_initials,
+                        },
+                      ].map((side, index) => (
+                        <Fragment key={side.teamId}>
+                          {index === 1 && <VsLabel />}
+                          <div className="min-w-0 flex-1">
+                            <SideLabel
+                              name={side.name}
+                              nameColor={side.nameColor}
+                              avatarUrl={side.avatarUrl}
+                              initials={side.initials}
+                            />
+                            <LineupSprites
+                              roster={goods.rostersByTeam[side.teamId] ?? []}
+                            />
+                          </div>
+                        </Fragment>
+                      ))}
+                    </div>
 
+                    <button
+                      type="button"
+                      onClick={() => router.push(scheduleRoute)}
+                      className="mt-4 w-full rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-amber-400"
+                    >
+                      Open matchup
+                    </button>
+                  </>
+                ) : (
+                  <p className="mt-3 text-sm text-slate-400">
+                    {goods.myTeam
+                      ? "You have no scheduled match left this season."
+                      : "You do not have a team in this season."}
+                  </p>
+                )}
+              </div>
+
+              <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-lg shadow-slate-950/30">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">
+                      Standings
+                    </p>
+                    <h2 className="mt-2 text-xl font-bold text-white">
+                      Season snapshot
+                    </h2>
+                  </div>
                   <button
                     type="button"
                     onClick={() => router.push(scheduleRoute)}
-                    className="mt-4 w-full rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-amber-400"
+                    className="rounded-xl bg-amber-500 px-3 py-2 text-sm font-semibold text-slate-950 transition hover:bg-amber-400"
                   >
-                    Open matchup
+                    View full table
                   </button>
-                </>
-              ) : (
-                <p className="mt-3 text-sm text-slate-400">
-                  {goods.myTeam
-                    ? "You have no scheduled match left this season."
-                    : "You do not have a team in this season."}
-                </p>
-              )}
-            </div>
-
-            <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-lg shadow-slate-950/30">
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">
-                    Standings
-                  </p>
-                  <h2 className="mt-2 text-xl font-bold text-white">
-                    Season snapshot
-                  </h2>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => router.push(scheduleRoute)}
-                  className="rounded-xl bg-amber-500 px-3 py-2 text-sm font-semibold text-slate-950 transition hover:bg-amber-400"
-                >
-                  View full table
-                </button>
-              </div>
 
-              {goods.standings.length === 0 ? (
-                <p className="mt-5 rounded-xl border border-slate-800 bg-slate-950/60 p-4 text-sm text-slate-500">
-                  No teams have been added to this season yet.
-                </p>
-              ) : (
-                <div className="mt-5 overflow-x-auto rounded-xl border border-slate-800">
-                  {/*
+                {goods.standings.length === 0 ? (
+                  <p className="mt-5 rounded-xl border border-slate-800 bg-slate-950/60 p-4 text-sm text-slate-500">
+                    No teams have been added to this season yet.
+                  </p>
+                ) : (
+                  <div className="mt-5 overflow-x-auto rounded-xl border border-slate-800">
+                    {/*
                     overflow-x-auto rather than overflow-hidden so every column stays
                     reachable when names are long or the viewport is narrow; a hidden
                     overflow would clip the right hand columns with no way to reach them.
                   */}
-                  <table className="min-w-full divide-y divide-slate-800 text-left text-sm">
-                    <thead className="bg-slate-950 text-slate-300">
-                      <tr>
-                        <th className="px-4 py-3 font-semibold">Rank</th>
-                        <th className="px-4 py-3 font-semibold">Trainer</th>
-                        <th className="px-4 py-3 font-semibold">W</th>
-                        <th className="px-4 py-3 font-semibold">L</th>
-                        <th className="px-4 py-3 text-center font-semibold">KO Diff</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-800 bg-slate-900">
-                      {goods.standings.map((row, index) => (
-                        <tr key={row.team_id} className="hover:bg-slate-800/80">
-                          <td className="px-4 py-3 font-medium text-slate-100">
-                            {index + 1}
-                          </td>
-                          <td className="px-4 py-3">
-                          <span className="font-medium text-slate-100">
-                            {teamLabel(row.team_id, row.team_name)}
-                          </span>
-                          </td>
-                          <td className="px-4 py-3 text-slate-300">{row.wins}</td>
-                          <td className="px-4 py-3 text-slate-300">{row.losses}</td>
-                          <td className="px-4 py-3 text-center font-medium text-slate-100">
-                            {row.ko_diff > 0 ? `+${row.ko_diff}` : row.ko_diff}
-                          </td>
+                    <table className="min-w-full divide-y divide-slate-800 text-left text-sm">
+                      <thead className="bg-slate-950 text-slate-300">
+                        <tr>
+                          <th className="px-4 py-3 font-semibold">Rank</th>
+                          <th className="px-4 py-3 font-semibold">Trainer</th>
+                          <th className="px-4 py-3 font-semibold">W</th>
+                          <th className="px-4 py-3 font-semibold">L</th>
+                          <th className="px-4 py-3 text-center font-semibold">
+                            KO Diff
+                          </th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          </aside>
-        </section>
-
+                      </thead>
+                      <tbody className="divide-y divide-slate-800 bg-slate-900">
+                        {goods.standings.map((row, index) => (
+                          <tr
+                            key={row.team_id}
+                            className="hover:bg-slate-800/80"
+                          >
+                            <td className="px-4 py-3 font-medium text-slate-100">
+                              {index + 1}
+                            </td>
+                            <td className="px-4 py-3">
+                              <MemberName
+                                name={teamLabel(row.team_id, row.team_name)}
+                                color={teamNameColor(row.team_id)}
+                                className="font-medium text-slate-100"
+                              />
+                            </td>
+                            <td className="px-4 py-3 text-slate-300">
+                              {row.wins}
+                            </td>
+                            <td className="px-4 py-3 text-slate-300">
+                              {row.losses}
+                            </td>
+                            <td className="px-4 py-3 text-center font-medium text-slate-100">
+                              {row.ko_diff > 0
+                                ? `+${row.ko_diff}`
+                                : row.ko_diff}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </aside>
+          </section>
         </>
       )}
 

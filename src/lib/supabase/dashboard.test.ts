@@ -16,6 +16,7 @@ import {
   formatNotificationAge,
   matchStatusLabel,
   selectCurrentWeekMatches,
+  trustsWeekPointer,
   type DashboardMatch,
 } from "@/lib/supabase/dashboard";
 
@@ -243,5 +244,62 @@ describe("selectCurrentWeekMatches", () => {
       "late",
       "early",
     ]);
+  });
+});
+
+describe("trustsWeekPointer", () => {
+  it("trusts the pointer during the regular season", () => {
+    // The weekly-deadline system owns the week pointer, so this page and the schedule
+    // page must agree about which week the league is in.
+    expect(
+      trustsWeekPointer({
+        deadline_enabled: true,
+        current_week: 3,
+        regular_season_completed: false,
+      }),
+    ).toBe(true);
+  });
+
+  it("stops trusting the pointer once the regular season is over", () => {
+    // The bug this guards. A five week league sits on a pointer of 6 once its last week
+    // is closed, and the pointer keeps counting into the postseason. Trusting it pinned
+    // the Schedule panel to week 6, so a playoff round created in week 7 or later was
+    // filtered out of it and Advance Playoffs looked like it had done nothing.
+    expect(
+      trustsWeekPointer({
+        deadline_enabled: true,
+        current_week: 6,
+        regular_season_completed: true,
+      }),
+    ).toBe(false);
+  });
+
+  it("ignores a pointer that is switched off, unset, or absent", () => {
+    const base = { current_week: 3, regular_season_completed: false };
+
+    expect(trustsWeekPointer({ ...base, deadline_enabled: false })).toBe(false);
+    expect(trustsWeekPointer({ ...base, deadline_enabled: true, current_week: 0 })).toBe(
+      false,
+    );
+    expect(trustsWeekPointer(null)).toBe(false);
+  });
+
+  it("lets the postseason show every open match rather than one week of them", () => {
+    // The two halves together: the pointer is set aside, so the derived week is null, and
+    // null is what makes the panel list the whole postseason instead of one round.
+    const open = [weekMatch("upper", 7, true), weekMatch("lower", 10, true)];
+
+    expect(
+      selectCurrentWeekMatches(
+        open,
+        trustsWeekPointer({
+          deadline_enabled: true,
+          current_week: 6,
+          regular_season_completed: true,
+        })
+          ? 6
+          : null,
+      ),
+    ).toEqual(open);
   });
 });

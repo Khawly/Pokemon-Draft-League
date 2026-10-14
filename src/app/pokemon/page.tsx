@@ -11,6 +11,10 @@
  * first). Pickup is only available once the draft is complete and the user owns
  * a team. Transaction timestamps are shown in the time zone the member picked in
  * user settings.
+ *
+ * Member display names are rendered through `MemberName`, so the member's chosen
+ * colour follows them into the transaction ledger and into the header's team line.
+ * The pickup confirmation is a plain-text string and stays uncoloured.
  */
 "use client";
 
@@ -19,6 +23,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { supabase } from "@/lib/supabase/client";
 import { AbilityTooltip } from "@/components/ability-tooltip";
+import { MemberName } from "@/components/member-name";
 import { getSpriteUrl } from "@/lib/pokeapi";
 import { formatSeasonLabel } from "@/lib/supabase/seasons";
 import { formatDateTimeInZone } from "@/lib/datetime";
@@ -826,6 +831,9 @@ function PickupConfirmDialog({
  * greeting them by the name they had before they changed it. The team name is
  * only a fallback for a profile with no display name.
  *
+ * Returns the bare name. Colouring is the caller's job: it wraps this in
+ * `MemberName` and supplies the member's colour from the same team row.
+ *
  * @param team - The member's team slot, if they own one this season.
  * @param fallback - The label to use when the member has no team.
  * @returns The name to show.
@@ -905,7 +913,22 @@ function TransactionHistory({
                 <div className="mt-1 flex items-center justify-between gap-3 text-xs text-slate-400">
                   <span className="min-w-0 truncate">
                     {actionLabel(entry.action)}
-                    {entry.playerName ? ` by ${entry.playerName}` : ""}
+                    {/*
+                      Split into siblings rather than interpolated, so the member who
+                      made the move can wear their chosen colour while "by" and the
+                      action label stay in the ledger's slate.
+                    */}
+                    {entry.playerName ? (
+                      <>
+                        {" "}
+                        by{" "}
+                        <MemberName
+                          name={entry.playerName}
+                          color={entry.playerNameColor}
+                          fallback="Unnamed"
+                        />
+                      </>
+                    ) : null}
                   </span>
                   <span className="whitespace-nowrap">
                     {formatDateTimeInZone(entry.created_at, timeZone)}
@@ -1144,6 +1167,11 @@ function PokemonPageContent({
         confirmTarget.pokemon_id,
       );
       await refresh(goods.league.id);
+      /*
+       * Plain text: this is an outcome banner, and the state behind it is a string,
+       * so there is nowhere to put a MemberName. The header's team line above shows
+       * the same name in its chosen colour.
+       */
       setFeedback(
         `Added ${confirmTarget.name} to ${teamLabel(goods.myTeam)}${
           result.charged_tokens > 0
@@ -1209,7 +1237,11 @@ function PokemonPageContent({
                     <span>
                       Team:{" "}
                       <span className="font-medium text-slate-100">
-                        {teamLabel(goods.myTeam)}
+                        <MemberName
+                          name={teamLabel(goods.myTeam)}
+                          color={goods.myTeam.owner_name_color}
+                          fallback="your team"
+                        />
                       </span>{" "}
                       • Salary:{" "}
                       <span className="font-medium text-slate-100">
@@ -1221,7 +1253,11 @@ function PokemonPageContent({
                     <span>
                       Team:{" "}
                       <span className="font-medium text-slate-100">
-                        {teamLabel(goods.myTeam)}
+                        <MemberName
+                          name={teamLabel(goods.myTeam)}
+                          color={goods.myTeam.owner_name_color}
+                          fallback="your team"
+                        />
                       </span>{" "}
                       • Roster: {goods.rosterCount} Pokémon
                     </span>

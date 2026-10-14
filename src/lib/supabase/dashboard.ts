@@ -114,9 +114,19 @@ export type DashboardTeam = {
   id: string;
   team_name: string;
   owner_user_id: string;
-  /** The owner's live display name, which is what the UI labels them with. */
+/** The owner's live display name, which is what the UI labels them with. */
   owner_name: string | null;
   owner_avatar_url: string | null;
+  /**
+   * The owner's stored name colour, passed through raw and normalized at render
+   * time so an unknown value degrades to the default rather than being rewritten.
+   */
+  owner_name_color: string | null;
+  /**
+   * The owner's stored avatar initials, passed through raw for the same reason as
+   * the name colour, or null when they have neither an upload nor letters picked.
+   */
+  owner_avatar_initials: string | null;
 };
 
 /** A season match with both team names resolved. */
@@ -139,6 +149,12 @@ export type DashboardMatch = {
   /** Owner avatar for each side, or null when the owner has none set. */
   player_1_avatar_url: string | null;
   player_2_avatar_url: string | null;
+  /** Each side's stored name colour, raw, or null when the owner has none set. */
+  player_1_name_color: string | null;
+  player_2_name_color: string | null;
+  /** Each side's stored avatar initials, raw, or null when the owner has none set. */
+  player_1_avatar_initials: string | null;
+  player_2_avatar_initials: string | null;
 };
 
 /** A ranked standings row, already ordered by the database. */
@@ -362,6 +378,44 @@ export function deriveCurrentWeek(matches: WeekDerivationMatch[]): number | null
   return earliest;
 }
 
+/** The parts of the week progression state this decision reads. */
+export type WeekPointerState = {
+  deadline_enabled: boolean;
+  current_week: number;
+  regular_season_completed: boolean;
+};
+
+/**
+ * Whether the league's own week pointer should stand in for the derived week.
+ *
+ * The pointer is authoritative during the regular season, which is the whole point of the
+ * weekly-deadline system owning it: this page and the schedule page should not disagree
+ * about which week the league is in.
+ *
+ * It stops being authoritative once the regular season is over. A five week league that
+ * has closed its last week sits on a pointer value past the end of its regular season and
+ * keeps counting into the postseason, and a playoff round in a later week than the pointer
+ * is then filtered out of the Schedule panel. That is what made Advance Playoffs look
+ * broken: it created the next round correctly and the dashboard had nowhere to show it.
+ *
+ * The derived week already goes null at exactly this point, and null is what tells
+ * {@link selectCurrentWeekMatches} to list everything still open.
+ *
+ * @param progress - The league's week progression state, or null when it has none.
+ * @returns True when the pointer should override the derived week.
+ */
+export function trustsWeekPointer(progress: WeekPointerState | null): boolean {
+  if (!progress?.deadline_enabled) {
+    return false;
+  }
+
+  if (progress.regular_season_completed) {
+    return false;
+  }
+
+  return progress.current_week > 0;
+}
+
 /**
  * The open matches the dashboard's Schedule panel shows: the current week's whole
  * slate, in the order given.
@@ -371,9 +425,11 @@ export function deriveCurrentWeek(matches: WeekDerivationMatch[]): number | null
  * matchups rather than the leftovers of every week, which is what an uncapped
  * "all open matches" list would show.
  *
- * Once the regular season is over `currentWeek` is null and playoff rounds are not
- * in a week at all, so everything open is returned rather than leaving the panel
- * blank through the postseason.
+ * Once the regular season is over `currentWeek` is null and the panel lists everything
+ * still open, which is what carries it through the postseason. It has to be null rather
+ * than the week pointer's value: the pointer counts on past the last regular week, so
+ * trusting it there pins the panel to one playoff round and hides the next one the moment
+ * Advance Playoffs creates it.
  *
  * @param openMatches - Open matches, already in display order.
  * @param currentWeek - The week the league is in, or null outside the regular season.
@@ -462,7 +518,7 @@ const [settingsResult, teamResult, standingsResult, matchResult, rulesResult, le
       supabase
         .from("teams")
         .select(
-          "id, team_name, owner_user_id, profiles: owner_user_id (display_name, avatar_url)",
+          "id, team_name, owner_user_id, profiles: owner_user_id (display_name, avatar_url, name_color, avatar_initials)",
         )
         .eq("league_id", leagueId)
         .eq("season_id", season.id)
@@ -471,7 +527,7 @@ const [settingsResult, teamResult, standingsResult, matchResult, rulesResult, le
       supabase
         .from("matches")
         .select(
-          "id, week_number, is_playoff, scheduled_at, status, player_1_team_id, player_2_team_id, player_1: player_1_team_id (team_name, owner_user_id, owner: owner_user_id (display_name, avatar_url)), player_2: player_2_team_id (team_name, owner_user_id, owner: owner_user_id (display_name, avatar_url))",
+          "id, week_number, is_playoff, scheduled_at, status, player_1_team_id, player_2_team_id, player_1: player_1_team_id (team_name, owner_user_id, owner: owner_user_id (display_name, avatar_url, name_color, avatar_initials)), player_2: player_2_team_id (team_name, owner_user_id, owner: owner_user_id (display_name, avatar_url, name_color, avatar_initials))",
         )
         .eq("league_id", leagueId)
         .eq("season_id", season.id)
@@ -522,13 +578,20 @@ const [settingsResult, teamResult, standingsResult, matchResult, rulesResult, le
     id: string;
     team_name: string;
     owner_user_id: string;
-    profiles?: { display_name?: string | null; avatar_url?: string | null } | null;
+    profiles?: {
+      display_name?: string | null;
+      avatar_url?: string | null;
+      name_color?: string | null;
+      avatar_initials?: string | null;
+    } | null;
   }[]).map<DashboardTeam>((row) => ({
     id: row.id,
     team_name: row.team_name,
     owner_user_id: row.owner_user_id,
     owner_name: row.profiles?.display_name ?? null,
     owner_avatar_url: row.profiles?.avatar_url ?? null,
+    owner_name_color: row.profiles?.name_color ?? null,
+    owner_avatar_initials: row.profiles?.avatar_initials ?? null,
   }));
 
   const teamIds = teams.map((team) => team.id);
@@ -545,12 +608,22 @@ const [settingsResult, teamResult, standingsResult, matchResult, rulesResult, le
     player_1?: {
       team_name?: string | null;
       owner_user_id?: string;
-      owner?: { display_name?: string | null; avatar_url?: string | null } | null;
+      owner?: {
+        display_name?: string | null;
+        avatar_url?: string | null;
+        name_color?: string | null;
+        avatar_initials?: string | null;
+      } | null;
     } | null;
     player_2?: {
       team_name?: string | null;
       owner_user_id?: string;
-      owner?: { display_name?: string | null; avatar_url?: string | null } | null;
+      owner?: {
+        display_name?: string | null;
+        avatar_url?: string | null;
+        name_color?: string | null;
+        avatar_initials?: string | null;
+      } | null;
     } | null;
   }[]).map<DashboardMatch>((row) => ({
     id: row.id,
@@ -565,6 +638,10 @@ const [settingsResult, teamResult, standingsResult, matchResult, rulesResult, le
     player_2_name: row.player_2?.owner?.display_name ?? row.player_2?.team_name ?? "Team 2",
     player_1_avatar_url: row.player_1?.owner?.avatar_url ?? null,
     player_2_avatar_url: row.player_2?.owner?.avatar_url ?? null,
+    player_1_name_color: row.player_1?.owner?.name_color ?? null,
+    player_2_name_color: row.player_2?.owner?.name_color ?? null,
+    player_1_avatar_initials: row.player_1?.owner?.avatar_initials ?? null,
+    player_2_avatar_initials: row.player_2?.owner?.avatar_initials ?? null,
   }));
 
 
@@ -582,8 +659,16 @@ const [settingsResult, teamResult, standingsResult, matchResult, rulesResult, le
     ko_diff: Number(row.ko_diff ?? 0),
   }));
 
-  const openMatches = matches.filter((match) =>
-    (OPEN_MATCH_STATUSES as readonly string[]).includes(match.status),
+  /*
+   * Byes are settled automatically so the bracket can move on, and they are real rows in
+   * `matches`, but they have no opponent: listing one in the panel offers a member a game
+   * against nobody. They are drawn on the bracket, which reads the season's whole match
+   * list separately, so dropping them here costs nothing.
+   */
+  const openMatches = matches.filter(
+    (match) =>
+      (OPEN_MATCH_STATUSES as readonly string[]).includes(match.status) &&
+      match.player_2_team_id !== null,
   );
 
   // The current week is the earliest regular-season week that still has an
@@ -603,8 +688,8 @@ const [settingsResult, teamResult, standingsResult, matchResult, rulesResult, le
   try {
     const progress = await loadWeekProgressState(leagueId);
 
-    if (progress?.deadline_enabled && progress.current_week > 0) {
-      currentWeek = progress.current_week;
+    if (trustsWeekPointer(progress)) {
+      currentWeek = progress?.current_week ?? currentWeek;
     }
   } catch {
     // No settings row, no migration, or not a member: keep the derived week.

@@ -47,8 +47,10 @@ export type TeamInfo = {
   team_name: string;
   draft_position: number | null;
   total_salary_override: number | null;
-  owner_name: string | null;
+owner_name: string | null;
   owner_avatar_url: string | null;
+  /** The owner's stored name colour, passed through raw for render-time normalization. */
+  owner_name_color: string | null;
 };
 
 /** A roster slot enriched with catalog and stats/abilities data for display. */
@@ -101,9 +103,14 @@ export type TeamMatch = {
   winner_team_id: string | null;
   player_1_team_id: string;
   player_2_team_id: string;
-  player_1_name: string;
+player_1_name: string;
   player_2_name: string;
   winner_name: string | null;
+  /** Each side's stored name colour, raw, or null when they have none set. */
+  player_1_name_color: string | null;
+  player_2_name_color: string | null;
+  /** The winner's stored name colour, raw, or null when there is no winner. */
+  winner_name_color: string | null;
   /** Display date: latest result submission, else the scheduled time. */
   date_time: string | null;
   results: TeamMatchResult[];
@@ -137,7 +144,11 @@ type TeamRow = {
   team_name: string;
   draft_position: number | null;
   total_salary_override: number | null;
-  profiles?: { display_name?: string | null; avatar_url?: string | null } | null;
+profiles?: {
+    display_name?: string | null;
+    avatar_url?: string | null;
+    name_color?: string | null;
+  } | null;
 };
 
 type RosterRow = {
@@ -228,7 +239,7 @@ export async function loadTeamPageData(
     supabase
       .from("teams")
       .select(
-        "id, owner_user_id, team_name, draft_position, total_salary_override, profiles: owner_user_id (display_name, avatar_url)",
+        "id, owner_user_id, team_name, draft_position, total_salary_override, profiles: owner_user_id (display_name, avatar_url, name_color)",
       )
       .eq("league_id", leagueId)
       .eq("season_id", season.id)
@@ -267,8 +278,9 @@ export async function loadTeamPageData(
       team_name: row.team_name,
       draft_position: row.draft_position,
       total_salary_override: row.total_salary_override,
-      owner_name: row.profiles?.display_name ?? null,
+owner_name: row.profiles?.display_name ?? null,
       owner_avatar_url: row.profiles?.avatar_url ?? null,
+      owner_name_color: row.profiles?.name_color ?? null,
     }),
   );
 
@@ -351,7 +363,7 @@ export async function loadTeamPageData(
   const { data: matchRows, error: matchError } = await supabase
     .from("matches")
     .select(
-      "id, week_number, is_playoff, scheduled_at, status, winner_team_id, player_1_team_id, player_2_team_id, player_1: player_1_team_id (team_name, owner: owner_user_id (display_name)), player_2: player_2_team_id (team_name, owner: owner_user_id (display_name)), winner: winner_team_id (team_name, owner: owner_user_id (display_name))",
+      "id, week_number, is_playoff, scheduled_at, status, winner_team_id, player_1_team_id, player_2_team_id, player_1: player_1_team_id (team_name, owner: owner_user_id (display_name, name_color)), player_2: player_2_team_id (team_name, owner: owner_user_id (display_name, name_color)), winner: winner_team_id (team_name, owner: owner_user_id (display_name, name_color))",
     )
     .eq("league_id", leagueId)
     .eq("season_id", season.id)
@@ -400,9 +412,18 @@ export async function loadTeamPageData(
     winner_team_id: string | null;
     player_1_team_id: string;
     player_2_team_id: string;
-    player_1?: { team_name?: string; owner?: { display_name?: string | null } | null } | null;
-    player_2?: { team_name?: string; owner?: { display_name?: string | null } | null } | null;
-    winner?: { team_name?: string; owner?: { display_name?: string | null } | null } | null;
+    player_1?: {
+      team_name?: string;
+      owner?: { display_name?: string | null; name_color?: string | null } | null;
+    } | null;
+    player_2?: {
+      team_name?: string;
+      owner?: { display_name?: string | null; name_color?: string | null } | null;
+    } | null;
+    winner?: {
+      team_name?: string;
+      owner?: { display_name?: string | null; name_color?: string | null } | null;
+    } | null;
   }[]).map(
     (row): TeamMatch => {
       const results = resultsByMatch.get(row.id) ?? [];
@@ -422,7 +443,10 @@ export async function loadTeamPageData(
         // The owners' live display names; `team_name` is a draft-time snapshot.
         player_1_name: row.player_1?.owner?.display_name ?? row.player_1?.team_name ?? "Team 1",
         player_2_name: row.player_2?.owner?.display_name ?? row.player_2?.team_name ?? "Team 2",
-        winner_name: row.winner?.owner?.display_name ?? row.winner?.team_name ?? null,
+winner_name: row.winner?.owner?.display_name ?? row.winner?.team_name ?? null,
+        player_1_name_color: row.player_1?.owner?.name_color ?? null,
+        player_2_name_color: row.player_2?.owner?.name_color ?? null,
+        winner_name_color: row.winner?.owner?.name_color ?? null,
         date_time: lastSubmitted ?? row.scheduled_at ?? null,
         results,
       };

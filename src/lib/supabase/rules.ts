@@ -17,12 +17,14 @@ export type LeagueRules = {
   content: string | null;
   /** The author's display name, or null when the profile has no name set. */
   authorName: string | null;
+  /** The author's stored name colour, passed through raw for render-time normalization. */
+  authorNameColor: string | null;
   /** When the rules were last saved; the page shows this as "last updated". */
   updatedAt: string;
 };
 
 const RULES_SELECT =
-  "id, content, updated_at, profiles!rules_documents_created_by_fkey(display_name)";
+  "id, content, updated_at, profiles!rules_documents_created_by_fkey(display_name, name_color)";
 
 /**
  * Loads the selected league's rules for its current season.
@@ -100,7 +102,10 @@ export async function loadRulesPageData(leagueId: string): Promise<{
     id: string;
     content: string | null;
     updated_at: string;
-    profiles?: { display_name?: string | null } | null;
+    profiles?: {
+      display_name?: string | null;
+      name_color?: string | null;
+    } | null;
   } | null;
 
   return {
@@ -110,6 +115,7 @@ export async function loadRulesPageData(leagueId: string): Promise<{
           id: row.id,
           content: row.content,
           authorName: row.profiles?.display_name ?? null,
+          authorNameColor: row.profiles?.name_color ?? null,
           updatedAt: row.updated_at,
         }
       : null,

@@ -15,7 +15,10 @@ import {
   groupProposalHistoryByWeek,
   proposalOutcomeLabel,
   proposalOutcomeTone,
+  isByeMatch,
   proposalWeekLabel,
+  firstPlayoffWeekOf,
+  matchWeekLabel,
   seasonPhaseLabel,
   type ProposalHistoryEntry,
   type ScheduleMatch,
@@ -40,6 +43,7 @@ function matchWith(player1Wins: number, player2Wins: number): ScheduleMatch {
       replay_url: null,
       game_number: index + 1,
       reporter_name: null,
+      reporter_name_color: null,
       pokemon_left_alive: null,
       submitted_at: "2026-07-01T00:00:00.000Z",
     })),
@@ -49,6 +53,7 @@ function matchWith(player1Wins: number, player2Wins: number): ScheduleMatch {
       replay_url: null,
       game_number: player1Wins + index + 1,
       reporter_name: null,
+      reporter_name_color: null,
       pokemon_left_alive: null,
       submitted_at: "2026-07-01T00:00:00.000Z",
     })),
@@ -56,18 +61,26 @@ function matchWith(player1Wins: number, player2Wins: number): ScheduleMatch {
 
   return {
     forfeited_by_name: null,
+    forfeited_by_name_color: null,
     id: "match-1",
     week_number: 1,
     is_playoff: false,
+    playoff_round_no: null,
     bracket_phase: null,
+    bracket_slot: null,
+    created_at: "2026-07-01T00:00:00.000Z",
     scheduled_at: null,
     status: "in_progress",
     winner_team_id: null,
     notes: null,
     player_1_team_id: player1,
     player_2_team_id: player2,
-    player_1_name: "Player One",
+player_1_name: "Player One",
     player_2_name: "Player Two",
+    player_1_name_color: null,
+    player_2_name_color: null,
+    player_1_avatar_initials: null,
+    player_2_avatar_initials: null,
     player_1_avatar_url: null,
     player_2_avatar_url: null,
     player_1_user_id: "user-1",
@@ -143,12 +156,16 @@ describe("groupProposalHistoryByWeek", () => {
     proposed_at: "2026-07-01T19:00:00.000Z",
     notes: null,
     proposed_by: "user-a",
-    proposed_by_name: "Khawly",
+proposed_by_name: "Khawly",
+    proposed_by_name_color: null,
     responded_at: "2026-07-01T20:00:00.000Z",
     responded_by: "user-b",
     responded_by_name: "Bam",
+    responded_by_name_color: null,
     player_1_name: "Khawly",
     player_2_name: "Bam",
+    player_1_name_color: null,
+    player_2_name_color: null,
     player_1_user_id: "user-a",
     player_2_user_id: "user-b",
     created_at: "2026-07-01T18:00:00.000Z",
@@ -272,18 +289,119 @@ describe("proposalOutcomeTone", () => {
   });
 });
 
+describe("isByeMatch", () => {
+  it("treats a match with only one side as a bye", () => {
+    // A bracket padded out for byes, and any game whose other side was knocked out by a
+    // double forfeit, leaves a match with one team and no opponent. The advance settles
+    // those so the bracket can move on, which makes them real rows.
+    expect(isByeMatch({ player_2_team_id: null })).toBe(true);
+    expect(isByeMatch({ player_2_team_id: "team-b" })).toBe(false);
+  });
+});
+
 describe("proposalWeekLabel", () => {
   it("labels a regular week by its number", () => {
-    expect(proposalWeekLabel({ week_number: 3, is_playoff: false })).toBe(
+    expect(proposalWeekLabel({ week_number: 3, is_playoff: false }, 6)).toBe(
       "Week 3",
     );
   });
 
-  it("labels a playoff proposal as Playoffs", () => {
-    // A playoff round is not a week, so "Week 4" would be a lie even though the
-    // underlying week_number is a real value.
-    expect(proposalWeekLabel({ week_number: 4, is_playoff: true })).toBe(
+  it("counts a playoff week from the first one rather than using its stored number", () => {
+    // A five week league runs its bracket over weeks six onwards. That number is an
+    // internal id: the opening round is not "week 6" to anyone reading the page.
+    expect(
+      proposalWeekLabel({ week_number: 6, is_playoff: true }, 6),
+    ).toBe("Playoffs (Week 1)");
+    expect(
+      proposalWeekLabel({ week_number: 11, is_playoff: true }, 6),
+    ).toBe("Playoffs (Week 6)");
+  });
+
+  it("counts a playoff game by the press that created it", () => {
+    // One press writes several rounds at once: after the opening round it creates the
+    // next winners round and the first losers round together. Those land in different
+    // stored weeks, and counting by week would split one set of new matchups across two
+    // labels. Counting by bracket round is no better, because the winners and losers
+    // brackets run their rounds in parallel and their round numbers are unrelated.
+    const fromPress = { playoff_round_no: 2 };
+
+    // Week 7 is the second winners round and week 10 the first losers round. One press
+    // created both, so both read as round 2.
+    expect(matchWeekLabel({ week_number: 7, is_playoff: true, ...fromPress }, 6)).toBe(
+      "Playoffs (Week 2)",
+    );
+    expect(matchWeekLabel({ week_number: 10, is_playoff: true, ...fromPress }, 6)).toBe(
+      "Playoffs (Week 2)",
+    );
+  });
+
+  it("ignores the first playoff week once a game records its press", () => {
+    // The stored number is only a fallback for games written before the column existed,
+    // so a press must win over it even when the two disagree.
+    expect(
+      matchWeekLabel(
+        { week_number: 11, is_playoff: true, playoff_round_no: 3 },
+        6,
+      ),
+    ).toBe("Playoffs (Week 3)");
+  });
+
+  it("leaves a regular-season game on its own number even if it has a press", () => {
+    expect(
+      matchWeekLabel(
+        { week_number: 3, is_playoff: false, playoff_round_no: 2 },
+        6,
+      ),
+    ).toBe("Week 3");
+  });
+
+  it("falls back to a bare Playoffs before the postseason has a first week", () => {
+    // The only case with nothing to count from. Without the fallback this would read
+    // "Playoffs (Week 4)" off a week number belonging to the regular season.
+    expect(proposalWeekLabel({ week_number: 4, is_playoff: true }, null)).toBe(
       "Playoffs",
+    );
+  });
+});
+
+describe("firstPlayoffWeekOf", () => {
+  it("finds the earliest playoff week across the season", () => {
+    const matches = [
+      { week_number: 1, is_playoff: false },
+      { week_number: 5, is_playoff: false },
+      { week_number: 11, is_playoff: true },
+      { week_number: 6, is_playoff: true },
+      { week_number: 7, is_playoff: true },
+    ];
+
+    expect(firstPlayoffWeekOf(matches)).toBe(6);
+  });
+
+  it("returns null while the postseason has not started", () => {
+    expect(
+      firstPlayoffWeekOf([
+        { week_number: 1, is_playoff: false },
+        { week_number: 5, is_playoff: false },
+      ]),
+    ).toBeNull();
+    expect(firstPlayoffWeekOf([])).toBeNull();
+  });
+
+  it("numbers the same way whatever subset of the season it is given", () => {
+    // The reason it takes the whole season rather than the panel's own matches. The
+    // proposal log drops the opening round long before the final is proposed, so
+    // numbering from what was left would relabel the final as week 1.
+    const whole = [
+      { week_number: 6, is_playoff: true },
+      { week_number: 16, is_playoff: true },
+    ];
+    const tail = [{ week_number: 16, is_playoff: true }];
+
+    expect(matchWeekLabel(tail[0], firstPlayoffWeekOf(whole))).toBe(
+      "Playoffs (Week 11)",
+    );
+    expect(matchWeekLabel(tail[0], firstPlayoffWeekOf(tail))).toBe(
+      "Playoffs (Week 1)",
     );
   });
 });

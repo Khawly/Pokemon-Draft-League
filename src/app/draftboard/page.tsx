@@ -1,7 +1,8 @@
 /*
  * Draft board page for a league. The owner prepares the draft here: managing
  * invites and draft positions and starting the draft once the checklist is
- * complete.
+ * complete. The players card renders each member's name in the colour they
+ * picked in their own profile.
  */
 
 "use client";
@@ -17,6 +18,8 @@ import {
 import { createLeagueInvite } from "@/lib/supabase/invites";
 import { formatSeasonLabel } from "@/lib/supabase/seasons";
 import { useConfirm } from "@/components/confirm-dialog";
+import { MemberName } from "@/components/member-name";
+import { MemberAvatar } from "@/components/member-avatar";
 
 /**
  * Entry point for the draft board route.
@@ -962,24 +965,20 @@ function PlayerListCard({
                 >
                   <td className="px-3 py-3">
                     <div className="flex items-center gap-3">
-                      {member.avatar_url ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={member.avatar_url}
-                          alt=""
-                          className="h-9 w-9 shrink-0 rounded-full border border-slate-700 object-cover"
-                        />
-                      ) : (
-                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-800 text-sm font-bold text-amber-300">
-                          {(membersDisplayName(member) || "?")
-                            .charAt(0)
-                            .toUpperCase()}
-                        </span>
-                      )}
+                      <MemberAvatar
+                        name={membersDisplayName(member)}
+                        color={member.name_color}
+                        avatarUrl={member.avatar_url}
+                        initials={member.avatar_initials}
+                        size={36}
+                      />
                       <div>
-                        <p className="truncate text-sm font-medium text-slate-100">
-                          {membersDisplayName(member) || "Unnamed Trainer"}
-                        </p>
+                        <MemberName
+                          name={membersDisplayName(member)}
+                          color={member.name_color}
+                          className="truncate text-sm font-medium text-slate-100"
+                          fallback="Unnamed Trainer"
+                        />
                         <p className="truncate text-xs text-slate-500">
                           {member.role === "owner"
                             ? "Owner"

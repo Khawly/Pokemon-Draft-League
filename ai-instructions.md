@@ -336,7 +336,6 @@ These are non-negotiable rules and must be enforced either by DB constraints or 
 - The dashboard header is no exception: it reads `profiles.display_name`, not `auth.user_metadata`, which is why it used to disagree with every other page.
 - Avatars already come from `profiles.avatar_url` while names came from `teams.team_name`, which is how a rename left a member's new photo next to their old name.
 
-
 ## 5. Seasonal Model & Rule Handling
 
 - Every page and every data set is tied to the currently selected season.
@@ -735,7 +734,7 @@ Opponent availability:
 
 ### 10.4 Standings and history
 
-- Playoffs tab: bracket view after the draft is complete.
+- Playoffs tab: bracket view after the draft is complete. Must have at least 2 Playoff teams, with the league size being the max playoff teams limit. If the amount of Playoff teams is a power of 2, The top seed plays the bottom playoff seed (EX: 1st in rankings and 16th in rankings if theres 16 playoff teams), the second seed plays the second from the bottom playoff seed, and so on. In a Double Elimination format, all Playoff teams start in the winner's bracket, winners continue through the winner's bracket and losers get sent to the losers bracket. If a team loses in the loser's bracket, they are eliminated from the playoffs. If a team from the winner's bracket loses their match in the grand finals, then a bracket reset occurs and those 2 teams play eachother again next week. If the amount of playoff teams is not a power of two, then the top seeded teams get a bye week the first week (EX: 12 Playoff teams mean the top 4 teams get a bye week, since 8 is the closest power of two 12 descends to). If a playoff team forfeits, they get the loss and their opponent gets the win. If both playoff teams in a match forfeit, they both receive the loss. Playoff match submitions should update the playoff bracket. Clicking the Advance Bracket when all playoff matches for that week are submitted will create the matchup/upcoming matches cards for the next set of matches. User's with no opponents in their bracket when Advance Bracket is pressed get the win and continue through the bracket. The Reset Bracket button should reset the playoff bracket to how it was set up initially, as if the playoff bracket was just set up.
 - Standings tab: rank, player, W/L, KO Diff.
 - History tab: all games sorted by posted time, newest first.
 - History tab also carries a **Match proposal history** panel, visible to the league owner only. It logs every match-time proposal made during the season, not just the one still awaiting an answer, so the owner can see the whole negotiation including offers that were declined or withdrawn. Grouped by week, newest week first; each entry shows the matchup, the time offered, who proposed it and when, who answered and when, and the proposal's notes. Every status is shown: `Accepted by`, `Declined by`, `Withdrawn by`, and `Awaiting a response` for one nobody has answered. Times render in the owner's own zone, not the proposer's.
@@ -887,7 +886,6 @@ The app should follow these engineering principles:
 - Go through `useRealtimeInvalidation`, never a raw `supabase.channel`. It coalesces a burst into one refetch, reads its callbacks through a ref so a new closure identity does not resubscribe, and exposes `flush` for deferred work.
 - Always pass `isPaused` on a page with forms. A refetch replaces the data, re-derives the selected matchup, and can throw away what someone is typing; a change that arrives mid-edit is held and applied when the form closes.
 - Subscribe to the narrowest table that covers the change. A notification that only moves a badge must not trigger a reload that pages the whole draft pool.
-
 
 ## 17. Final Project Decision
 

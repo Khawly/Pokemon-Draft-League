@@ -15,14 +15,28 @@
  * quorum, and the roster swap are all enforced in the database rather than by this
  * page. The buttons are gated on the member's role for the interface's sake only --
  * hiding one that the database would refuse is courtesy, not the control.
+ *
+ * Member display names are rendered through `MemberName`, so a member who has picked
+ * a colour from the settings palette is credited to that colour everywhere their
+ * name appears on a card -- proposer, recipient, or the voter on a recorded decision.
+ * Copy that cannot hold an element (the `<option>` list, and the confirm and notice
+ * strings, which are plain text by nature) stays uncoloured by design.
  */
 "use client";
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import { getSpriteUrl } from "@/lib/pokeapi";
 import { useConfirm } from "@/components/confirm-dialog";
+import { MemberName } from "@/components/member-name";
 import { NavAlertBadge, TabNotification } from "@/components/nav-alert-badge";
 import { formatSeasonLabel } from "@/lib/supabase/seasons";
 import { formatDateTimeInZone, formatTimeZoneLabel } from "@/lib/datetime";
@@ -393,7 +407,15 @@ interface TradeCardProps {
 }
 
 /** The actions a {@link TradeCard} can offer. */
-type TradeAction = "accept" | "decline" | "withdraw" | "approve" | "reject" | "override" | "clear";
+type TradeAction =
+  | "accept"
+  | "decline"
+  | "withdraw"
+  | "approve"
+  | "reject"
+  | "override"
+  | "reject-override"
+  | "clear";
 
 /**
  * Renders one trade: both sides' Pokémon, the state, the approval tally, and the
@@ -454,8 +476,30 @@ function TradeCard({
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h3 className="text-lg font-bold text-white">
-            {labels.proposer} <span className="text-slate-500">↔</span>{" "}
-            {labels.recipient}
+            {/*
+              Each side wears its own colour, but the reader's own side stays the
+              word "You" that `tradeSideLabels` resolved it to -- it is not a name
+              and there is nothing to colour.
+            */}
+            {labels.proposer === "You" ? (
+              "You"
+            ) : (
+              <MemberName
+                name={labels.proposer}
+                color={trade.proposer_name_color}
+                fallback="Unnamed"
+              />
+            )}{" "}
+            <span className="text-slate-500">↔</span>{" "}
+            {labels.recipient === "You" ? (
+              "You"
+            ) : (
+              <MemberName
+                name={labels.recipient}
+                color={trade.recipient_name_color}
+                fallback="Unnamed"
+              />
+            )}
           </h3>
           <p className="mt-1 text-sm text-slate-400">
             Proposed {formatDateTimeInZone(trade.created_at, timeZone)}
@@ -487,9 +531,18 @@ function TradeCard({
           */}
           <TradeSidePanel
             heading={
-              readerIsProposer
-                ? "You send"
-                : `${trade.proposer_name} sends`
+              readerIsProposer ? (
+                "You send"
+              ) : (
+                <>
+                  <MemberName
+                    name={trade.proposer_name}
+                    color={trade.proposer_name_color}
+                    fallback="Unnamed"
+                  />{" "}
+                  sends
+                </>
+              )
             }
             items={outgoing}
             costsEnabled={costsEnabled}
@@ -497,9 +550,18 @@ function TradeCard({
           />
           <TradeSidePanel
             heading={
-              readerIsRecipient
-                ? "You send"
-                : `${trade.recipient_name} sends`
+              readerIsRecipient ? (
+                "You send"
+              ) : (
+                <>
+                  <MemberName
+                    name={trade.recipient_name}
+                    color={trade.recipient_name_color}
+                    fallback="Unnamed"
+                  />{" "}
+                  sends
+                </>
+              )
             }
             items={incoming}
             costsEnabled={costsEnabled}
@@ -516,20 +578,33 @@ function TradeCard({
       {costsEnabled && movesTokens && (
         <p className="mt-4 text-sm text-slate-300">
           Tokens Exchanged:{" "}
-          <ValueSwingText delta={-proposerTokens} name={trade.proposer_name} />
+          <ValueSwingText
+            delta={-proposerTokens}
+            name={trade.proposer_name}
+            color={trade.proposer_name_color}
+          />
           {" and "}
-          <ValueSwingText delta={-recipientTokens} name={trade.recipient_name} />
+          <ValueSwingText
+            delta={-recipientTokens}
+            name={trade.recipient_name}
+            color={trade.recipient_name_color}
+          />
         </p>
       )}
 
       {costsEnabled && showing > 0 && (
         <p className="mt-4 text-sm text-slate-300">
           Value Exchanged:{" "}
-          <ValueSwingText delta={shift.proposerDelta} name={trade.proposer_name} />
+          <ValueSwingText
+            delta={shift.proposerDelta}
+            name={trade.proposer_name}
+            color={trade.proposer_name_color}
+          />
           {" and "}
           <ValueSwingText
             delta={shift.recipientDelta}
             name={trade.recipient_name}
+            color={trade.recipient_name_color}
           />
         </p>
       )}
@@ -545,21 +620,45 @@ function TradeCard({
           <p className="font-semibold text-violet-200">
             {progress.approvals} of {progress.required} approval
             {progress.required === 1 ? "" : "s"} recorded
-            {progress.rejections > 0 && (
-              <span className="ml-2 text-rose-300">
-                • {progress.rejections} rejection
-                {progress.rejections === 1 ? "" : "s"}
-              </span>
-            )}
           </p>
+          {/*
+            Rejections are counted against the same quorum, so the count is shown on
+            its own line with the target. Writing it inline next to the approvals as
+            a bare total made one recorded rejection look like a settled trade.
+          */}
+          {progress.rejections > 0 && (
+            <p
+              className={`mt-1 ${
+                progress.rejectionQuorumMet ? "text-rose-300" : "text-slate-300"
+              }`}
+            >
+              {progress.rejections} of {progress.required} rejection
+              {progress.required === 1 ? "" : "s"} recorded
+              {progress.rejectionQuorumMet
+                ? " • enough to reject"
+                : " • not enough to reject yet"}
+            </p>
+          )}
           {trade.votes.length > 0 && (
             <ul className="mt-2 space-y-1 text-xs text-slate-300">
               {trade.votes.map((vote) => (
                 <li key={vote.voter_user_id}>
-                  {vote.voter_name ?? "A member"} voted to{" "}
-                  {vote.decision === "approved" ? "approve" : "reject"}
-                  {vote.is_override && " (owner override)"} •{" "}
-                  {formatDateTimeInZone(vote.created_at, timeZone)}
+                  {/*
+                    The voter is credited in their own colour, so the span exists
+                    to carry the sentence as one run of text with the name able
+                    to opt out of the surrounding slate.
+                  */}
+                  <span>
+                    <MemberName
+                      name={vote.voter_name}
+                      color={vote.voter_name_color}
+                      fallback="A member"
+                    />{" "}
+                    voted to{" "}
+                    {vote.decision === "approved" ? "approve" : "reject"}
+                    {vote.is_override && " (owner override)"} •{" "}
+                    {formatDateTimeInZone(vote.created_at, timeZone)}
+                  </span>
                 </li>
               ))}
             </ul>
@@ -633,6 +732,22 @@ function TradeCard({
             >
               Reject
             </button>
+            {/*
+              Rejecting is a vote like any other, so a single one no longer settles
+              the trade -- it needs the same quorum an approval does. The Owner keeps
+              an immediate path, split out from the ordinary Reject so a rejection
+              that is only a vote is never mistaken for one that ends the trade.
+            */}
+            {isOwner && (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => onAction("reject-override", trade)}
+                className="rounded-xl border border-rose-900 bg-rose-950/40 px-4 py-2 text-sm font-semibold text-rose-200 transition hover:bg-rose-950/70 disabled:opacity-50"
+              >
+                Reject (Override)
+              </button>
+            )}
           </>
         )}
 
@@ -659,6 +774,8 @@ interface ValueSwingTextProps {
   delta: number;
   /** The member's display name, used to attribute the change. */
   name: string;
+  /** The member's chosen display colour, or null when they have not picked one. */
+  color?: string | null;
 }
 
 /**
@@ -670,10 +787,14 @@ interface ValueSwingTextProps {
  * member reading their own card, so the line reads identically to an owner judging
  * the trade on the Approvals tab.
  *
+ * The attributed name is rendered through `MemberName`, so it carries the member's
+ * chosen colour while the surrounding "for" and the signed figure stay in the
+ * parent's slate.
+ *
  * @param props - {@link ValueSwingTextProps}
  * @returns The formatted share.
  */
-function ValueSwingText({ delta, name }: ValueSwingTextProps) {
+function ValueSwingText({ delta, name, color }: ValueSwingTextProps) {
   const tone =
     delta > 0
       ? "font-semibold text-emerald-300"
@@ -683,7 +804,8 @@ function ValueSwingText({ delta, name }: ValueSwingTextProps) {
 
   return (
     <>
-      <span className={tone}>{formatTokenSwing(delta)}</span> for {name}
+      <span className={tone}>{formatTokenSwing(delta)}</span> for{" "}
+      <MemberName name={name} color={color} fallback="Unnamed" />
     </>
   );
 }
@@ -692,8 +814,13 @@ function ValueSwingText({ delta, name }: ValueSwingTextProps) {
  * Props for the {@link TradeSidePanel} component.
  */
 interface TradeSidePanelProps {
-  /** The column heading, naming whose Pokémon these are. */
-  heading: string;
+  /**
+   * The column heading, naming whose Pokémon these are.
+   *
+   * A node rather than a string so the name inside it can be a `MemberName` and
+   * carry the owner's colour; the surrounding "sends" is ordinary text.
+   */
+  heading: ReactNode;
   /** The Pokémon travelling from this side. */
   items: TradeItem[];
   /** Whether to show each Pokémon's tier value. */
@@ -751,6 +878,105 @@ function TradeSidePanel({
             </li>
           ))}
         </ul>
+      )}
+    </div>
+  );
+}
+
+/** Props for the {@link BalanceBreakdown} component. */
+interface BalanceBreakdownProps {
+  /** The member this column describes, shown as the heading. */
+  label: string;
+  /**
+   * The label member's chosen display colour, or null when they have not picked
+   * one. Omitted for the reader's own column, whose label is "You".
+   */
+  color?: string | null;
+  /** Tokens the member holds before the trade settles. */
+  current: number;
+  /** What the trade moves for this member: positive gains, negative costs them. */
+  delta: number;
+  /** Tokens the member holds once the trade settles. */
+  projected: number;
+  /** Whether the league charges for Pokémon at all. */
+  costsEnabled: boolean;
+  /**
+   * Whether anything is actually on the table. With nothing selected the delta is
+   * always zero, so the middle row is dropped rather than shown as a flat "+0".
+   */
+  hasValue: boolean;
+}
+
+/**
+ * One member's side of the projection: where they are now, what the trade moves,
+ * and where they land.
+ *
+ * The three figures sit together because the middle one only means something beside
+ * its endpoints. "+6 tokens" tells a member nothing until they can see it sitting on
+ * the balance it moves, and the panel used to lead with the post-trade figure alone,
+ * so a trade that cost someone 40 tokens read as a modest change in a number they
+ * had no anchor for.
+ *
+ * The heading names the member and, when they have picked one, wears their colour.
+ *
+ * @param props - {@link BalanceBreakdownProps}
+ * @returns The three-row balance breakdown for one member.
+ */
+function BalanceBreakdown({
+  label,
+  color,
+  current,
+  delta,
+  projected,
+  costsEnabled,
+  hasValue,
+}: BalanceBreakdownProps) {
+  return (
+    <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-3 text-sm">
+      <p className="text-slate-400">
+        <MemberName name={label} color={color} fallback="Unnamed" />
+      </p>
+
+      {!costsEnabled ? (
+        <p className="mt-1 text-slate-400">Costs are off for this league</p>
+      ) : (
+        <dl className="mt-2 space-y-1">
+          <div className="flex items-baseline justify-between gap-3">
+            <dt className="text-xs text-slate-500">Current balance</dt>
+            <dd className="font-semibold text-slate-100">
+              {current}
+              <span className="ml-1 font-normal text-slate-400">tokens</span>
+            </dd>
+          </div>
+
+          {hasValue && (
+            <div className="flex items-baseline justify-between gap-3">
+              <dt className="text-xs text-slate-500">
+                {delta >= 0 ? "Tokens gained" : "Tokens lost"}
+              </dt>
+              <dd
+                className={`font-semibold ${
+                  delta >= 0 ? "text-emerald-300" : "text-rose-300"
+                }`}
+              >
+                {delta >= 0 ? "+" : ""}
+                {delta}
+              </dd>
+            </div>
+          )}
+
+          <div className="flex items-baseline justify-between gap-3">
+            <dt className="text-xs text-slate-500">Projected balance</dt>
+            <dd
+              className={`font-semibold ${
+                projected < 0 ? "text-rose-300" : "text-slate-100"
+              }`}
+            >
+              {projected}
+              <span className="ml-1 font-normal text-slate-400">tokens</span>
+            </dd>
+          </div>
+        </dl>
       )}
     </div>
   );
@@ -929,6 +1155,12 @@ function ProposalBuilder({
             <option value="">Choose a member</option>
             {opponents.map((team) => (
               <option key={team.id} value={team.owner_user_id}>
+                {/*
+                  Deliberately plain text. An <option> may only hold text, so a
+                  MemberName span here would be invalid and would not render the
+                  colour anyway. The same member's name is coloured on the balance
+                  breakdown below as soon as they are chosen.
+                */}
                 {team.owner_name?.trim() || team.team_name}
               </option>
             ))}
@@ -993,50 +1225,23 @@ function ProposalBuilder({
           </p>
         ) : (
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
-            <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-3 text-sm">
-              <p className="text-slate-400">You</p>
-              <p className="mt-1">
-                <BalanceText
-                  remaining={projection?.proposerRemaining ?? 0}
-                  costsEnabled={costsEnabled}
-                />
-              </p>
-              {costsEnabled && hasValue && (
-                <p
-                  className={`mt-1 text-xs ${
-                    (projection?.proposerDelta ?? 0) >= 0
-                      ? "text-emerald-300"
-                      : "text-rose-300"
-                  }`}
-                >
-                  {(projection?.proposerDelta ?? 0) >= 0 ? "+" : ""}
-                  {projection?.proposerDelta ?? 0} tokens
-                </p>
-              )}
-            </div>
-            <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-3 text-sm">
-              <p className="text-slate-400">
-                {recipient.owner_name?.trim() || recipient.team_name}
-              </p>
-              <p className="mt-1">
-                <BalanceText
-                  remaining={projection?.recipientRemaining ?? 0}
-                  costsEnabled={costsEnabled}
-                />
-              </p>
-              {costsEnabled && hasValue && (
-                <p
-                  className={`mt-1 text-xs ${
-                    (projection?.recipientDelta ?? 0) >= 0
-                      ? "text-emerald-300"
-                      : "text-rose-300"
-                  }`}
-                >
-                  {(projection?.recipientDelta ?? 0) >= 0 ? "+" : ""}
-                  {projection?.recipientDelta ?? 0} tokens
-                </p>
-              )}
-            </div>
+            <BalanceBreakdown
+              label="You"
+              current={projection?.proposerCurrent ?? 0}
+              delta={projection?.proposerDelta ?? 0}
+              projected={projection?.proposerRemaining ?? 0}
+              costsEnabled={costsEnabled}
+              hasValue={hasValue}
+            />
+            <BalanceBreakdown
+              label={recipient.owner_name?.trim() || recipient.team_name}
+              color={recipient.owner_name_color}
+              current={projection?.recipientCurrent ?? 0}
+              delta={projection?.recipientDelta ?? 0}
+              projected={projection?.recipientRemaining ?? 0}
+              costsEnabled={costsEnabled}
+              hasValue={hasValue}
+            />
           </div>
         )}
 
@@ -1406,7 +1611,27 @@ function TradesPageContent({
     }
 
     const labels = tradeSideLabels(trade, goods.currentUserId);
+    /*
+     * The counterparty's name stays plain text in everything from here on: the
+     * confirm dialog takes strings and the outcome banner is set as a string, so
+     * neither can hold an element to colour. The card this dialog was raised from
+     * shows the same name in its chosen colour.
+     */
     const other = labels.other;
+
+    /*
+     * A plain rejection is now a vote rather than a verdict, so its copy says what
+     * actually happens to the trade. How many rejections are needed depends on the
+     * league's approver count, which is already resolved into approverRequired for
+     * the header.
+     */
+    const rejectDetail = `Your rejection is recorded against this trade. ${
+      approverRequired > 0
+        ? `${approverRequired} rejection${
+            approverRequired === 1 ? "" : "s"
+          } will reject it, and the other approvers can still weigh in until then.`
+        : "The other approvers can still weigh in."
+    }`;
 
     const confirmed = await confirm({
       title: {
@@ -1414,8 +1639,9 @@ function TradesPageContent({
         decline: "Decline this trade?",
         withdraw: "Withdraw this proposal?",
         approve: "Approve this trade?",
-        reject: "Reject this trade?",
+        reject: "Vote to reject this trade?",
         override: "Override and complete this trade?",
+        "reject-override": "Override and reject this trade?",
         clear: "Clear this trade?",
       }[action],
       detail: {
@@ -1427,8 +1653,9 @@ function TradesPageContent({
         decline: `${other} will be told you declined.`,
         withdraw: `${other} will be told the proposal was withdrawn.`,
         approve: "Your approval is recorded against this trade.",
-        reject: `${labels.proposer} and ${labels.recipient} will both be told the trade was rejected.`,
+        reject: rejectDetail,
         override: "This completes the trade now, without waiting for the other approvers.",
+        "reject-override": `This rejects the trade now, without waiting for the other approvers. ${labels.proposer} and ${labels.recipient} will both be told.`,
         clear: "This removes the trade from your own list. It stays in league history.",
       }[action],
       confirmLabel: {
@@ -1438,9 +1665,13 @@ function TradesPageContent({
         approve: "Approve",
         reject: "Reject",
         override: "Approve (Override)",
+        "reject-override": "Reject (Override)",
         clear: "Clear",
       }[action],
-      tone: action === "reject" || action === "withdraw" ? "danger" : "default",
+      tone:
+        action === "reject" || action === "reject-override" || action === "withdraw"
+          ? "danger"
+          : "default",
     });
 
     if (!confirmed) {
@@ -1482,9 +1713,27 @@ function TradesPageContent({
           );
           break;
         }
-        case "reject": {
-          await voteOnTrade(trade.id, false);
-          setFeedback("Trade rejected. Both members have been told.");
+        case "reject":
+        case "reject-override": {
+          /*
+           * The returned status is the difference between a vote that was recorded
+           * and a trade that was actually settled. Reading it is the whole point: a
+           * rejection below the quorum leaves the trade pending, and telling the
+           * approver it was rejected is what made the old single-rejection rule feel
+           * like a veto.
+           */
+          const status = await voteOnTrade(
+            trade.id,
+            false,
+            action === "reject-override",
+          );
+          setFeedback(
+            status === "rejected"
+              ? `Trade between ${trade.proposer_name} and ${trade.recipient_name} rejected. Both members have been told.`
+              : `Your rejection has been recorded. ${approverRequired} rejection${
+                  approverRequired === 1 ? "" : "s"
+                } are needed to reject this trade.`,
+          );
           break;
         }
         case "clear": {
@@ -1604,7 +1853,16 @@ function TradesPageContent({
                 <p>
                   Team:{" "}
                   <span className="font-medium text-slate-100">
-                    {goods.myTeam.owner_name?.trim() || goods.myTeam.team_name}
+                    {/*
+                      The team name is the fallback here, not "Unnamed", so a member
+                      whose profile has no display name is still labelled by the
+                      snapshot the league drafted them under.
+                    */}
+                    <MemberName
+                      name={goods.myTeam.owner_name}
+                      color={goods.myTeam.owner_name_color}
+                      fallback={goods.myTeam.team_name}
+                    />
                   </span>
                 </p>
               ) : (

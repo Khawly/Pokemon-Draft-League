@@ -51,6 +51,8 @@ export type PokemonTeam = {
   team_name: string;
   /** The owner's live display name, which is how the member is addressed. */
   owner_name: string | null;
+  /** The owner's stored name colour, passed through raw for render-time normalization. */
+  owner_name_color: string | null;
   total_salary_override: number | null;
 };
 
@@ -118,6 +120,8 @@ export type PokemonTransaction = {
   userId: string;
   /** The mover's display name, when their profile has one set. */
   playerName: string | null;
+  /** The mover's stored name colour, raw, or null when they have none set. */
+  playerNameColor: string | null;
   action: "added" | "dropped" | "trade_in" | "trade_out" | "token_transfer";
   /**
    * What caused the move. Null only for a row written before the column existed
@@ -192,7 +196,10 @@ type TransactionRow = {
   /** Null on a token movement, which has no Pokémon behind it. */
   pokemon_id: string | null;
   user_id: string;
-  profiles?: { display_name?: string | null } | null;
+  profiles?: {
+    display_name?: string | null;
+    name_color?: string | null;
+  } | null;
   action: "added" | "dropped" | "trade_in" | "trade_out" | "token_transfer";
   source?: TransactionSource | null;
   cost_delta: number;
@@ -279,7 +286,7 @@ export async function loadPokemonPageData(
     supabase
       .from("teams")
       .select(
-        "id, owner_user_id, team_name, total_salary_override, profiles: owner_user_id (display_name)",
+        "id, owner_user_id, team_name, total_salary_override, profiles: owner_user_id (display_name, name_color)",
       )
       .eq("league_id", leagueId)
       .eq("season_id", season.id),
@@ -317,7 +324,7 @@ export async function loadPokemonPageData(
     owner_user_id: string;
     team_name: string;
     total_salary_override: number | null;
-    profiles?: { display_name?: string | null } | null;
+    profiles?: { display_name?: string | null; name_color?: string | null } | null;
   }[]);
 
   const members = ((memberResult.data ?? []) as {
@@ -431,7 +438,7 @@ export async function loadPokemonPageData(
     const { data: transactionRows, error: transactionsError } = await supabase
       .from("transactions")
       .select(
-        "id, pokemon_id, user_id, action, source, cost_delta, note, created_at, profiles: user_id (display_name)",
+        "id, pokemon_id, user_id, action, source, cost_delta, note, created_at, profiles: user_id (display_name, name_color)",
       )
       .eq("team_id", myTeam.id)
       .order("created_at", { ascending: false });
@@ -455,7 +462,7 @@ export async function loadPokemonPageData(
   const { data: activityRows, error: activityError } = await supabase
     .from("transactions")
     .select(
-      "id, pokemon_id, user_id, action, source, cost_delta, note, created_at, profiles: user_id (display_name)",
+      "id, pokemon_id, user_id, action, source, cost_delta, note, created_at, profiles: user_id (display_name, name_color)",
     )
     .eq("league_id", leagueId)
     .eq("season_id", season.id)
@@ -488,6 +495,7 @@ export async function loadPokemonPageData(
           id: myTeam.id,
           team_name: myTeam.team_name,
           owner_name: myTeam.profiles?.display_name ?? null,
+          owner_name_color: myTeam.profiles?.name_color ?? null,
           total_salary_override: myTeam.total_salary_override,
         }
       : null,
@@ -587,6 +595,7 @@ function mapTransactionRows(rows: unknown[]): PokemonTransaction[] {
       isTokenMovement: slug == null,
       userId: row.user_id,
       playerName: row.profiles?.display_name ?? null,
+      playerNameColor: row.profiles?.name_color ?? null,
       action: row.action,
       source: row.source ?? null,
       cost_delta: row.cost_delta,

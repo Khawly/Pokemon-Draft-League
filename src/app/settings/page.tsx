@@ -2,14 +2,14 @@
  * User settings page for the Pokemon Draft League.
  *
  * Allows authenticated users to view and edit their profile (display name,
- * Showdown username, avatar initials), upload or remove a profile avatar, pick
- * the time zone league dates and times are shown in, declare the weekly window
- * they are available for a match, and sign out.
+ * Showdown username, avatar initials), upload or remove a profile avatar, pick the
+ * color their name is shown in, pick the time zone league dates and times are
+ * shown in, declare the weekly window they are available for a match, and sign out.
  */
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { signOut, updateUserProfile } from "@/lib/supabase/auth";
 import { supabase } from "@/lib/supabase/client";
 import { useConfirm } from "@/components/confirm-dialog";
@@ -29,6 +29,19 @@ import {
   WEEKDAY_LABELS,
   type AvailabilityWeek,
 } from "@/lib/supabase/availability";
+import {
+  NAME_COLOR_OPTIONS,
+  normalizeNameColor,
+  type NameColorId,
+} from "@/lib/name-colors";
+import {
+  registerUnsavedChangesGuard,
+  clearUnsavedChangesGuard,
+  createUnsavedChangesGuard,
+} from "@/lib/unsaved-changes";
+import { MemberName } from "@/components/member-name";
+import { MemberAvatar } from "@/components/member-avatar";
+import { resolveAvatarInitials } from "@/lib/avatar-initials";
 
 /**
  * Picks the zone to show in the settings form for a stored profile value.
@@ -57,6 +70,7 @@ export default function SettingsPage() {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [avatarRefreshKey, setAvatarRefreshKey] = useState(0);
   const [timeZone, setTimeZone] = useState("UTC");
+  const [nameColor, setNameColor] = useState<NameColorId>("default");
   const [availability, setAvailability] = useState<AvailabilityWeek>(
     defaultAvailabilityWeek,
   );
@@ -80,6 +94,7 @@ export default function SettingsPage() {
     avatarUrl: null as string | null,
     avatarInitials: "T",
     timeZone: "UTC",
+    nameColor: "default" as NameColorId,
   });
   const pendingAvatarActionRef = useRef<"none" | "upload" | "remove">("none");
   const pendingAvatarFileRef = useRef<File | null>(null);
@@ -203,7 +218,9 @@ export default function SettingsPage() {
         const [profileResult, availabilityWeek] = await Promise.all([
           supabase
             .from("profiles")
-            .select("display_name, pokemon_showdown_username, avatar_url, timezone")
+            .select(
+              "display_name, pokemon_showdown_username, avatar_url, avatar_initials, timezone, name_color",
+            )
             .eq("id", currentUser.id)
             .maybeSingle(),
           loadOwnAvailabilityWeek(currentUser.id),
@@ -228,13 +245,19 @@ export default function SettingsPage() {
         const nextTimeZone = resolveInitialTimeZone(
           data?.timezone as string | undefined,
         );
-        const initials =
-          nextDisplayName
-            .split(/\s+/)
-            .filter(Boolean)
-            .slice(0, 2)
-            .map((part: string) => part[0]?.toUpperCase() ?? "")
-            .join("") || "T";
+        const nextNameColor = normalizeNameColor(
+          data?.name_color as string | undefined,
+        );
+        /*
+         * The member's stored initials, falling back to the shared derivation. The box is
+         * seeded with the derived value rather than left blank so the field shows what will
+         * actually be used; clearing it is how a member goes back to the derivation, and
+         * that is saved as NULL.
+         */
+        const initials = resolveAvatarInitials(
+          data?.avatar_initials as string | undefined,
+          nextDisplayName,
+        );
 
         const nextProfile = {
           displayName: nextDisplayName,
@@ -242,6 +265,7 @@ export default function SettingsPage() {
           avatarUrl: nextAvatarUrl,
           avatarInitials: initials,
           timeZone: nextTimeZone,
+          nameColor: nextNameColor,
         };
 
         originalProfileRef.current = nextProfile;
@@ -251,6 +275,7 @@ export default function SettingsPage() {
         setAvatarInitials(initials);
         setAvatarUrl(nextAvatarUrl);
         setTimeZone(nextTimeZone);
+        setNameColor(nextNameColor);
         setAvailability(availabilityWeek);
       } catch (caughtError) {
         const message =
@@ -283,8 +308,14 @@ export default function SettingsPage() {
     };
   }, [hasChanges]);
 
-  /** Resets all form fields and pending avatar actions to the last-saved snapshot. */
-  function revertUnsavedChanges() {
+  /**
+   * Resets all form fields and pending avatar actions to the last-saved snapshot.
+   *
+   * Memoized so it can sit in the unsaved-changes guard's dependency list. As a
+   * plain function it was a new reference on every render, which would have
+   * re-registered the guard on every keystroke for no benefit.
+   */
+  const revertUnsavedChanges = useCallback(() => {
     const snapshot = originalProfileRef.current;
 
     pendingAvatarActionRef.current = "none";
@@ -294,12 +325,50 @@ export default function SettingsPage() {
     setAvatarInitials(snapshot.avatarInitials);
     setAvatarUrl(snapshot.avatarUrl);
     setTimeZone(snapshot.timeZone);
+    setNameColor(snapshot.nameColor);
     setAvailability(savedAvailability);
     setAvatarRefreshKey((prev) => prev + 1);
     setHasChanges(false);
     setSuccessMessage(null);
     setError(null);
-  }
+  }, [savedAvailability]);
+
+  /*
+   * In-app navigation is the gap `beforeunload` cannot close: a Next.js link or
+   * `router.push` transitions without unloading the document, so the browser's dialog
+   * never fires. Registering here lets the top navigation ask this page before it
+   * leaves. Both `confirm` and `revertUnsavedChanges` are memoized, so the guard is
+   * rebuilt only when the state it depends on actually changes rather than on every
+   * keystroke.
+   *
+   * Declared after `revertUnsavedChanges` because the guard calls it, and a `const`
+   * arrow function cannot be referenced from above its own declaration.
+   */
+  useEffect(() => {
+    /*
+     * The rule that a save must not leave a guard behind lives in
+     * `createUnsavedChangesGuard`: it returns null once `hasChanges` is false, so
+     * this effect clears the registration rather than reinstalling it over the clean
+     * page. Passing the null straight through is what stops the dialog appearing
+     * after a successful save.
+     */
+    registerUnsavedChangesGuard(
+      createUnsavedChangesGuard(
+        hasChanges,
+        () =>
+          confirm({
+            title: "Leave without saving?",
+            detail:
+              "Your unsaved changes to your profile, time zone, and availability are discarded.",
+            confirmLabel: "Discard changes",
+            tone: "danger",
+          }),
+        revertUnsavedChanges,
+      ),
+    );
+
+    return clearUnsavedChangesGuard;
+  }, [hasChanges, confirm, revertUnsavedChanges]);
 
   /**
    * Updates a form field and marks the page as having unsaved changes.
@@ -308,6 +377,22 @@ export default function SettingsPage() {
    */
   function handleFieldChange(setter: (value: string) => void, value: string) {
     setter(value);
+    setHasChanges(true);
+    setSuccessMessage(null);
+    setError(null);
+  }
+
+  /**
+   * Records a name color choice.
+   *
+   * Its own handler rather than `handleFieldChange`, whose setter parameter is typed
+   * for the plain text inputs: a color is a closed id, and widening the setter to
+   * accept `string` would let any text through as a color.
+   *
+   * @param value - The palette id the member tapped.
+   */
+  function handleNameColorChange(value: NameColorId) {
+    setNameColor(value);
     setHasChanges(true);
     setSuccessMessage(null);
     setError(null);
@@ -352,7 +437,8 @@ export default function SettingsPage() {
 
     const shouldLeave = await confirm({
       title: "Leave without saving?",
-      detail: "Your unsaved changes to your profile, time zone, and availability are discarded",
+      detail:
+        "Your unsaved changes to your profile, time zone, and availability are discarded",
       confirmLabel: "Discard changes",
       tone: "danger",
     });
@@ -425,7 +511,9 @@ export default function SettingsPage() {
         displayName,
         showdownUsername,
         avatarUrl: nextAvatarUrl,
+        avatarInitials,
         timeZone,
+        nameColor,
       });
 
       // Saved after the profile so a failure here cannot leave the two views of
@@ -444,6 +532,7 @@ export default function SettingsPage() {
         avatarUrl: nextAvatarUrl,
         avatarInitials,
         timeZone,
+        nameColor,
       };
       setSavedAvailability(availability);
       setAvatarUrl(nextAvatarUrl);
@@ -554,40 +643,62 @@ export default function SettingsPage() {
     <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
       <div className="mx-auto max-w-4xl space-y-6">
         <header className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-2xl shadow-slate-950/40 backdrop-blur-sm">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <h1 className="text-3xl font-bold text-white">User Settings</h1>
-            </div>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h1 className="text-3xl font-bold text-white">User Settings</h1>
 
-            <button
-              type="button"
-              onClick={() => void confirmLeaveWithoutSaving(() => router.push("/dashboard"))}
-              className="rounded-xl border border-slate-700 bg-slate-800 px-4 py-2 text-sm font-medium text-slate-100 transition hover:border-slate-500 hover:bg-slate-700"
-            >
-              Back to league
-            </button>
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={() =>
+                  void confirmLeaveWithoutSaving(() =>
+                    router.push("/dashboard"),
+                  )
+                }
+                className="rounded-xl border border-slate-700 bg-slate-800 px-4 py-2 text-sm font-medium text-slate-100 transition hover:border-slate-500 hover:bg-slate-700"
+              >
+                Back to league
+              </button>
+
+              {/*
+                Kept at the top of the page rather than at the foot of the form. The
+                form runs to several screens once the availability grid is included, so
+                a save button pinned to the bottom meant scrolling past everything to
+                commit an edit made near the top. Its disabled state still doubles as
+                the at-a-glance answer to "have I got unsaved changes?".
+              */}
+              <button
+                type="button"
+                disabled={!hasChanges || isSaving}
+                onClick={handleSaveChanges}
+                className="rounded-xl bg-amber-500 px-5 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {isSaving ? "Saving..." : "Save changes"}
+              </button>
+            </div>
           </div>
         </header>
 
         <section className="grid gap-6 lg:grid-cols-[0.9fr_1.5fr]">
           <aside className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-lg shadow-slate-950/30">
             <div className="flex flex-col items-center">
-              <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full bg-amber-500 text-xl font-bold text-slate-950 shadow-md">
-                {avatarUrl ? (
-                  <img
-                    key={avatarRefreshKey}
-                    src={avatarUrl}
-                    alt={displayName}
-                    className="h-full w-full object-cover"
-                    onError={() => setAvatarUrl(null)}
-                  />
-                ) : (
-                  <span>{avatarInitials || "A"}</span>
-                )}
-              </div>
+              <MemberAvatar
+                name={displayName}
+                color={nameColor}
+                avatarUrl={avatarUrl}
+                initials={avatarInitials}
+                size={80}
+                textClassName="text-xl"
+                imageKey={avatarRefreshKey}
+                onImageError={() => setAvatarUrl(null)}
+                className="shadow-md"
+              />
 
-              <p className="mt-4 text-lg font-semibold text-white">
-                {displayName}
+              <p className="mt-4 text-lg font-semibold">
+                <MemberName
+                  name={displayName}
+                  color={nameColor}
+                  fallback="Trainer"
+                />
               </p>
               <p className="text-sm text-slate-400">Trainer profile</p>
             </div>
@@ -661,6 +772,45 @@ export default function SettingsPage() {
                 />
               </div>
 
+              {/*
+                Directly under the name it colors, and above the showdown username,
+                so the pair reads together. The preview is live rather than
+                save-then-see: a member choosing a color needs to judge it against
+                the dark surfaces the name will actually appear on, and the only
+                honest way to judge that is to see it here.
+              */}
+              <div>
+                <span className="mb-2 block text-sm font-medium text-slate-300">
+                  Name color
+                </span>
+                <div
+                  role="radiogroup"
+                  aria-label="Name color"
+                  className="flex flex-wrap gap-2"
+                >
+                  {NAME_COLOR_OPTIONS.map((option) => {
+                    const isSelected = option.id === nameColor;
+
+                    return (
+                      <button
+                        key={option.id}
+                        type="button"
+                        role="radio"
+                        aria-checked={isSelected}
+                        aria-label={option.label}
+                        title={option.label}
+                        onClick={() => handleNameColorChange(option.id)}
+                        className={`h-8 w-8 rounded-full border-2 transition ${
+                          isSelected
+                            ? "border-white ring-2 ring-amber-500/60"
+                            : "border-slate-700 hover:border-slate-500"
+                        } ${option.swatchClassName}`}
+                      />
+                    );
+                  })}
+                </div>
+              </div>
+
               <div>
                 <label className="mb-2 block text-sm font-medium text-slate-300">
                   Pokémon Showdown username
@@ -703,7 +853,9 @@ export default function SettingsPage() {
                 >
                   {/* A zone outside the runtime's list would otherwise be unselectable. */}
                   {!timeZoneOptions.includes(timeZone) && (
-                    <option value={timeZone}>{formatTimeZoneLabel(timeZone)}</option>
+                    <option value={timeZone}>
+                      {formatTimeZoneLabel(timeZone)}
+                    </option>
                   )}
                   {timeZoneOptions.map((zone) => (
                     <option key={zone} value={zone}>
@@ -722,10 +874,9 @@ export default function SettingsPage() {
                   Availability
                 </label>
                 <p className="mb-3 text-xs text-slate-400">
-                  The window you are free to play each day, in {formatTimeZoneLabel(timeZone)}. Your
-                  opponent sees this on the schedule page when they pick a match
-                  time. A range that ends before it starts is read as running
-                  past midnight.
+                  The window you are free to play each day, in{" "}
+                  {formatTimeZoneLabel(timeZone)}. Your opponent sees this on
+                  the schedule page when they pick a match time.
                 </p>
 
                 <div className="space-y-2">
@@ -805,17 +956,6 @@ export default function SettingsPage() {
                   {successMessage}
                 </div>
               )}
-
-              <div className="flex flex-wrap items-center gap-3 pt-2">
-                <button
-                  type="button"
-                  disabled={!hasChanges || isSaving}
-                  onClick={handleSaveChanges}
-                  className="rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {isSaving ? "Saving..." : "Save changes"}
-                </button>
-              </div>
             </div>
           </div>
         </section>

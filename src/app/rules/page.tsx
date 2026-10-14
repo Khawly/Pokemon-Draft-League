@@ -9,7 +9,8 @@
  *
  * The document carries a last-updated timestamp, which is the minimum the spec
  * asks for in place of version history; it is shown next to the rules so a member
- * can tell whether what they are reading is current.
+ * can tell whether what they are reading is current. The owner who last saved is
+ * credited by name there, in the colour they picked in settings.
  */
 
 "use client";
@@ -17,6 +18,7 @@
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
+import { MemberName } from "@/components/member-name";
 import {
   loadRulesPageData,
   normalizeRulesText,
@@ -318,7 +320,22 @@ function RulesPageContent() {
             {rules && (
               <p className="text-xs text-slate-500">
                 Last updated {formatDateTimeInZone(rules.updatedAt, timeZone)}
-                {rules.authorName ? ` by ${rules.authorName}` : ""}
+                {/*
+                  Siblings rather than one interpolated string, so the member who
+                  saved the rules can wear their chosen colour while the timestamp
+                  stays in the muted slate it was already in.
+                */}
+                {rules.authorName ? (
+                  <>
+                    {" "}
+                    by{" "}
+                    <MemberName
+                      name={rules.authorName}
+                      color={rules.authorNameColor}
+                      fallback="Unnamed"
+                    />
+                  </>
+                ) : null}
               </p>
             )}
           </div>

@@ -153,6 +153,8 @@ function LeagueSettingsPageContent() {
   const [enableTransactionCosts, setEnableTransactionCosts] = useState(false);
   const [transactionCost, setTransactionCost] = useState(0);
   const [adminsApproveTrades, setAdminsApproveTrades] = useState(false);
+  /** Whether admins get the owner's matchup-card actions (results, forfeits, reverts). */
+  const [adminsEditMatchups, setAdminsEditMatchups] = useState(false);
   const [ownersAdminsVoteOnTrades, setOwnersAdminsVoteOnTrades] =
     useState(false);
   /*
@@ -189,6 +191,7 @@ function LeagueSettingsPageContent() {
     adminsApproveTrades: false,
     ownersAdminsVoteOnTrades: false,
     allowTokenTrades: false,
+    adminsEditMatchups: false,
   });
 
   useEffect(() => {
@@ -366,6 +369,7 @@ function LeagueSettingsPageContent() {
           enable_transaction_costs?: boolean | null;
           transaction_cost?: number | null;
           admins_approve_trades?: boolean | null;
+          admins_edit_matchups?: boolean | null;
           owners_admins_vote_on_trades?: boolean | null;
           allow_token_trades?: boolean | null;
           enable_pokemon_costs?: boolean | null;
@@ -376,7 +380,7 @@ function LeagueSettingsPageContent() {
           const response = await supabase
             .from("league_settings")
             .select(
-              "enable_transaction_costs, transaction_cost, admins_approve_trades, owners_admins_vote_on_trades, allow_token_trades, enable_pokemon_costs",
+              "enable_transaction_costs, transaction_cost, admins_approve_trades, owners_admins_vote_on_trades, allow_token_trades, enable_pokemon_costs, admins_edit_matchups",
             )
             .eq("league_id", activeLeagueId)
             .eq("season_id", seasonData.id)
@@ -398,6 +402,7 @@ function LeagueSettingsPageContent() {
             adminsApproveTrades: false,
             ownersAdminsVoteOnTrades: false,
             allowTokenTrades: false,
+            adminsEditMatchups: false,
           };
           setLeagueName(leagueData.name || "");
           setNumberOfPlayers(resolvedNumberOfPlayers);
@@ -406,6 +411,7 @@ function LeagueSettingsPageContent() {
           setAdminsApproveTrades(false);
           setOwnersAdminsVoteOnTrades(false);
           setAllowTokenTrades(false);
+          setAdminsEditMatchups(false);
           setPokemonCostsEnabled(false);
           setHasUnsavedChanges(false);
           return;
@@ -423,6 +429,7 @@ function LeagueSettingsPageContent() {
             settingsData.owners_admins_vote_on_trades,
           ),
           allowTokenTrades: Boolean(settingsData.allow_token_trades),
+          adminsEditMatchups: Boolean(settingsData.admins_edit_matchups),
         };
 
         originalSettingsRef.current = nextSettings;
@@ -433,6 +440,7 @@ function LeagueSettingsPageContent() {
         setAdminsApproveTrades(nextSettings.adminsApproveTrades);
         setOwnersAdminsVoteOnTrades(nextSettings.ownersAdminsVoteOnTrades);
         setAllowTokenTrades(nextSettings.allowTokenTrades);
+        setAdminsEditMatchups(nextSettings.adminsEditMatchups);
         setPokemonCostsEnabled(Boolean(settingsData.enable_pokemon_costs));
         setHasUnsavedChanges(false);
       } finally {
@@ -615,23 +623,44 @@ function LeagueSettingsPageContent() {
     const { current_week: currentWeek, total_weeks: totalWeeks } = progressState;
     const unreported = progressState.unreported_matches;
     const isFinalWeek = currentWeek >= totalWeeks;
-    const settlementWarning =
-      unreported > 0
+
+    /*
+     * During the playoffs this button advances the bracket rather than a week, so the
+     * copy changes with it. The action is the same RPC either way; only what it moves
+     * differs, and saying "Progress week" over a finished season would be a lie.
+     */
+    const inPlayoffs = progressState.playoffs_active;
+
+    const settlementWarning = inPlayoffs
+      ? unreported > 0
+        ? `${unreported} playoff match${
+            unreported === 1 ? "" : "es"
+          } still unplayed will be settled as a forfeit.`
+        : "Every playoff game played so far has been reported."
+      : unreported > 0
         ? `${unreported} unreported match${
             unreported === 1 ? "" : "es"
           } in week ${currentWeek} will be settled as a double loss, charging each team ${forfeitDifferential} KO diff.`
         : `Every match in week ${currentWeek} has been reported, so nothing will be settled.`;
 
     const shouldProgress = await confirm({
-      title: isFinalWeek
-        ? `Close week ${currentWeek} and open the playoffs?`
-        : `Close week ${currentWeek} and move to week ${currentWeek + 1}?`,
+      title: inPlayoffs
+        ? "Advance the playoff bracket?"
+        : isFinalWeek
+          ? `Close week ${currentWeek} and open the playoffs?`
+          : `Close week ${currentWeek} and move to week ${currentWeek + 1}?`,
       detail: `${settlementWarning}${
-        isFinalWeek
-          ? " Closing the final regular week also freezes the regular season."
-          : " Your saved weekly deadline is not changed."
+        inPlayoffs
+          ? " The next round is only created once every game in this one is reported."
+          : isFinalWeek
+            ? " Closing the final regular week also freezes the regular season."
+            : " Your saved weekly deadline is not changed."
       }`,
-      confirmLabel: isFinalWeek ? "Close and open playoffs" : "Progress week",
+      confirmLabel: inPlayoffs
+        ? "Advance bracket"
+        : isFinalWeek
+          ? "Close and open playoffs"
+          : "Progress week",
     });
 
     if (!shouldProgress) {
@@ -844,7 +873,7 @@ function LeagueSettingsPageContent() {
           await supabase
             .from("league_settings")
             .select(
-              "enable_transaction_costs, transaction_cost, admins_approve_trades, owners_admins_vote_on_trades, allow_token_trades",
+              "enable_transaction_costs, transaction_cost, admins_approve_trades, owners_admins_vote_on_trades, allow_token_trades, admins_edit_matchups",
             )
             .eq("league_id", leagueId)
             .eq("season_id", seasonId)
@@ -899,6 +928,7 @@ function LeagueSettingsPageContent() {
         admins_approve_trades?: boolean;
         owners_admins_vote_on_trades?: boolean;
         allow_token_trades?: boolean;
+        admins_edit_matchups?: boolean;
       } = {
         league_id: leagueId,
         season_id: seasonId,
@@ -916,6 +946,7 @@ function LeagueSettingsPageContent() {
          */
         settingsPayload.allow_token_trades =
           pokemonCostsEnabled && allowTokenTrades;
+        settingsPayload.admins_edit_matchups = adminsEditMatchups;
       } else {
         throw new Error(
           "League settings columns are not present in the live database. Please apply the required schema migration first.",
@@ -942,6 +973,7 @@ function LeagueSettingsPageContent() {
         adminsApproveTrades,
         ownersAdminsVoteOnTrades: normalizedOwnersAdminsVoteOnTrades,
         allowTokenTrades: pokemonCostsEnabled && allowTokenTrades,
+        adminsEditMatchups,
       };
 
       setHasUnsavedChanges(false);
@@ -1184,6 +1216,24 @@ function LeagueSettingsPageContent() {
                   />
                 </label>
               )}
+
+              {/*
+                Owner-only, like every control on this page. When on, admins can
+                submit results, forfeit, revert forfeits and read replays on any
+                matchup card, the same as the owner.
+              */}
+              <label className="flex items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-950/60 p-3 text-sm text-slate-200">
+                <span>Admins can edit all matchup cards</span>
+                <input
+                  type="checkbox"
+                  checked={adminsEditMatchups}
+                  onChange={(event) => {
+                    setAdminsEditMatchups(event.target.checked);
+                    setHasUnsavedChanges(true);
+                  }}
+                  className="h-4 w-4 accent-amber-500"
+                />
+              </label>
 
               <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-4 text-sm text-slate-300">
                 <p className="font-medium text-slate-200">Approval logic</p>
@@ -1434,7 +1484,11 @@ function LeagueSettingsPageContent() {
                       onClick={handleProgressWeek}
                       className="rounded-xl border border-sky-700 bg-sky-900/40 px-4 py-2 text-sm font-medium text-sky-100 transition hover:border-sky-500 hover:bg-sky-800/50 disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      {isProgressing ? "Working..." : "Progress week"}
+                      {isProgressing
+                        ? "Working..."
+                        : progressState.playoffs_active
+                          ? "Advance bracket"
+                          : "Progress week"}
                     </button>
                     <button
                       type="button"

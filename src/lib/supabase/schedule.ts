@@ -51,6 +51,8 @@ export type ScheduleSettings = {
   total_token_salary: number | null;
   allow_per_team_salary: boolean;
   total_rounds: number;
+  /** Whether admins may act on matchup cards (the owner always may). */
+  admins_edit_matchups: boolean;
 };
 
 /** A team slot in the season with its owner's resolved display info. */
@@ -60,6 +62,10 @@ export type ScheduleTeam = {
   team_name: string;
   owner_name: string | null;
   owner_avatar_url: string | null;
+  /** The owner's stored name colour, passed through raw for render-time normalization. */
+  owner_name_color: string | null;
+  /** The owner's stored avatar initials, raw, or null when they have none set. */
+  owner_avatar_initials: string | null;
 };
 
 /** One reported game of a match (result). */
@@ -72,6 +78,8 @@ export type ScheduleMatchResult = {
   submitted_at: string;
   /** The reporter's display name, or null when they have not set one. */
   reporter_name: string | null;
+  /** The reporter's stored name colour, raw, or null when they have none set. */
+  reporter_name_color: string | null;
 };
 
 /** A time one participant has offered the other for a match. */
@@ -90,7 +98,25 @@ export type ScheduleMatch = {
   id: string;
   week_number: number;
   is_playoff: boolean;
+  /**
+   * Which press of Advance Playoffs created this game, or null for a regular-season
+   * game or one written before the column existed. One press can create games in several
+   * weeks and in two phases at once, so this is what the bracket round label counts.
+   */
+  playoff_round_no: number | null;
   bracket_phase: "upper" | "lower" | "gf" | null;
+
+/**
+   * Position of this game within its round, as written by the bracket generator.
+   *
+   * A game whose feeder was a double forfeit is never created, so a round can hold fewer
+   * rows than its template has games. That makes ordinal position unreliable for pairing
+   * games to the bracket, and this is what the pairing is keyed on instead.
+   */
+  bracket_slot: number | null;
+
+  /** Row creation time; orders a round's games when the bracket slot is absent. */
+  created_at: string;
   scheduled_at: string | null;
   status:
     | "unscheduled"
@@ -102,11 +128,22 @@ export type ScheduleMatch = {
   winner_team_id: string | null;
   notes: string | null;
   player_1_team_id: string;
-  player_2_team_id: string;
+  /**
+   * Null on a playoff game that was settled as a bye, where the opponent was eliminated
+   * by a double forfeit and the remaining team advanced without playing.
+   */
+  player_2_team_id: string | null;
   player_1_name: string;
+  /** Reads "Bye" on a one-sided playoff game, rather than naming a team that never was. */
   player_2_name: string;
+  /** Each side's stored name colour, raw, or null when the owner has none set. */
+  player_1_name_color: string | null;
+  player_2_name_color: string | null;
   player_1_avatar_url: string | null;
   player_2_avatar_url: string | null;
+  /** Each side's stored avatar initials, raw, or null when the owner has none set. */
+  player_1_avatar_initials: string | null;
+  player_2_avatar_initials: string | null;
   player_1_user_id: string;
   player_2_user_id: string;
   results: ScheduleMatchResult[];
@@ -115,6 +152,12 @@ export type ScheduleMatch = {
    * name when no filer was recorded; null only if that name is unset too.
    */
   forfeited_by_name: string | null;
+  /**
+   * The forfeit filer's stored name colour, raw. Null when no filer was recorded
+   * or the owner has none set; a forfeit attributed to the league owner leaves it
+   * null rather than guessing the filer's colour.
+   */
+  forfeited_by_name_color: string | null;
   /**
    * The proposal still waiting for an answer, when there is one. Its presence is
    * what makes a matchup read as "waiting on the other player" rather than
@@ -145,14 +188,21 @@ export type ProposalHistoryEntry = {
   notes: string | null;
   proposed_by: string;
   proposed_by_name: string;
+  /** The proposer's stored name colour, raw, or null when they have none set. */
+  proposed_by_name_color: string | null;
   /** Null until the offer is answered; a proposal cannot answer itself. */
   responded_at: string | null;
   responded_by: string | null;
   /** Display name of whoever answered, or null while still pending. */
   responded_by_name: string | null;
+  /** The responder's stored name colour, raw, or null while still pending. */
+  responded_by_name_color: string | null;
   /** The two participants, as the owner sees them named. */
   player_1_name: string;
   player_2_name: string;
+  /** Each participant's stored name colour, raw, or null when unset. */
+  player_1_name_color: string | null;
+  player_2_name_color: string | null;
   player_1_user_id: string;
   player_2_user_id: string;
   /** When the offer was made, for ordering and for the "awaiting" row. */
@@ -214,6 +264,8 @@ type ProposalParticipants = {
   bracket_phase: ScheduleMatch["bracket_phase"];
   player_1_name: string;
   player_2_name: string;
+  player_1_name_color: string | null;
+  player_2_name_color: string | null;
   player_1_user_id: string;
   player_2_user_id: string;
 };
@@ -248,6 +300,32 @@ function participantName(
    * better than attributing the offer to the wrong person.
    */
   return userId;
+}
+
+/**
+ * Resolves a user id to one of the match's participants' stored name colours.
+ *
+ * The mirror of {@link participantName}, and resolved the same way for the same
+ * reason: a user id that is not one of the two participants cannot be given a
+ * colour either, so it reads as unset rather than as someone else's.
+ */
+function participantNameColor(
+  userId: string | null,
+  participants: ProposalParticipants,
+): string | null {
+  if (!userId) {
+    return null;
+  }
+
+  if (userId === participants.player_1_user_id) {
+    return participants.player_1_name_color;
+  }
+
+  if (userId === participants.player_2_user_id) {
+    return participants.player_2_name_color;
+  }
+
+  return null;
 }
 
 /**
@@ -325,6 +403,8 @@ export async function loadProposalHistory(
         row.player_2?.owner?.display_name ??
         row.player_2?.team_name ??
         "Player 2",
+      player_1_name_color: row.player_1?.owner?.name_color ?? null,
+      player_2_name_color: row.player_2?.owner?.name_color ?? null,
       player_1_user_id: player1UserId,
       player_2_user_id: player2UserId,
     });
@@ -358,11 +438,21 @@ export async function loadProposalHistory(
         bracket_phase: participants.bracket_phase,
         player_1_name: participants.player_1_name,
         player_2_name: participants.player_2_name,
+        player_1_name_color: participants.player_1_name_color,
+        player_2_name_color: participants.player_2_name_color,
         player_1_user_id: participants.player_1_user_id,
         player_2_user_id: participants.player_2_user_id,
         proposed_by_name:
           participantName(row.proposed_by, participants) ?? "Unknown",
+        proposed_by_name_color: participantNameColor(
+          row.proposed_by,
+          participants,
+        ),
         responded_by_name: participantName(row.responded_by, participants),
+        responded_by_name_color: participantNameColor(
+          row.responded_by,
+          participants,
+        ),
       },
     ];
   });
@@ -378,10 +468,16 @@ export async function loadProposalHistory(
  * owner rather than reading `teams.team_name`.
  */
 const MATCHES_WITH_PARTICIPANTS_SELECT =
-  "id, week_number, is_playoff, bracket_phase, scheduled_at, status, winner_team_id, notes, player_1_team_id, player_2_team_id, player_1: player_1_team_id (team_name, owner_user_id, owner: owner_user_id (display_name, avatar_url)), player_2: player_2_team_id (team_name, owner_user_id, owner: owner_user_id (display_name, avatar_url)), forfeited_by: forfeited_by_user_id (display_name)";
+  "id, week_number, is_playoff, playoff_round_no, bracket_phase, bracket_slot, scheduled_at, status, winner_team_id, notes, created_at, player_1_team_id, player_2_team_id, player_1: player_1_team_id (team_name, owner_user_id, owner: owner_user_id (display_name, avatar_url, name_color, avatar_initials)), player_2: player_2_team_id (team_name, owner_user_id, owner: owner_user_id (display_name, avatar_url, name_color, avatar_initials)), forfeited_by: forfeited_by_user_id (display_name, name_color)";
 
 /** Complete schedule page payload for a league. */
 export type SchedulePageGoods = {
+  /**
+   * The bracket's full shape, including games that do not exist yet.
+   *
+   * Null on the initial skeleton before the league resolves.
+   */
+  playoffTemplate?: SchedulePlayoffTemplate | null;
   league: {
     id: string;
     name: string;
@@ -402,30 +498,58 @@ export type SchedulePageGoods = {
   userRole: "owner" | "admin" | "member" | null;
   isOwner: boolean;
   isStaff: boolean;
+  /**
+   * Whether the viewer may act on matchup cards: submit results, forfeit, revert,
+   * and read replays. The owner always may; admins only when the league has the
+   * "Admins can edit all matchup cards" setting on.
+   */
+  canEditMatchups: boolean;
   myTeamId: string | null;
+  /** Team id of the champion, or null while the tournament runs or nobody won it. */
+  championTeamId: string | null;
 };
 
 type ScheduleMatchRow = {
-  forfeited_by?: { display_name?: string | null } | null;
+  forfeited_by?: {
+    display_name?: string | null;
+    name_color?: string | null;
+  } | null;
   id: string;
   week_number: number;
   is_playoff: boolean;
+  /**
+   * Which press of Advance Playoffs created this game, or null for a regular-season
+   * game or one written before the column existed.
+   */
+  playoff_round_no: number | null;
   bracket_phase: ScheduleMatch["bracket_phase"];
+  bracket_slot: number | null;
+  created_at: string;
   scheduled_at: string | null;
   status: ScheduleMatch["status"];
   winner_team_id: string | null;
   notes: string | null;
   player_1_team_id: string;
-  player_2_team_id: string;
+  player_2_team_id: string | null;
   player_1?: {
     team_name?: string;
     owner_user_id?: string;
-    owner?: { display_name?: string | null; avatar_url?: string | null } | null;
+    owner?: {
+      display_name?: string | null;
+      avatar_url?: string | null;
+      name_color?: string | null;
+      avatar_initials?: string | null;
+    } | null;
   } | null;
   player_2?: {
     team_name?: string;
     owner_user_id?: string;
-    owner?: { display_name?: string | null; avatar_url?: string | null } | null;
+    owner?: {
+      display_name?: string | null;
+      avatar_url?: string | null;
+      name_color?: string | null;
+      avatar_initials?: string | null;
+    } | null;
   } | null;
 };
 
@@ -489,27 +613,34 @@ export async function loadSchedulePageData(
     currentUserId: user.id,
     userRole: null,
     isOwner: false,
+    canEditMatchups: false,
     isStaff: false,
     myTeamId: null,
+    championTeamId: null,
   };
 
   if (!season) {
     return base;
   }
 
-  const [settingsResult, teamResult, memberResult, standingsResult] =
-    await Promise.all([
+  const [
+    settingsResult,
+    teamResult,
+    memberResult,
+    standingsResult,
+    championResult,
+  ] = await Promise.all([
       supabase
         .from("league_settings")
         .select(
-          "regular_season_weeks, match_format, playoff_team_count, playoff_match_format, playoff_format, enable_pokemon_costs, total_token_salary, allow_per_team_salary, total_rounds",
+          "regular_season_weeks, match_format, playoff_team_count, playoff_match_format, playoff_format, enable_pokemon_costs, total_token_salary, allow_per_team_salary, total_rounds, admins_edit_matchups",
         )
         .eq("season_id", season.id)
         .maybeSingle(),
       supabase
         .from("teams")
         .select(
-          "id, owner_user_id, team_name, profiles: owner_user_id (display_name, avatar_url)",
+          "id, owner_user_id, team_name, profiles: owner_user_id (display_name, avatar_url, name_color, avatar_initials)",
         )
         .eq("league_id", leagueId)
         .eq("season_id", season.id)
@@ -520,8 +651,27 @@ export async function loadSchedulePageData(
         .eq("league_id", leagueId)
         .eq("is_active", true),
       supabase.rpc("season_standings", { p_league_id: leagueId }),
+      /*
+       * The champion, from the function that decides it.
+       *
+       * This used to be worked out on the page by picking a finished final, and falling
+       * back to "the last completed winners game" for a league with no finals. That
+       * fallback is a single elimination rule, and in a double elimination bracket it
+       * matches the first completed game of the first round, so the banner named a
+       * champion one round into the tournament. A settled bye is indistinguishable from a
+       * completed game that way, which is how it surfaced as soon as a bye appeared.
+       */
+      supabase.rpc("playoff_champion", {
+        p_league_id: leagueId,
+        p_season_id: season.id,
+      }),
     ]);
 
+  /*
+   * The champion read is deliberately not fatal. A champion banner is one line on the
+   * page, and refusing to load the whole schedule because the function that names the
+   * champion failed would be a poor trade; the banner simply does not appear.
+   */
   if (
     settingsResult.error ||
     teamResult.error ||
@@ -541,6 +691,7 @@ export async function loadSchedulePageData(
     total_token_salary: number | null;
     allow_per_team_salary: boolean;
     total_rounds: number;
+    admins_edit_matchups: boolean;
   } | null;
 
   const settings: ScheduleSettings | null = settingsRow
@@ -554,6 +705,7 @@ export async function loadSchedulePageData(
         total_token_salary: settingsRow.total_token_salary,
         allow_per_team_salary: settingsRow.allow_per_team_salary,
         total_rounds: settingsRow.total_rounds,
+        admins_edit_matchups: settingsRow.admins_edit_matchups === true,
       }
     : null;
 
@@ -561,7 +713,12 @@ export async function loadSchedulePageData(
     id: string;
     owner_user_id: string;
     team_name: string;
-    profiles?: { display_name?: string | null; avatar_url?: string | null } | null;
+    profiles?: {
+      display_name?: string | null;
+      avatar_url?: string | null;
+      name_color?: string | null;
+      avatar_initials?: string | null;
+    } | null;
   }[]).map(
     (row): ScheduleTeam => ({
       id: row.id,
@@ -569,6 +726,8 @@ export async function loadSchedulePageData(
       team_name: row.team_name,
       owner_name: row.profiles?.display_name ?? null,
       owner_avatar_url: row.profiles?.avatar_url ?? null,
+      owner_name_color: row.profiles?.name_color ?? null,
+      owner_avatar_initials: row.profiles?.avatar_initials ?? null,
     }),
   );
 
@@ -667,7 +826,7 @@ export async function loadSchedulePageData(
     const { data: resultRows, error: resultsError } = await supabase
       .from("match_results")
       .select(
-        "id, match_id, winner_team_id, replay_url, game_number, pokemon_left_alive, submitted_at, reporter: reporter_user_id (display_name)",
+        "id, match_id, winner_team_id, replay_url, game_number, pokemon_left_alive, submitted_at, reporter: reporter_user_id (display_name, name_color)",
       )
       .in("match_id", matchIds);
 
@@ -677,10 +836,13 @@ export async function loadSchedulePageData(
 
     for (const row of (resultRows ?? []) as unknown as (Omit<
       ScheduleMatchResult,
-      "match_id" | "reporter_name"
+      "match_id" | "reporter_name" | "reporter_name_color"
     > & {
       match_id: string;
-      reporter?: { display_name?: string | null } | null;
+      reporter?: {
+        display_name?: string | null;
+        name_color?: string | null;
+      } | null;
     })[]) {
       const current = resultsByMatch.get(row.match_id) ?? [];
       current.push({
@@ -691,6 +853,7 @@ export async function loadSchedulePageData(
         pokemon_left_alive: row.pokemon_left_alive,
         submitted_at: row.submitted_at,
         reporter_name: row.reporter?.display_name ?? null,
+        reporter_name_color: row.reporter?.name_color ?? null,
       });
       resultsByMatch.set(row.match_id, current);
     }
@@ -733,8 +896,11 @@ export async function loadSchedulePageData(
       id: row.id,
       week_number: row.week_number,
       is_playoff: row.is_playoff,
+      playoff_round_no: row.playoff_round_no ?? null,
       bracket_phase: row.bracket_phase,
+      bracket_slot: row.bracket_slot,
       scheduled_at: row.scheduled_at,
+      created_at: row.created_at,
       status: row.status,
       winner_team_id: row.winner_team_id,
       notes: row.notes,
@@ -751,14 +917,25 @@ export async function loadSchedulePageData(
       player_1_name:
         row.player_1?.owner?.display_name ?? row.player_1?.team_name ?? "Team 1",
       player_2_name:
-        row.player_2?.owner?.display_name ?? row.player_2?.team_name ?? "Team 2",
+        row.player_2?.owner?.display_name ??
+        row.player_2?.team_name ??
+        // A one-sided playoff game is a bye: the opponent dropped out by double forfeit,
+        // so there is no team here to name.
+        (row.player_2_team_id ? "Team 2" : "Bye"),
+      player_1_name_color: row.player_1?.owner?.name_color ?? null,
+      player_2_name_color: row.player_2?.owner?.name_color ?? null,
       player_1_avatar_url: row.player_1?.owner?.avatar_url ?? null,
       player_2_avatar_url: row.player_2?.owner?.avatar_url ?? null,
+      player_1_avatar_initials: row.player_1?.owner?.avatar_initials ?? null,
+      player_2_avatar_initials: row.player_2?.owner?.avatar_initials ?? null,
       player_1_user_id: row.player_1?.owner_user_id ?? "",
       player_2_user_id: row.player_2?.owner_user_id ?? "",
       results: resultsByMatch.get(row.id) ?? [],
       // A forfeit with no recorded filer is attributed to the league owner.
       forfeited_by_name: row.forfeited_by?.display_name ?? ownerDisplayName,
+      // Only the recorded filer's colour is carried; the owner fallback above
+      // names the owner without knowing whose colour that would be.
+      forfeited_by_name_color: row.forfeited_by?.name_color ?? null,
       pending_proposal: pendingProposals.get(row.id) ?? null,
     }),
   );
@@ -771,8 +948,17 @@ export async function loadSchedulePageData(
     matches,
     rostersByTeam,
     standings,
+    // Null while the tournament is running, and null when it ended with no champion,
+    // which a double forfeit can cause by eliminating the last two sides standing.
+    championTeamId: (championResult.data as string | null) ?? null,
+    // Loaded with everything else so the playoffs tab can draw the whole bracket on
+    // first render, rather than only the rounds that have been generated.
+    playoffTemplate: await loadPlayoffTemplate(leagueId),
     userRole,
     isOwner: userRole === "owner",
+    canEditMatchups:
+      userRole === "owner" ||
+      (userRole === "admin" && settings?.admins_edit_matchups === true),
     isStaff: userRole === "owner" || userRole === "admin",
     myTeamId: myTeam?.id ?? null,
   };
@@ -820,6 +1006,76 @@ export async function generateSchedule(
  * @param leagueId - The league whose playoff bracket to advance.
  * @returns The number of playoff matches created.
  */
+/**
+ * One game in the bracket, whether or not it has been created yet.
+ *
+ * The template comes from `playoff_bracket_template`, so the whole tournament is
+ * described even when only the first round exists as real matches. `feeder_a` and
+ * `feeder_b` are the text a slot shows while it is empty, such as `seed 1` or
+ * `W(G5)`, and `team_a`/`team_b` carry a team id only when that side is a seed that
+ * is already known.
+ */
+export type SchedulePlayoffTemplateRow = {
+  game_label: string;
+  phase: "upper" | "lower" | "gf";
+  round_no: number;
+  week: number;
+  /**
+   * Position within its round, matching the `bracket_slot` the generator stores.
+   *
+   * Nullable because a template written before this column existed has no value, and the
+   * bracket falls back to pairing rows to games by their order in the round.
+   */
+  slot: number | null;
+  feeder_a: string;
+  feeder_b: string;
+  team_a: string | null;
+  team_b: string | null;
+  is_grand_final: boolean;
+  is_reset: boolean;
+};
+
+export type SchedulePlayoffTemplate = {
+  /** Every game the bracket will contain, in bracket order. */
+  rows: SchedulePlayoffTemplateRow[];
+  /**
+   * Why no template was produced, when the bracket is not defined for this league.
+   * Null on success.
+   */
+  unavailableReason: string | null;
+};
+
+/**
+ * Loads the full shape of the bracket for the schedule page.
+ *
+ * A league whose playoff field this bracket does not cover raises from the RPC. That
+ * is reported as a reason rather than thrown, because a schedule page with no bracket
+ * still has a schedule to show, and a league-wide exception would blank the page over
+ * a missing playoff feature.
+ *
+ * @param leagueId - The league whose bracket should be described.
+ * @returns The template rows, or the reason none could be produced.
+ */
+export async function loadPlayoffTemplate(
+  leagueId: string,
+): Promise<SchedulePlayoffTemplate> {
+  const { data, error } = await supabase.rpc("playoff_bracket_template", {
+    p_league_id: leagueId,
+  });
+
+  if (error) {
+    return { rows: [], unavailableReason: error.message };
+  }
+
+  return {
+    rows: (data ?? []) as SchedulePlayoffTemplateRow[],
+    unavailableReason: null,
+  };
+}
+
+/**
+ * Advances the playoff bracket by one step.
+ */
 export async function generatePlayoffRound(
   leagueId: string,
 ): Promise<number> {
@@ -829,6 +1085,32 @@ export async function generatePlayoffRound(
 
   if (error) {
     throw new Error(error.message || "The playoff bracket could not be advanced.");
+  }
+
+  return Number(data ?? 0);
+}
+
+/**
+ * Deletes the playoff bracket so it can be rebuilt from current standings.
+ *
+ * Destructive, and the caller is expected to confirm first: every playoff match and
+ * its results go, along with the frozen seed list. Without this a bracket that has
+ * already been played cannot be advanced again, because generate_playoff_round reads
+ * the existing games as the current round.
+ *
+ * @param leagueId - The league whose bracket should be cleared.
+ * @returns How many playoff matches were removed.
+ * @throws If the RPC rejects the request.
+ */
+export async function resetPlayoffBracket(
+  leagueId: string,
+): Promise<number> {
+  const { data, error } = await supabase.rpc("reset_playoff_bracket", {
+    p_league_id: leagueId,
+  });
+
+  if (error) {
+    throw new Error(error.message || "The playoff bracket could not be reset.");
   }
 
   return Number(data ?? 0);
@@ -1157,24 +1439,119 @@ export function proposalOutcomeTone(
 }
 
 /**
- * Labels the week a proposal belongs to.
+ * True when a match is a bye rather than a game two sides are meant to play.
  *
- * Playoff proposals are keyed to the round they were played in, not to a week
- * number, so calling one "Week 4" would be wrong and "Playoffs" is what the rest
- * of the page already says.
+ * A bracket padded out for byes, and any game whose other side was knocked out by a
+ * double forfeit, leaves a match with one team and no opponent. The advance settles those
+ * as a win so the bracket can move on, which makes them real rows in `matches`, and they
+ * are drawn on the bracket where the rest of the tournament is drawn.
  *
- * @param group - The week group being labelled.
- * @returns A label such as "Week 3" or "Playoffs".
+ * They are not matchups, though. There is nobody to play, so listing one in a matchup list
+ * offers the member an opponent who does not exist and a result they did not earn.
+ *
+ * @param match - The match to classify.
+ * @returns True when the match has only one side.
  */
-export function proposalWeekLabel(group: {
+export function isByeMatch(match: {
+  player_2_team_id: string | null;
+}): boolean {
+  return match.player_2_team_id === null;
+}
+
+/** A match reduced to the fields that week labelling reads. */
+export type WeekLabelledMatch = {
   week_number: number;
   is_playoff: boolean;
-}): string {
-  if (group.is_playoff) {
+  /**
+   * Which press of Advance Playoffs created this game, or null for a game written
+   * before the column existed.
+   */
+  playoff_round_no?: number | null;
+};
+
+/**
+ * The first playoff week of a season, which the postseason counts its weeks from.
+ *
+ * Playoff games carry the same `week_number` column as the regular season and simply
+ * continue past it, so a twelve team bracket on a five week season runs weeks six to
+ * seventeen. That numbering is an internal id rather than something to show a member:
+ * nobody thinks of the first round of the bracket as "week 6" when the league was five
+ * weeks long.
+ *
+ * Taken from the season's whole match list rather than from whichever subset a panel
+ * happens to be showing, so the numbering does not shift as rounds are played. The first
+ * round is over and dropped from the proposal log long before the final is proposed, and
+ * numbering from what was left would relabel the final as week 1.
+ *
+ * @param matches - Every match in the season.
+ * @returns The earliest playoff week, or null when the postseason has not started.
+ */
+export function firstPlayoffWeekOf(
+  matches: WeekLabelledMatch[],
+): number | null {
+  let earliest: number | null = null;
+
+  for (const match of matches) {
+    if (!match.is_playoff) continue;
+    if (earliest === null || match.week_number < earliest) {
+      earliest = match.week_number;
+    }
+  }
+
+  return earliest;
+}
+
+/**
+ * Labels the week a match belongs to, as a member would count it.
+ *
+ * A regular-season week is its own number.
+ *
+ * A playoff game is counted by the press of Advance Playoffs that created it, not by its
+ * stored week and not by its round within a bracket. One press writes several rounds at
+ * once -- after the opening round it creates the next winners round and the first losers
+ * round together -- so counting by week would split one set of new matchups across two
+ * labels, and counting by bracket round is not comparable between the winners and losers
+ * brackets, which run their rounds in parallel. A member sees one set of matchups appear
+ * and it should read as one round.
+ *
+ * Falls back to counting from the first playoff week for a game written before the press
+ * was recorded, and to a bare "Playoffs" when there is no first week to count from.
+ *
+ * @param match - The match being labelled.
+ * @param firstPlayoffWeek - The season's first playoff week, or null if none has started.
+ * @returns A label such as "Week 3" or "Playoffs (Week 2)".
+ */
+export function matchWeekLabel(
+  match: WeekLabelledMatch,
+  firstPlayoffWeek: number | null,
+): string {
+  if (!match.is_playoff) {
+    return `Week ${match.week_number}`;
+  }
+
+  if (match.playoff_round_no != null) {
+    return `Playoffs (Week ${match.playoff_round_no})`;
+  }
+
+  if (firstPlayoffWeek === null) {
     return "Playoffs";
   }
 
-  return `Week ${group.week_number}`;
+  return `Playoffs (Week ${match.week_number - firstPlayoffWeek + 1})`;
+}
+
+/**
+ * Labels the week a proposal belongs to.
+ *
+ * @param group - The week group being labelled.
+ * @param firstPlayoffWeek - The season's first playoff week, or null if none has started.
+ * @returns A label such as "Week 3" or "Playoffs (Week 2)".
+ */
+export function proposalWeekLabel(
+  group: WeekLabelledMatch,
+  firstPlayoffWeek: number | null,
+): string {
+  return matchWeekLabel(group, firstPlayoffWeek);
 }
 
 /** Match statuses that are settled: nothing more will be decided about them. */

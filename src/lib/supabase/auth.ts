@@ -5,9 +5,11 @@
  * password reset, profile update, sign out) that throw on failure.
  *
  * The profile update also carries the member's display preferences, so the
- * chosen time zone persists alongside the identity fields.
+ * chosen time zone and name colour persist alongside the identity fields.
  */
 import { supabase } from "@/lib/supabase/client";
+import { normalizeNameColor } from "@/lib/name-colors";
+import { normalizeAvatarInitials } from "@/lib/avatar-initials";
 
 /**
  * Signs up a new user with email and password, attaching the display name to
@@ -95,8 +97,8 @@ export async function resetPassword(email: string) {
  * other components can refresh.
  *
  * @param params - Object containing the user id, display name, Showdown
- *   username, optional avatar URL, and the IANA time zone league timestamps
- *   should be rendered in.
+ *   username, optional avatar URL, the IANA time zone league timestamps
+ *   should be rendered in, and the chosen name colour.
  * @returns A Promise that resolves once both the auth metadata and profile row
  *   are updated.
  */
@@ -105,16 +107,33 @@ export async function updateUserProfile({
   displayName,
   showdownUsername,
   avatarUrl,
+  avatarInitials,
   timeZone,
+  nameColor,
 }: {
   userId: string;
   displayName: string;
   showdownUsername: string;
   avatarUrl: string | null;
+  /**
+   * Letters to show in the avatar when the member has no picture. Stored rather than
+   * derived, because the settings page let a member choose these and the value used
+   * to be discarded on save.
+   */
+  avatarInitials?: string | null;
   timeZone: string;
+  /** The member's chosen name colour. Normalized to the palette before writing. */
+  nameColor?: string | null;
 }) {
   const trimmedDisplayName = displayName.trim();
   const trimmedShowdownUsername = showdownUsername.trim();
+  /*
+   * Normalized on the way in rather than trusted from the caller. The column has no
+   * CHECK constraint, so an unvalidated write would store a value no page can render
+   * and the member would silently lose their colour until they picked a new one.
+   */
+  const normalizedNameColor = normalizeNameColor(nameColor);
+  const normalizedInitials = normalizeAvatarInitials(avatarInitials);
 
   const { error: authError } = await supabase.auth.updateUser({
     data: {
@@ -135,7 +154,14 @@ export async function updateUserProfile({
         display_name: trimmedDisplayName || null,
         pokemon_showdown_username: trimmedShowdownUsername || null,
         avatar_url: avatarUrl || null,
+        // NULL rather than an empty string, so "never chose any" stays
+        // distinguishable from "chose an empty set" and the shared derivation
+        // applies to the former.
+        avatar_initials: normalizedInitials || null,
         timezone: timeZone.trim() || "UTC",
+        // NULL rather than the string "default", so a member who has not chosen a
+        // colour keeps the same row state as before the column existed.
+        name_color: normalizedNameColor === "default" ? null : normalizedNameColor,
         updated_at: new Date().toISOString(),
       },
       { onConflict: "id" },
@@ -150,9 +176,11 @@ export async function updateUserProfile({
       new CustomEvent("profile-updated", {
         detail: {
           avatarUrl: avatarUrl || null,
+          avatarInitials: normalizedInitials || null,
           displayName: trimmedDisplayName || null,
           showdownUsername: trimmedShowdownUsername || null,
           timeZone: timeZone.trim() || "UTC",
+          nameColor: normalizedNameColor,
           updatedAt: new Date().toISOString(),
         },
       }),

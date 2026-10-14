@@ -34,24 +34,24 @@
  * (proposed, accepted, declined, withdrawn) are reported on the dashboard's
  * Schedule nav button as an unread-count badge rather than as a panel here, and
  * are cleared by opening the schedule.
+ * Member display names are rendered through `MemberName`, so wherever the page
+ * names a player the name appears in the colour that member picked. The one
+ * exception is a `<select>` option, which cannot hold a styled span.
  * Opening the page also nudges the weekly deadline sweep so a week whose
  * deadline passed while the app server was idle is settled and the playoff
  * bracket opened before the schedule renders.
  */
 "use client";
 
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { supabase } from "@/lib/supabase/client";
 import { readReplaySummary } from "@/lib/replay-summary";
 import { useConfirm } from "@/components/confirm-dialog";
+import { MemberName } from "@/components/member-name";
+import { MemberAvatar } from "@/components/member-avatar";
+import { PlayoffBracket } from "@/components/playoff-bracket";
 import {
   loadWeekProgressState,
   runWeekDeadlineSweep,
@@ -94,10 +94,14 @@ import {
   ownerRevertForfeit,
   gameRecord,
   generatePlayoffRound,
+  resetPlayoffBracket,
   generateSchedule,
   groupProposalHistoryByWeek,
+  firstPlayoffWeekOf,
+  isByeMatch,
   loadProposalHistory,
   loadSchedulePageData,
+  matchWeekLabel,
   nextPowerOfTwo,
   proposeMatchTime,
   proposalOutcomeLabel,
@@ -119,13 +123,7 @@ import {
 const SELECTED_LEAGUE_STORAGE_KEY = "pokemon-draft-league:selected-league";
 
 /** Labels enumerating the visible tabs (Setup is owner-only). */
-const TABS = [
-  "Schedule",
-  "Standings",
-  "Playoffs",
-  "History",
-  "Setup",
-] as const;
+const TABS = ["Schedule", "Standings", "Playoffs", "History", "Setup"] as const;
 
 type Tab = (typeof TABS)[number];
 
@@ -175,7 +173,12 @@ function buildGameRows(
 
   const hasThirdGame = rows.some((row) => row.result.game_number === 3);
   const secondGame = rows.find((row) => row.result.game_number === 2);
-  if (matchFormat === "best_of_3" && rows.length === 2 && !hasThirdGame && secondGame) {
+  if (
+    matchFormat === "best_of_3" &&
+    rows.length === 2 &&
+    !hasThirdGame &&
+    secondGame
+  ) {
     rows.push({
       result: {
         ...secondGame.result,
@@ -187,6 +190,28 @@ function buildGameRows(
   }
 
   return rows;
+}
+
+/**
+ * Resolves one side of a matchup, taking the winning side's display name together
+ * with the colour that member picked.
+ *
+ * The game rows, the match history card and the champion banner all need the
+ * name of whichever team won, and a name on its own has nowhere to hang a colour.
+ * Pairing the two here means each of those sites can hand both straight to
+ * `MemberName` instead of deciding again which side of the matchup won.
+ *
+ * @param match - The matchup the winning side belongs to.
+ * @param teamId - The winning team's id.
+ * @returns The winner's display name and stored name colour.
+ */
+function sideByTeamId(
+  match: ScheduleMatch,
+  teamId: string,
+): { name: string; color: string | null } {
+  return teamId === match.player_1_team_id
+    ? { name: match.player_1_name, color: match.player_1_name_color }
+    : { name: match.player_2_name, color: match.player_2_name_color };
 }
 
 /**
@@ -203,6 +228,7 @@ function MatchupHistoryCard({
   selected,
   onSelect,
   rostersByTeam,
+  firstPlayoffWeek,
 }: {
   /** The completed match to render. */
   match: ScheduleMatch;
@@ -218,18 +244,39 @@ function MatchupHistoryCard({
   onSelect: () => void;
   /** Sprite rosters keyed by team id, so each side shows its Pokemon. */
   rostersByTeam: Record<string, ScheduleRosterSprite[]>;
+  /** The season's first playoff week, so a bracket round reads as "Playoffs (Week 1)". */
+  firstPlayoffWeek: number | null;
 }) {
   const rows = buildGameRows(match, matchFormat);
   const winnerSide = (teamId: string) =>
     !hideSpoilers && match.winner_team_id === teamId;
 
-  const side = (teamId: string, name: string, avatarUrl: string | null) => (
+  const side = (
+    teamId: string,
+    name: string,
+    avatarUrl: string | null,
+    nameColor: string | null,
+    initials: string | null,
+  ) => (
     <div className="flex flex-1 flex-col items-center gap-1 text-center">
-      <Avatar name={name} avatarUrl={avatarUrl} size={80} winner={winnerSide(teamId)} />
-      <span className="font-semibold text-slate-100">{name}</span>
+      <Avatar
+        name={name}
+        nameColor={nameColor}
+        avatarUrl={avatarUrl}
+        initials={initials}
+        size={80}
+        winner={winnerSide(teamId)}
+      />
+      <MemberName
+        name={name}
+        color={nameColor}
+        className="font-semibold text-slate-100"
+      />
       {gameRecord(match, teamId) && (
         <Spoiler hidden={hideSpoilers}>
-          <span className="text-sm text-slate-400">{gameRecord(match, teamId)}</span>
+          <span className="text-sm text-slate-400">
+            {gameRecord(match, teamId)}
+          </span>
         </Spoiler>
       )}
       <div className="mt-1">
@@ -249,14 +296,20 @@ function MatchupHistoryCard({
       }`}
     >
       <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
-        {match.is_playoff ? "Postseason" : `Week ${match.week_number}`}
+        {matchWeekLabel(match, firstPlayoffWeek)}
         {match.scheduled_at
           ? ` • ${formatDateTimeInZone(match.scheduled_at, timeZone)}`
           : ""}
       </p>
 
       <div className="flex w-full items-center justify-between gap-3">
-        {side(match.player_1_team_id, match.player_1_name, match.player_1_avatar_url)}
+        {side(
+          match.player_1_team_id,
+          match.player_1_name,
+          match.player_1_avatar_url,
+          match.player_1_name_color,
+          match.player_1_avatar_initials,
+        )}
         <div className="flex flex-col items-center gap-1">
           <span className="text-xs font-bold uppercase tracking-widest text-slate-500">
             vs
@@ -266,33 +319,52 @@ function MatchupHistoryCard({
           </span>
           <StatusBadge status={match.status} />
         </div>
-        {side(match.player_2_team_id, match.player_2_name, match.player_2_avatar_url)}
+        {side(
+          match.player_2_team_id ?? "",
+          match.player_2_name,
+          match.player_2_avatar_url,
+          match.player_2_name_color,
+          match.player_2_avatar_initials,
+        )}
       </div>
 
       {rows.length > 0 && (
         <div className="mt-3 space-y-1.5 border-t border-slate-800 pt-3">
           {rows.map(({ result }) => {
-            const winnerName =
-              result.winner_team_id === match.player_1_team_id
-                ? match.player_1_name
-                : match.player_2_name;
+            const winner = sideByTeamId(match, result.winner_team_id);
             return (
-              <div key={result.id} className="flex items-center justify-between gap-3 text-sm">
+              <div
+                key={result.id}
+                className="flex items-center justify-between gap-3 text-sm"
+              >
                 <div className="flex items-center gap-2">
                   <span className="rounded-full bg-slate-800 px-2 py-0.5 text-xs font-semibold text-slate-300">
                     Game {result.game_number}
                   </span>
                   <Spoiler hidden={hideSpoilers}>
-                    <span className="font-semibold text-emerald-300">{winnerName} wins</span>
+                    <span className="font-semibold text-emerald-300">
+                      <MemberName
+                        name={winner.name}
+                        color={winner.color}
+                        className="font-semibold text-emerald-300"
+                      />{" "}
+                      wins
+                    </span>
                   </Spoiler>
                   {result.pokemon_left_alive != null && (
                     <Spoiler hidden={hideSpoilers}>
-                      <span className="text-slate-400">• {result.pokemon_left_alive} alive</span>
+                      <span className="text-slate-400">
+                        • {result.pokemon_left_alive} alive
+                      </span>
                     </Spoiler>
                   )}
                   {result.reporter_name && (
                     <span className="text-xs text-slate-500">
-                      Submitted by {result.reporter_name}
+                      Submitted by{" "}
+                      <MemberName
+                        name={result.reporter_name}
+                        color={result.reporter_name_color}
+                      />
                     </span>
                   )}
                 </div>
@@ -302,7 +374,11 @@ function MatchupHistoryCard({
                     tabIndex={-1}
                     onClick={(event) => {
                       event.stopPropagation();
-                      window.open(result.replay_url ?? "", "_blank", "noreferrer");
+                      window.open(
+                        result.replay_url ?? "",
+                        "_blank",
+                        "noreferrer",
+                      );
                     }}
                     className="text-sky-400 underline decoration-sky-700 hover:text-sky-300"
                   >
@@ -317,7 +393,11 @@ function MatchupHistoryCard({
 
       {match.status === "forfeit" && match.forfeited_by_name && (
         <p className="mt-3 border-t border-slate-800 pt-3 text-xs text-slate-500">
-          Forfeited by {match.forfeited_by_name}
+          Forfeited by{" "}
+          <MemberName
+            name={match.forfeited_by_name}
+            color={match.forfeited_by_name_color}
+          />
         </p>
       )}
     </button>
@@ -345,47 +425,62 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 /**
- * Groups a match into its Upcoming matches week: one key per regular-season week,
- * and a single shared key for the whole postseason.
+ * Groups a match into its Upcoming matches week: one key per week, regular or playoff.
+ *
+ * The postseason is keyed by week like any other rather than collapsed into one entry.
+ * Collapsing it meant a bracket spanning twelve rounds offered a single "Postseason"
+ * option, so the week selector could not get a member to the round they were looking
+ * for. Keying by week keeps the rounds apart, and the label counts them from the first
+ * one; see {@link matchWeekLabel}.
  *
  * @param match - The match to classify.
- * @returns A stable key such as "week-3" or "postseason".
+ * @returns A stable key such as "week-3" or "playoffs-7".
  */
 function upcomingWeekKeyOf(match: ScheduleMatch): string {
-  return match.is_playoff ? "postseason" : `week-${match.week_number}`;
+  return match.is_playoff
+    ? `playoffs-${match.week_number}`
+    : `week-${match.week_number}`;
 }
 
 /** A player's avatar: owner image or an initial-based circle. */
 function Avatar({
   name,
+  nameColor,
   avatarUrl,
+  initials,
   size = 36,
   winner = false,
 }: {
   /** Display name used for the fallback initial. */
   name: string;
+  /** The player's chosen name colour, used for their initials avatar. */
+  nameColor?: string | null;
   /** Optional avatar image URL. */
   avatarUrl: string | null;
+  /**
+   * The player's stored avatar initials, or null to derive them from their name.
+   */
+  initials?: string | null;
   /** Square pixel dimensions. */
   size?: number;
   /** Highlights the avatar ring when the player won. */
   winner?: boolean;
 }) {
+  /*
+   * MemberAvatar rather than a local circle: the schedule used to draw its own, which
+   * is why a member's initials could not pick up their chosen colour here while the
+   * rest of the app did. It keeps the winner highlight, which is a momentary state
+   * that outranks a standing preference.
+   */
   return (
-    <div
-      style={{ width: size, height: size }}
-      className={`flex shrink-0 items-center justify-center overflow-hidden rounded-full border text-sm font-bold ${
-        winner
-          ? "border-emerald-400 bg-emerald-500 text-slate-950"
-          : "border-slate-700 bg-slate-800 text-slate-200"
-      }`}
-    >
-      {avatarUrl ? (
-        <img src={avatarUrl} alt={name} className="h-full w-full object-cover" />
-      ) : (
-        <span>{name?.charAt(0)?.toUpperCase() || "?"}</span>
-      )}
-    </div>
+    <MemberAvatar
+      name={name}
+      color={nameColor}
+      avatarUrl={avatarUrl}
+      initials={initials}
+      size={size}
+      winner={winner}
+    />
   );
 }
 
@@ -410,7 +505,11 @@ interface RosterSpritesProps {
  * @param props - {@link RosterSpritesProps}
  * @returns A wrapping row of roster sprites, or a short empty-state line.
  */
-function RosterSprites({ roster, align = "center", showNames = false }: RosterSpritesProps) {
+function RosterSprites({
+  roster,
+  align = "center",
+  showNames = false,
+}: RosterSpritesProps) {
   if (roster.length === 0) {
     return <p className="text-xs text-slate-500">No Pokémon yet</p>;
   }
@@ -500,7 +599,10 @@ function Spoiler({
   }
 
   return (
-    <span className="select-none rounded-sm bg-black [&_*]:!text-transparent" aria-hidden="true">
+    <span
+      className="select-none rounded-sm bg-black [&_*]:!text-transparent"
+      aria-hidden="true"
+    >
       {children}
     </span>
   );
@@ -576,18 +678,23 @@ const LOG_TIMESTAMP_FORMAT: Intl.DateTimeFormatOptions = {
 function ProposalHistoryPanel({
   groups,
   timeZone,
+  firstPlayoffWeek,
   isLoading,
   loadError,
 }: {
   groups: ProposalHistoryGroup[];
   timeZone: string;
+  /** The season's first playoff week, so a bracket round reads as "Playoffs (Week 1)". */
+  firstPlayoffWeek: number | null;
   isLoading: boolean;
   loadError: string | null;
 }) {
   if (isLoading) {
     return (
       <SectionCard title="Match proposal history">
-        <p className="text-sm text-slate-400">Loading the match proposal log...</p>
+        <p className="text-sm text-slate-400">
+          Loading the match proposal log...
+        </p>
       </SectionCard>
     );
   }
@@ -621,7 +728,7 @@ function ProposalHistoryPanel({
         {groups.map((group) => (
           <div key={group.week_number}>
             <h3 className="mb-2 text-sm font-semibold uppercase tracking-[0.15em] text-slate-300">
-              {proposalWeekLabel(group)}
+              {proposalWeekLabel(group, firstPlayoffWeek)}
             </h3>
             <div className="space-y-2">
               {group.entries.map((entry) => (
@@ -630,8 +737,16 @@ function ProposalHistoryPanel({
                   className="rounded-xl border border-slate-800 bg-slate-950/50 p-3"
                 >
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-sm text-slate-200">
-                      {entry.player_1_name} vs {entry.player_2_name}
+                    <p className="flex flex-wrap items-center gap-x-1 text-sm text-slate-200">
+                      <MemberName
+                        name={entry.player_1_name}
+                        color={entry.player_1_name_color}
+                      />
+                      <span>vs</span>
+                      <MemberName
+                        name={entry.player_2_name}
+                        color={entry.player_2_name_color}
+                      />
                     </p>
                     <span
                       className={`rounded-full border px-2.5 py-0.5 text-xs font-medium ${proposalOutcomeTone(entry.status)}`}
@@ -652,7 +767,12 @@ function ProposalHistoryPanel({
                     </div>
                     <div className="flex gap-1.5">
                       <dt className="text-slate-500">Proposed by</dt>
-                      <dd className="text-slate-300">{entry.proposed_by_name}</dd>
+                      <dd className="text-slate-300">
+                        <MemberName
+                          name={entry.proposed_by_name}
+                          color={entry.proposed_by_name_color}
+                        />
+                      </dd>
                     </div>
                     <div className="flex gap-1.5">
                       <dt className="text-slate-500">Proposed at</dt>
@@ -715,6 +835,11 @@ export default function SchedulePage() {
   );
 }
 
+/**
+ * Bridge component that reads the search params inside the Suspense boundary.
+ *
+ * @returns The schedule page content.
+ */
 function ScheduleRoute() {
   const searchParams = useSearchParams();
   return <SchedulePageContent searchParams={searchParams} />;
@@ -771,7 +896,9 @@ function SchedulePageContent({
       | "double_elimination",
   });
 
-  const [schedulingMatchId, setSchedulingMatchId] = useState<string | null>(null);
+  const [schedulingMatchId, setSchedulingMatchId] = useState<string | null>(
+    null,
+  );
   const [scheduleTime, setScheduleTime] = useState("");
   const [scheduleNotes, setScheduleNotes] = useState("");
   /*
@@ -803,14 +930,18 @@ function SchedulePageContent({
    * the league settings page uses so the date here can never disagree with the
    * one the owner configured.
    */
-  const [weekProgress, setWeekProgress] = useState<WeekProgressState | null>(null);
+  const [weekProgress, setWeekProgress] = useState<WeekProgressState | null>(
+    null,
+  );
 
   const [reportingMatchId, setReportingMatchId] = useState<string | null>(null);
   const [reportGame, setReportGame] = useState("1");
   const [reportWinner, setReportWinner] = useState("");
   const [reportUrl, setReportUrl] = useState("");
   const [reportAlive, setReportAlive] = useState("");
-  const [replayRead, setReplayRead] = useState<ReplayReadState>({ status: "idle" });
+  const [replayRead, setReplayRead] = useState<ReplayReadState>({
+    status: "idle",
+  });
 
   // Spoiler filter: on by default so the matchup card never reveals a result
   // until the viewer asks to see it.
@@ -868,7 +999,10 @@ function SchedulePageContent({
         break;
       }
     }
-    const pool = week != null ? regular.filter((match) => match.week_number === week) : next.matches;
+    const pool =
+      week != null
+        ? regular.filter((match) => match.week_number === week)
+        : next.matches;
     const mine = pool.find(
       (match) =>
         match.player_1_team_id === next.myTeamId ||
@@ -982,7 +1116,9 @@ function SchedulePageContent({
       return weekProgress.current_week;
     }
 
-    const weeks = [...new Set(regularMatches.map((match) => match.week_number))];
+    const weeks = [
+      ...new Set(regularMatches.map((match) => match.week_number)),
+    ];
     for (const week of weeks.sort((a, b) => a - b)) {
       const weekMatches = regularMatches.filter(
         (match) => match.week_number === week,
@@ -1132,9 +1268,10 @@ function SchedulePageContent({
   }, [activeTab, proposalHistoryKey]);
 
   /** The log, but only when it belongs to the league and season on screen. */
-  const proposalHistory = proposalHistoryState?.key === proposalHistoryKey
-    ? proposalHistoryState
-    : null;
+  const proposalHistory =
+    proposalHistoryState?.key === proposalHistoryKey
+      ? proposalHistoryState
+      : null;
 
   const { flush: flushRealtime } = useRealtimeInvalidation({
     leagueId: goods?.league.id ?? null,
@@ -1160,11 +1297,11 @@ function SchedulePageContent({
     () =>
       Boolean(
         goods &&
-          selectedMatch &&
-          myMatch &&
-          selectedMatch.status !== "completed" &&
-          selectedMatch.status !== "forfeit" &&
-          selectedMatch.status !== "cancelled",
+        selectedMatch &&
+        myMatch &&
+        selectedMatch.status !== "completed" &&
+        selectedMatch.status !== "forfeit" &&
+        selectedMatch.status !== "cancelled",
       ),
     [goods, selectedMatch, myMatch],
   );
@@ -1177,13 +1314,13 @@ function SchedulePageContent({
   const canOwnerActs = useMemo(
     () =>
       Boolean(
-        goods?.isOwner &&
-          selectedMatch &&
-          selectedMatch.status !== "completed" &&
-          selectedMatch.status !== "forfeit" &&
-          selectedMatch.status !== "cancelled",
+        goods?.canEditMatchups &&
+        selectedMatch &&
+        selectedMatch.status !== "completed" &&
+        selectedMatch.status !== "forfeit" &&
+        selectedMatch.status !== "cancelled",
       ),
-    [goods?.isOwner, selectedMatch],
+    [goods?.canEditMatchups, selectedMatch],
   );
 
   /**
@@ -1206,8 +1343,41 @@ function SchedulePageContent({
   );
 
   /**
+   * The colour a team's owner picked for their display name, for the same lookup
+   * `teamLabel` does. A standings row only carries the team's id, so the colour
+   * has to be resolved against the loaded teams rather than read off the row.
+   *
+   * @param teamId - The team whose owner's colour is wanted.
+   * @returns The stored name colour, or null when the member has none set.
+   */
+  const teamColor = useCallback(
+    (teamId: string) =>
+      goods?.teams.find((entry) => entry.id === teamId)?.owner_name_color ??
+      null,
+    [goods?.teams],
+  );
+
+  /**
+   * The initials the same team's owner picked for their avatar, resolved through
+   * the identical lookup as `teamColor` so a standings row carries the same letters
+   * the rest of the app shows for that member.
+   *
+   * @param teamId - The team whose owner's stored initials are wanted.
+   * @returns The stored avatar initials, or null when the member has none set.
+   */
+  const teamInitials = useCallback(
+    (teamId: string) =>
+      goods?.teams.find((entry) => entry.id === teamId)
+        ?.owner_avatar_initials ?? null,
+    [goods?.teams],
+  );
+
+  /**
    * The member on the other side of the selected matchup, or null when the
    * viewer is not a participant and therefore has no opponent to schedule with.
+   *
+   * Carries the opponent's stored name colour alongside their name so the places
+   * that name them render it in the colour they picked.
    */
   const opponent = useMemo(() => {
     if (!goods || !selectedMatch || !myMatch) {
@@ -1223,6 +1393,9 @@ function SchedulePageContent({
       name: isPlayerOne
         ? selectedMatch.player_2_name
         : selectedMatch.player_1_name,
+      color: isPlayerOne
+        ? selectedMatch.player_2_name_color
+        : selectedMatch.player_1_name_color,
     };
   }, [goods, selectedMatch, myMatch]);
 
@@ -1234,22 +1407,37 @@ function SchedulePageContent({
     pendingProposal && pendingProposal.proposed_by === goods?.currentUserId,
   );
 
-  /** Who to name as the proposer, whichever side of the matchup they are on. */
-  const proposalAuthorName = useMemo(() => {
-    if (!pendingProposal) {
-      return "Your opponent";
-    }
+  /**
+   * Who to name as the proposer, whichever side of the matchup they are on, with
+   * the colour they picked when the name is theirs.
+   *
+   * "You" and "Your opponent" are addressed in the second person rather than by
+   * name, so they carry no colour.
+   */
+  const proposalAuthor = useMemo<{ name: string; color: string | null }>(
+    () => {
+      if (!pendingProposal) {
+        return { name: "Your opponent", color: null };
+      }
 
-    if (proposalIsMine) {
-      return "You";
-    }
+      if (proposalIsMine) {
+        return { name: "You", color: null };
+      }
 
-    if (pendingProposal.proposed_by === selectedMatch?.player_1_user_id) {
-      return selectedMatch?.player_1_name ?? "Your opponent";
-    }
+      if (pendingProposal.proposed_by === selectedMatch?.player_1_user_id) {
+        return {
+          name: selectedMatch?.player_1_name ?? "Your opponent",
+          color: selectedMatch?.player_1_name_color ?? null,
+        };
+      }
 
-    return opponent?.name ?? "Your opponent";
-  }, [pendingProposal, proposalIsMine, selectedMatch, opponent]);
+      return {
+        name: opponent?.name ?? "Your opponent",
+        color: opponent?.color ?? null,
+      };
+    },
+    [pendingProposal, proposalIsMine, selectedMatch, opponent],
+  );
 
   /*
    * The opponent's week projected into the reader's zone. The week sampled is
@@ -1331,7 +1519,9 @@ function SchedulePageContent({
     ? gameRecord(selectedMatch, selectedMatch.player_1_team_id)
     : null;
   const playerTwoRecord = selectedMatch
-    ? gameRecord(selectedMatch, selectedMatch.player_2_team_id)
+    ? selectedMatch.player_2_team_id
+      ? gameRecord(selectedMatch, selectedMatch.player_2_team_id)
+      : null
     : null;
 
   const matchFormat = useMemo(() => {
@@ -1367,7 +1557,11 @@ function SchedulePageContent({
     () =>
       (goods?.matches ?? []).filter(
         (match) =>
-          match.status === "completed" || match.status === "forfeit",
+          (match.status === "completed" || match.status === "forfeit") &&
+          // A bye is settled as a win so the bracket can move on, but it has no opponent
+          // and is not a result anyone played. It stays on the bracket, which draws from
+          // the season's whole match list, and out of the matchup lists here.
+          !isByeMatch(match),
       ),
     [goods?.matches],
   );
@@ -1380,7 +1574,10 @@ function SchedulePageContent({
       (match) =>
         match.status !== "completed" &&
         match.status !== "forfeit" &&
-        match.status !== "cancelled",
+        match.status !== "cancelled" &&
+        // Byes are settled automatically and have no opponent, so they belong on the
+        // bracket rather than in a list of matchups waiting to be played.
+        !isByeMatch(match),
     );
     return [...open].sort((a, b) => {
       const aMine =
@@ -1392,38 +1589,83 @@ function SchedulePageContent({
       if (aMine !== bMine) {
         return aMine ? -1 : 1;
       }
-      const aTime = a.scheduled_at ? new Date(a.scheduled_at).getTime() : Number.MAX_SAFE_INTEGER;
-      const bTime = b.scheduled_at ? new Date(b.scheduled_at).getTime() : Number.MAX_SAFE_INTEGER;
+      const aTime = a.scheduled_at
+        ? new Date(a.scheduled_at).getTime()
+        : Number.MAX_SAFE_INTEGER;
+      const bTime = b.scheduled_at
+        ? new Date(b.scheduled_at).getTime()
+        : Number.MAX_SAFE_INTEGER;
       return aTime - bTime;
     });
   }, [goods]);
 
   /*
-   * The week selector on the Upcoming matches panel. Options are only the weeks
-   * (and postseason) that still have an open match, since a completed week has
-   * nothing left to show there. Keys are stable strings so the selection survives
-   * a refetch.
+   * The week the postseason counts from, taken from the season's whole match list so the
+   * numbering stays put as rounds are played rather than shifting with whatever subset a
+   * panel is showing.
+   */
+  const firstPlayoffWeek = useMemo(
+    () => firstPlayoffWeekOf(goods?.matches ?? []),
+    [goods?.matches],
+  );
+
+  /*
+   * The games offered by the Week / matchup picker, latest round first.
+   *
+   * The picker lists every game in the season rather than one week at a time, so without a
+   * sort of its own it just rendered them in the order the query returned, which put week 1
+   * at the top and made the most recent round the furthest thing in a long list to scroll
+   * to. Weeks run latest to earliest -- week 9 above week 8 above week 7 -- because the game
+   * being looked for is almost always in the current or most recent round.
+   *
+   * Within a week the games stay in the order the season's matches arrive in, so the pairing
+   * reads in the sequence it was played rather than being reshuffled. A playoff round sorts
+   * after every regular one because its weeks continue on from them.
+   */
+  const matchPickerMatches = useMemo(
+    () =>
+      (goods?.matches ?? [])
+        .filter((match) => !isByeMatch(match))
+        .slice()
+        .sort((a, b) => b.week_number - a.week_number),
+    [goods?.matches],
+  );
+
+  /*
+   * The week selector on the Upcoming matches panel. Options are only the weeks (and
+   * postseason) that still have an open match, since a completed week has nothing left to
+   * show there. Keys are stable strings so the selection survives a refetch.
+   *
+   * Latest first, so the round a member has to play next is at the top of the list and is
+   * the default rather than something at the bottom.
    */
   const upcomingWeekOptions = useMemo(() => {
-    const options = new Map<string, { key: string; label: string; order: number }>();
+    const options = new Map<
+      string,
+      { key: string; label: string; order: number }
+    >();
     for (const match of upcomingMatches) {
       const key = upcomingWeekKeyOf(match);
       if (!options.has(key)) {
         options.set(key, {
           key,
-          label: match.is_playoff ? "Postseason" : `Week ${match.week_number}`,
-          order: match.is_playoff ? Number.MAX_SAFE_INTEGER : match.week_number,
+          label: matchWeekLabel(match, firstPlayoffWeek),
+          // Playoff rounds continue past every regular one, so the latest round is the
+          // highest number in either sequence.
+          order: match.week_number,
         });
       }
     }
-    return [...options.values()].sort((a, b) => a.order - b.order);
-  }, [upcomingMatches]);
+    return [...options.values()].sort((a, b) => b.order - a.order);
+  }, [upcomingMatches, firstPlayoffWeek]);
 
   // The current week is the default; falls back to the first week with open matches.
   const defaultUpcomingWeekKey = useMemo(() => {
-    const current =
-      currentWeek != null ? `week-${currentWeek}` : null;
-    if (current && upcomingWeekOptions.some((option) => option.key === current)) {
+    const current = currentWeek != null ? `week-${currentWeek}` : null;
+    if (
+      current &&
+      upcomingWeekOptions.some((option) => option.key === current)
+    ) {
       return current;
     }
     return upcomingWeekOptions[0]?.key ?? null;
@@ -1448,25 +1690,31 @@ function SchedulePageContent({
 
   /*
    * The week selector on the Match history card. Options are only the weeks (and
-   * postseason) that have a closed match, oldest first. The default is the most
-   * recent of those, since that is what a reader is usually after.
+   * postseason) that have a closed match, latest first.
+   *
+   * Most recent first rather than oldest first, so the default is the first option and the
+   * reader lands on the round they are looking for instead of scrolling to the end of the
+   * list. A reader asking "what happened last" gets the answer on open.
    */
   const historyWeekOptions = useMemo(() => {
-    const options = new Map<string, { key: string; label: string; order: number }>();
+    const options = new Map<
+      string,
+      { key: string; label: string; order: number }
+    >();
     for (const match of completedMatches) {
       const key = upcomingWeekKeyOf(match);
       if (!options.has(key)) {
         options.set(key, {
           key,
-          label: match.is_playoff ? "Postseason" : `Week ${match.week_number}`,
-          order: match.is_playoff ? Number.MAX_SAFE_INTEGER : match.week_number,
+          label: matchWeekLabel(match, firstPlayoffWeek),
+          order: match.week_number,
         });
       }
     }
-    return [...options.values()].sort((a, b) => a.order - b.order);
-  }, [completedMatches]);
+    return [...options.values()].sort((a, b) => b.order - a.order);
+  }, [completedMatches, firstPlayoffWeek]);
 
-  const defaultHistoryWeekKey = historyWeekOptions[historyWeekOptions.length - 1]?.key ?? null;
+  const defaultHistoryWeekKey = historyWeekOptions[0]?.key ?? null;
 
   // A user's pick wins only while that week still has a completed match.
   const activeHistoryWeekKey =
@@ -1485,41 +1733,51 @@ function SchedulePageContent({
     [completedMatches, activeHistoryWeekKey],
   );
 
-  const playoffColumns = useMemo(() => {
-    if (!goods) {
-      return [];
-    }
-    const playoff = goods.matches.filter((match) => match.is_playoff);
-    const byPhase = (phase: "upper" | "lower" | "gf") =>
-      playoff
-        .filter((match) => match.bracket_phase === phase)
-        .sort((a, b) => a.week_number - b.week_number);
-    return [
-      ...byPhase("upper"),
-      ...byPhase("lower"),
-      ...byPhase("gf"),
-    ];
-  }, [goods]);
+  /**
+   * The bracket's full shape, including games that do not exist yet.
+   *
+   * The template drives the display rather than the matches, so a league with no
+   * generated bracket still shows the whole tournament: every round, where each seed
+   * enters, and how a loser progresses.
+   */
+  const playoffTemplateRows = useMemo(
+    () => goods?.playoffTemplate?.rows ?? [],
+    [goods?.playoffTemplate],
+  );
 
-  const champion = useMemo(() => {
-    if (!goods) {
-      return null;
-    }
-    const grandFinal = goods.matches.find(
-      (match) => match.bracket_phase === "gf" && match.status === "completed",
-    );
-    if (grandFinal?.winner_team_id) {
-      return grandFinal;
-    }
-    const singleFinal = goods.matches.find(
-      (match) =>
-        !grandFinal &&
-        match.is_playoff &&
-        match.bracket_phase === "upper" &&
-        match.status === "completed",
-    );
-    return singleFinal ?? null;
-  }, [goods]);
+  /**
+   * Resolves a team id for the bracket, preferring the match's own participant data so
+   * a team that has not yet been drawn into a match still shows its real name.
+   */
+  const playoffTeamResolver = useCallback(
+    (teamId: string | null): { name: string; color: string | null } | null => {
+      if (!teamId || !goods) {
+        return null;
+      }
+
+      const team = goods.teams.find((entry) => entry.id === teamId);
+
+      return {
+        name: team?.owner_name?.trim() || team?.team_name || "TBD",
+        color: team?.owner_name_color ?? null,
+      };
+    },
+    [goods],
+  );
+
+  /*
+   * The champion banner.
+   *
+   * The team id comes from the database function that decides it. This used to be worked
+   * out here instead, by taking a finished grand final and falling back to "the last
+   * completed winners game" for a league with no finals. That fallback is a single
+   * elimination rule: in a double elimination bracket it matches the first completed game
+   * of the first round, so the banner named a champion one round into the tournament. A
+   * settled bye looks exactly like a completed game under that test, which is why it
+   * appeared the moment a bye did.
+   */
+  const championTeamId = goods?.championTeamId ?? null;
+  const championWinner = playoffTeamResolver(championTeamId);
 
   const history = useMemo(() => {
     if (!goods) {
@@ -1537,8 +1795,15 @@ function SchedulePageContent({
     );
   }, [goods]);
 
+  /*
+   * A playoff field can be any size from two up to the size of the league, and the league
+   * size is the maximum: a bracket cannot be filled with teams that do not exist. The
+   * number of byes follows from rounding that field up to the next power of two.
+   */
+  const leagueSize = goods?.teams.length ?? 0;
+  const maxPlayoffTeams = leagueSize;
   const byes =
-    form.playoffTeams >= 2
+    form.playoffTeams >= 2 && form.playoffTeams <= maxPlayoffTeams
       ? nextPowerOfTwo(form.playoffTeams) - form.playoffTeams
       : 0;
 
@@ -1548,7 +1813,10 @@ function SchedulePageContent({
     [proposalHistory],
   );
 
-  const canRunMutation = async (mutation: () => Promise<unknown>, leagueId: string) => {
+  const canRunMutation = async (
+    mutation: () => Promise<unknown>,
+    leagueId: string,
+  ) => {
     setIsBusy(true);
     setError(null);
     setNotice(null);
@@ -1611,6 +1879,40 @@ function SchedulePageContent({
   }
 
   /**
+   * Clears the bracket after confirming, because it cannot be undone.
+   *
+   * The dialog spells out the consequences rather than saying "are you sure": the
+   * owner is about to lose recorded results and any standings they fed, and a reset
+   * that reseeds can produce a different bracket than the one on screen.
+   */
+  async function handleResetPlayoffs() {
+    if (!goods) {
+      return;
+    }
+
+    const confirmed = await confirm({
+      title: "Reset the playoff bracket?",
+      detail:
+        "Every playoff match and its result is deleted, and the bracket reseeds from the current standings next time you advance. Regular season results are kept, but playoff results currently counting toward the standings table will disappear. This cannot be undone.",
+      confirmLabel: "Reset bracket",
+      tone: "danger",
+    });
+
+    if (!confirmed) {
+      return;
+    }
+
+    await canRunMutation(async () => {
+      const removed = await resetPlayoffBracket(goods.league.id);
+      setNotice(
+        removed === 0
+          ? "There was no playoff bracket to reset."
+          : `Playoff bracket reset. ${removed} playoff match${removed === 1 ? "" : "es"} removed.`,
+      );
+    }, goods.league.id);
+  }
+
+  /**
    * Toggles the native date picker.
    *
    * `showPicker()` can open the calendar but there is no matching call to close
@@ -1654,7 +1956,9 @@ function SchedulePageContent({
   }
 
   /** Applies a date chosen from the calendar, keeping any time already set. */
-  function handleScheduleDateChange(event: React.ChangeEvent<HTMLInputElement>) {
+  function handleScheduleDateChange(
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) {
     // The browser dismisses the calendar itself once a day is chosen, so the
     // open state has to be cleared here or the next button press would try to
     // close a popup that is already gone.
@@ -1688,7 +1992,8 @@ function SchedulePageContent({
       return;
     }
 
-    const staged = selectedMatch.pending_proposal?.proposed_at ?? selectedMatch.scheduled_at;
+    const staged =
+      selectedMatch.pending_proposal?.proposed_at ?? selectedMatch.scheduled_at;
 
     setSchedulingMatchId(selectedMatch.id);
     // A picker left open from a previous form would make the first press on the
@@ -1772,7 +2077,6 @@ function SchedulePageContent({
     );
   }
 
-
   /** Withdraws the viewer's own pending proposal. */
   async function handleCancelProposal(matchId: string) {
     if (!goods) {
@@ -1800,7 +2104,9 @@ function SchedulePageContent({
       return;
     }
     setReportingMatchId(selectedMatch.id);
-    const taken = new Set(selectedMatch.results.map((result) => result.game_number));
+    const taken = new Set(
+      selectedMatch.results.map((result) => result.game_number),
+    );
     let firstMissing = 1;
     while (taken.has(firstMissing) && firstMissing <= 3) {
       firstMissing += 1;
@@ -1825,7 +2131,10 @@ function SchedulePageContent({
     }
     setReplayRead({ status: "loading" });
     try {
-      const summary = await readReplaySummary(reportUrl.trim(), selectedMatch.id);
+      const summary = await readReplaySummary(
+        reportUrl.trim(),
+        selectedMatch.id,
+      );
       if (summary.winnerTeamId) {
         setReportWinner(summary.winnerTeamId);
       }
@@ -1872,7 +2181,9 @@ function SchedulePageContent({
     setEditWinner(result.winner_team_id);
     setEditUrl(result.replay_url ?? "");
     setEditAlive(
-      result.pokemon_left_alive != null ? String(result.pokemon_left_alive) : "",
+      result.pokemon_left_alive != null
+        ? String(result.pokemon_left_alive)
+        : "",
     );
   }
 
@@ -1970,7 +2281,10 @@ function SchedulePageContent({
     if (!reverting) {
       return;
     }
-    await canRunMutation(() => ownerRevertForfeit(selectedMatch.id), goods.league.id);
+    await canRunMutation(
+      () => ownerRevertForfeit(selectedMatch.id),
+      goods.league.id,
+    );
     setNotice("Forfeit reverted.");
   }
 
@@ -2014,7 +2328,8 @@ function SchedulePageContent({
   }
 
   const tabs = goods.isOwner ? TABS : TABS.filter((tab) => tab !== "Setup");
-  const generateDisabled = isBusy || !Number.isInteger(form.weeks) || form.weeks < 1;
+  const generateDisabled =
+    isBusy || !Number.isInteger(form.weeks) || form.weeks < 1;
 
   /*
    * The next weekly deadline, in the reader's zone. The league configures the
@@ -2028,7 +2343,9 @@ function SchedulePageContent({
   const deadlineInstant = weekProgress?.next_deadline
     ? new Date(weekProgress.next_deadline)
     : null;
-  const hasDeadline = Boolean(weekProgress?.deadline_enabled && deadlineInstant);
+  const hasDeadline = Boolean(
+    weekProgress?.deadline_enabled && deadlineInstant,
+  );
 
   return (
     <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
@@ -2036,12 +2353,16 @@ function SchedulePageContent({
         <header className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-2xl shadow-slate-950/40">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-white">{goods.league.name}</h1>
+              <h1 className="text-3xl font-bold text-white">
+                {goods.league.name}
+              </h1>
               <p className="mt-1 text-sm text-slate-400">
                 Schedule • {formatSeasonLabel(goods.season)}
                 {` • ${phaseLabel}`}
                 {" • All times in "}
-                <span className="text-slate-300">{formatTimeZoneLabel(timeZone)}</span>
+                <span className="text-slate-300">
+                  {formatTimeZoneLabel(timeZone)}
+                </span>
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -2064,11 +2385,11 @@ function SchedulePageContent({
         </header>
 
         {/*
-          * The weekly deadline is a league-wide commitment, so it is announced in
-          * its own banner rather than as another line of grey subtext in the
-          * header: a member who has not proposed a time yet needs to know how
-          * long they have left to agree on one.
-          */}
+         * The weekly deadline is a league-wide commitment, so it is announced in
+         * its own banner rather than as another line of grey subtext in the
+         * header: a member who has not proposed a time yet needs to know how
+         * long they have left to agree on one.
+         */}
         {hasDeadline && (
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-500/40 bg-amber-500/10 px-5 py-4">
             <div>
@@ -2148,11 +2469,11 @@ function SchedulePageContent({
                   <option value="best_of_3">Best of 3</option>
                 </select>
               </Field>
-              <Field label="Playoff teams">
+              <Field label={`Playoff teams (max ${maxPlayoffTeams})`}>
                 <input
                   type="number"
                   min={0}
-                  max={16}
+                  max={maxPlayoffTeams}
                   value={form.playoffTeams}
                   onChange={(event) =>
                     setForm({
@@ -2199,7 +2520,7 @@ function SchedulePageContent({
               </Field>
               <Field label="First-round byes (calculated)">
                 <div className="rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-300">
-                  {form.playoffTeams >= 2 && form.playoffTeams <= 16
+                  {form.playoffTeams >= 2 && form.playoffTeams <= maxPlayoffTeams
                     ? byes
                     : "—"}
                 </div>
@@ -2208,12 +2529,12 @@ function SchedulePageContent({
             <p className="mt-4 text-sm text-slate-400">
               Generate button is enabled once regular season weeks is a valid
               integer of at least 1. Generating replaces the current
-              season&apos;s schedule and draws every matchup and home/away side at
-              random, so regenerating produces a different schedule. Each team
-              meets each other team once per round-robin pass, so weeks beyond a
-              full pass re-draw the matchups instead of replaying them. The
-              playoff bracket is advanced from the Playoffs tab once the draft is
-              complete.
+              season&apos;s schedule and draws every matchup and home/away side
+              at random, so regenerating produces a different schedule. Each
+              team meets each other team once per round-robin pass, so weeks
+              beyond a full pass re-draw the matchups instead of replaying them.
+              The playoff bracket is advanced from the Playoffs tab once the
+              draft is complete.
             </p>
           </SectionCard>
         )}
@@ -2231,10 +2552,12 @@ function SchedulePageContent({
                     <input
                       type="checkbox"
                       checked={hideSpoilers}
-                      onChange={(event) => setHideSpoilers(event.target.checked)}
+                      onChange={(event) =>
+                        setHideSpoilers(event.target.checked)
+                      }
                       className="size-4 accent-amber-500"
                     />
-                    <span>Filter</span>
+                    <span>Spoiler Filter</span>
                   </label>
                   <label className="flex items-center gap-2 text-sm text-slate-400">
                     <span className="hidden sm:inline">Week / matchup</span>
@@ -2248,13 +2571,13 @@ function SchedulePageContent({
                       }}
                       className="rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-500"
                     >
-                      {!selectedMatch && <option value="">Select a match</option>}
-                      {goods.matches.map((match) => (
+                      {!selectedMatch && (
+                        <option value="">Select a match</option>
+                      )}
+                      {matchPickerMatches.map((match) => (
                         <option key={match.id} value={match.id}>
-                          {match.is_playoff
-                            ? "Postseason"
-                            : `Week ${match.week_number}`}{" "}
-                          • {match.player_1_name} vs {match.player_2_name}
+                          {matchWeekLabel(match, firstPlayoffWeek)} •{" "}
+                          {match.player_1_name} vs {match.player_2_name}
                         </option>
                       ))}
                     </select>
@@ -2273,7 +2596,9 @@ function SchedulePageContent({
                       <div className="flex flex-1 flex-col items-center gap-1 text-center">
                         <Avatar
                           name={selectedMatch.player_1_name}
+                          nameColor={selectedMatch.player_1_name_color}
                           avatarUrl={selectedMatch.player_1_avatar_url}
+                          initials={selectedMatch.player_1_avatar_initials}
                           size={88}
                           winner={
                             !hideSpoilers &&
@@ -2281,9 +2606,11 @@ function SchedulePageContent({
                               selectedMatch.player_1_team_id
                           }
                         />
-                        <span className="font-semibold text-slate-100">
-                          {selectedMatch.player_1_name}
-                        </span>
+                        <MemberName
+                          name={selectedMatch.player_1_name}
+                          color={selectedMatch.player_1_name_color}
+                          className="font-semibold text-slate-100"
+                        />
                         {playerOneRecord && (
                           <Spoiler hidden={hideSpoilers}>
                             <span className="text-sm text-slate-400">
@@ -2294,7 +2621,11 @@ function SchedulePageContent({
                         <div className="mt-1">
                           <RosterSprites
                             showNames
-                            roster={goods.rostersByTeam[selectedMatch.player_1_team_id] ?? []}
+                            roster={
+                              goods.rostersByTeam[
+                                selectedMatch.player_1_team_id
+                              ] ?? []
+                            }
                           />
                         </div>
                       </div>
@@ -2310,7 +2641,9 @@ function SchedulePageContent({
                       <div className="flex flex-1 flex-col items-center gap-1 text-center">
                         <Avatar
                           name={selectedMatch.player_2_name}
+                          nameColor={selectedMatch.player_2_name_color}
                           avatarUrl={selectedMatch.player_2_avatar_url}
+                          initials={selectedMatch.player_2_avatar_initials}
                           size={88}
                           winner={
                             !hideSpoilers &&
@@ -2318,9 +2651,11 @@ function SchedulePageContent({
                               selectedMatch.player_2_team_id
                           }
                         />
-                        <span className="font-semibold text-slate-100">
-                          {selectedMatch.player_2_name}
-                        </span>
+                        <MemberName
+                          name={selectedMatch.player_2_name}
+                          color={selectedMatch.player_2_name_color}
+                          className="font-semibold text-slate-100"
+                        />
                         {playerTwoRecord && (
                           <Spoiler hidden={hideSpoilers}>
                             <span className="text-sm text-slate-400">
@@ -2331,17 +2666,21 @@ function SchedulePageContent({
                         <div className="mt-1">
                           <RosterSprites
                             showNames
-                            roster={goods.rostersByTeam[selectedMatch.player_2_team_id] ?? []}
+                            roster={
+                              goods.rostersByTeam[
+                                selectedMatch.player_2_team_id ?? ""
+                              ] ?? []
+                            }
                           />
                         </div>
                       </div>
                     </div>
 
                     {/*
-                      * The time line is the whole point of the agreement flow, so
-                      * it says which of the three states the matchup is in: no
-                      * time, a time waiting on the opponent, or an agreed time.
-                      */}
+                     * The time line is the whole point of the agreement flow, so
+                     * it says which of the three states the matchup is in: no
+                     * time, a time waiting on the opponent, or an agreed time.
+                     */}
                     {pendingProposal ? (
                       <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm">
                         <p className="font-semibold text-amber-200">
@@ -2351,7 +2690,11 @@ function SchedulePageContent({
                           )}
                         </p>
                         <p className="mt-1 text-amber-200/80">
-                          {proposalAuthorName} proposed this time.{" "}
+                          <MemberName
+                            name={proposalAuthor.name}
+                            color={proposalAuthor.color}
+                          />{" "}
+                          proposed this time.{" "}
                           {proposalIsMine
                             ? "Waiting for your opponent to accept."
                             : "Accept or decline it below."}
@@ -2359,7 +2702,10 @@ function SchedulePageContent({
                       </div>
                     ) : selectedMatch.scheduled_at ? (
                       <p className="text-sm text-slate-300">
-                        {formatDateTimeInZone(selectedMatch.scheduled_at, timeZone)}
+                        {formatDateTimeInZone(
+                          selectedMatch.scheduled_at,
+                          timeZone,
+                        )}
                         <span className="ml-2 text-xs text-emerald-300">
                           agreed by both players
                         </span>
@@ -2373,7 +2719,11 @@ function SchedulePageContent({
                     {selectedMatch.status === "forfeit" &&
                       selectedMatch.forfeited_by_name && (
                         <p className="text-center text-xs text-slate-500">
-                          Forfeited by {selectedMatch.forfeited_by_name}
+                          Forfeited by{" "}
+                          <MemberName
+                            name={selectedMatch.forfeited_by_name}
+                            color={selectedMatch.forfeited_by_name_color}
+                          />
                         </p>
                       )}
                     {selectedMatch.notes && (
@@ -2427,7 +2777,9 @@ function SchedulePageContent({
                           <button
                             type="button"
                             disabled={isBusy}
-                            onClick={() => handleCancelProposal(selectedMatch.id)}
+                            onClick={() =>
+                              handleCancelProposal(selectedMatch.id)
+                            }
                             className="rounded-xl border border-slate-700 bg-slate-800 px-3.5 py-2 text-sm font-medium text-slate-100 transition hover:bg-slate-700 disabled:opacity-50"
                           >
                             Withdraw
@@ -2472,7 +2824,11 @@ function SchedulePageContent({
                         onClick={() => handleOwnerForfeit("player_1")}
                         className="rounded-xl border border-rose-800 bg-rose-950/50 px-3.5 py-2 text-sm font-medium text-rose-300 transition hover:bg-rose-900/50 disabled:opacity-50"
                       >
-                        Forfeit {selectedMatch.player_1_name}
+                        Forfeit{" "}
+                        <MemberName
+                          name={selectedMatch.player_1_name}
+                          color={selectedMatch.player_1_name_color}
+                        />
                       </button>
                       <button
                         type="button"
@@ -2480,7 +2836,11 @@ function SchedulePageContent({
                         onClick={() => handleOwnerForfeit("player_2")}
                         className="rounded-xl border border-rose-800 bg-rose-950/50 px-3.5 py-2 text-sm font-medium text-rose-300 transition hover:bg-rose-900/50 disabled:opacity-50"
                       >
-                        Forfeit {selectedMatch.player_2_name}
+                        Forfeit{" "}
+                        <MemberName
+                          name={selectedMatch.player_2_name}
+                          color={selectedMatch.player_2_name_color}
+                        />
                       </button>
                       <button
                         type="button"
@@ -2493,18 +2853,19 @@ function SchedulePageContent({
                     </div>
                   )}
 
-                  {goods.isOwner && selectedMatch.status === "forfeit" && (
-                    <div className="flex flex-wrap justify-center gap-2">
-                      <button
-                        type="button"
-                        disabled={isBusy}
-                        onClick={handleRevertForfeit}
-                        className="rounded-xl border border-slate-700 bg-slate-800 px-3.5 py-2 text-sm font-medium text-slate-100 transition hover:bg-slate-700 disabled:opacity-50"
-                      >
-                        Revert forfeit
-                      </button>
-                    </div>
-                  )}
+                  {goods.canEditMatchups &&
+                    selectedMatch.status === "forfeit" && (
+                      <div className="flex flex-wrap justify-center gap-2">
+                        <button
+                          type="button"
+                          disabled={isBusy}
+                          onClick={handleRevertForfeit}
+                          className="rounded-xl border border-slate-700 bg-slate-800 px-3.5 py-2 text-sm font-medium text-slate-100 transition hover:bg-slate-700 disabled:opacity-50"
+                        >
+                          Revert forfeit
+                        </button>
+                      </div>
+                    )}
 
                   {schedulingMatchId === selectedMatch.id && (
                     <div className="grid gap-4 rounded-xl border border-slate-700 bg-slate-950/60 p-4 md:grid-cols-2">
@@ -2589,7 +2950,9 @@ function SchedulePageContent({
                             type="text"
                             value={scheduleNotes}
                             placeholder="Replay room notes, etc."
-                            onChange={(event) => setScheduleNotes(event.target.value)}
+                            onChange={(event) =>
+                              setScheduleNotes(event.target.value)
+                            }
                             className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-500"
                           />
                         </Field>
@@ -2602,7 +2965,12 @@ function SchedulePageContent({
                        */}
                       <div className="md:col-span-2">
                         <p className="text-sm font-medium text-slate-300">
-                          {opponent?.name ?? "Your opponent"}&apos;s availability
+                          <MemberName
+                            name={opponent?.name}
+                            color={opponent?.color}
+                            fallback="Your opponent"
+                          />
+                          &apos;s availability
                         </p>
                         {isLoadingAvailability ? (
                           <p className="mt-2 text-sm text-slate-500">
@@ -2622,8 +2990,9 @@ function SchedulePageContent({
                         ) : (
                           <>
                             <p className="mt-1 text-xs text-slate-500">
-                              Converted from {opponentAvailability.timeZone} into
-                              your time zone ({formatTimeZoneLabel(timeZone)}).
+                              Converted from {opponentAvailability.timeZone}{" "}
+                              into your time zone (
+                              {formatTimeZoneLabel(timeZone)}).
                             </p>
                             <div className="mt-3 space-y-1.5">
                               {WEEKDAY_LABELS.map((label, dayOfWeek) => {
@@ -2669,7 +3038,9 @@ function SchedulePageContent({
                       <div className="flex gap-2 md:col-span-2">
                         <button
                           type="button"
-                          disabled={isBusy || !timePartOfInputValue(scheduleTime)}
+                          disabled={
+                            isBusy || !timePartOfInputValue(scheduleTime)
+                          }
                           onClick={handleProposeTime}
                           className="rounded-xl bg-amber-500 px-3.5 py-2 text-sm font-semibold text-slate-950 transition hover:bg-amber-400 disabled:opacity-50"
                         >
@@ -2698,7 +3069,9 @@ function SchedulePageContent({
                       <Field label="Game">
                         <select
                           value={reportGame}
-                          onChange={(event) => setReportGame(event.target.value)}
+                          onChange={(event) =>
+                            setReportGame(event.target.value)
+                          }
                           className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-500"
                         >
                           {[1, 2, 3]
@@ -2719,16 +3092,20 @@ function SchedulePageContent({
                       <Field label="Winner">
                         <select
                           value={reportWinner}
-                          onChange={(event) => setReportWinner(event.target.value)}
+                          onChange={(event) =>
+                            setReportWinner(event.target.value)
+                          }
                           className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-500"
                         >
                           <option value="">Select the winner</option>
                           <option value={selectedMatch.player_1_team_id}>
                             {selectedMatch.player_1_name}
                           </option>
-                          <option value={selectedMatch.player_2_team_id}>
-                            {selectedMatch.player_2_name}
-                          </option>
+                          {selectedMatch.player_2_team_id && (
+                            <option value={selectedMatch.player_2_team_id}>
+                              {selectedMatch.player_2_name}
+                            </option>
+                          )}
                         </select>
                       </Field>
                       <Field
@@ -2751,7 +3128,7 @@ function SchedulePageContent({
                         />
                       </Field>
                       <Field
-                        label="Winner&apos;s surviving Pokemon (optional)"
+                        label="Winner's surviving Pokemon (optional)"
                         hint={
                           reportDifferential == null
                             ? null
@@ -2764,7 +3141,9 @@ function SchedulePageContent({
                           max={6}
                           value={reportAlive}
                           onChange={(event) =>
-                            setReportAlive(event.target.value.replace(/[^0-9]/g, ""))
+                            setReportAlive(
+                              event.target.value.replace(/[^0-9]/g, ""),
+                            )
                           }
                           className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-500"
                         />
@@ -2783,21 +3162,21 @@ function SchedulePageContent({
                           Read replay
                         </button>
                         {replayRead.status === "done" &&
-                        (replayRead.note ? (
-                          <span className="text-xs text-amber-300">
-                            {replayRead.note}
-                          </span>
-                        ) : replayRead.winnerResolved ? (
-                          <span className="text-xs text-emerald-300">
-                            Filled in the winner and surviving Pokemon from the
-                            replay. Check them before submitting.
-                          </span>
-                        ) : (
-                          <span className="text-xs text-amber-300">
-                            Winner could not be matched to a team. Set it
-                            manually.
-                          </span>
-                        ))}
+                          (replayRead.note ? (
+                            <span className="text-xs text-amber-300">
+                              {replayRead.note}
+                            </span>
+                          ) : replayRead.winnerResolved ? (
+                            <span className="text-xs text-emerald-300">
+                              Filled in the winner and surviving Pokemon from
+                              the replay. Check them before submitting.
+                            </span>
+                          ) : (
+                            <span className="text-xs text-amber-300">
+                              Winner could not be matched to a team. Set it
+                              manually.
+                            </span>
+                          ))}
                       </div>
                       <div className="flex gap-2 md:col-span-2">
                         <button
@@ -2829,133 +3208,148 @@ function SchedulePageContent({
                       </h3>
                       <div className="space-y-2">
                         {gameRows.map(({ result, mirrored }) => {
-                            const winnerName =
-                              result.winner_team_id ===
-                              selectedMatch.player_1_team_id
-                                ? selectedMatch.player_1_name
-                                : selectedMatch.player_2_name;
-                            if (editingResultId === result.id) {
-                              return (
-                                <div
-                                  key={result.id}
-                                  className="grid gap-3 rounded-xl border border-slate-700 bg-slate-950/60 p-4 md:grid-cols-3"
-                                >
-                                  <Field label="Winner">
-                                    <select
-                                      value={editWinner}
-                                      onChange={(event) =>
-                                        setEditWinner(event.target.value)
-                                      }
-                                      className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-500"
-                                    >
-                                      <option value={selectedMatch.player_1_team_id}>
-                                        {selectedMatch.player_1_name}
-                                      </option>
-                                      <option value={selectedMatch.player_2_team_id}>
-                                        {selectedMatch.player_2_name}
-                                      </option>
-                                    </select>
-                                  </Field>
-                                  <Field label="Replay link">
-                                    <input
-                                      type="url"
-                                      value={editUrl}
-                                      onChange={(event) =>
-                                        setEditUrl(event.target.value)
-                                      }
-                                      className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-500"
-                                    />
-                                  </Field>
-                                  <Field label="Surviving Pokemon">
-                                    <input
-                                      type="number"
-                                      min={0}
-                                      max={6}
-                                      value={editAlive}
-                                      onChange={(event) =>
-                                        setEditAlive(
-                                          event.target.value.replace(/[^0-9]/g, ""),
-                                        )
-                                      }
-                                      className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-500"
-                                    />
-                                  </Field>
-                                  <div className="flex gap-2 md:col-span-3">
-                                    <button
-                                      type="button"
-                                      disabled={isBusy}
-                                      onClick={() => handleSaveEditResult(result)}
-                                      className="rounded-xl bg-amber-500 px-3.5 py-2 text-sm font-semibold text-slate-950 transition hover:bg-amber-400 disabled:opacity-50"
-                                    >
-                                      Save edit
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                      setEditingResultId(null);
-                                      flushRealtime();
-                                    }}
-                                      className="rounded-xl border border-slate-700 px-3.5 py-2 text-sm text-slate-300 transition hover:bg-slate-800"
-                                    >
-                                      Cancel
-                                    </button>
-                                  </div>
-                                </div>
-                              );
-                            }
+                          const winner = sideByTeamId(
+                            selectedMatch,
+                            result.winner_team_id,
+                          );
+                          if (editingResultId === result.id) {
                             return (
                               <div
                                 key={result.id}
-                                className="flex items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-950/50 p-3 text-sm"
+                                className="grid gap-3 rounded-xl border border-slate-700 bg-slate-950/60 p-4 md:grid-cols-3"
                               >
-                                <div className="flex items-center gap-2">
-                                  <span className="rounded-full bg-slate-800 px-2 py-0.5 text-xs font-semibold text-slate-300">
-                                    Game {result.game_number}
-                                  </span>
-                                  <Spoiler hidden={hideSpoilers}>
-                                    <span className="font-semibold text-emerald-300">
-                                      {winnerName} wins
-                                    </span>
-                                  </Spoiler>
-                                  {result.pokemon_left_alive != null && (
-                                    <Spoiler hidden={hideSpoilers}>
-                                      <span className="text-slate-400">
-                                        • {result.pokemon_left_alive} alive
-                                      </span>
-                                    </Spoiler>
-                                  )}
-                                  {result.reporter_name && (
-                                    <span className="text-xs text-slate-500">
-                                      Submitted by {result.reporter_name}
-                                    </span>
-                                  )}
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  {result.replay_url && (
-                                    <a
-                                      href={result.replay_url}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      className="text-sky-400 underline decoration-sky-700 hover:text-sky-300"
+                                <Field label="Winner">
+                                  <select
+                                    value={editWinner}
+                                    onChange={(event) =>
+                                      setEditWinner(event.target.value)
+                                    }
+                                    className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-500"
+                                  >
+                                    <option
+                                      value={selectedMatch.player_1_team_id}
                                     >
-                                      Replay
-                                    </a>
-                                  )}
-                                  {/* A mirrored game has no stored result to correct. */}
-                                  {goods.isStaff && !mirrored && (
-                                    <button
-                                      type="button"
-                                      disabled={isBusy}
-                                      onClick={() => openEditResult(result)}
-                                      className="rounded-lg border border-slate-700 px-2.5 py-1 text-xs text-slate-300 transition hover:bg-slate-800"
-                                    >
-                                      Edit
-                                    </button>
-                                  )}
+                                      {selectedMatch.player_1_name}
+                                    </option>
+                                    {selectedMatch.player_2_team_id && (
+                                      <option value={selectedMatch.player_2_team_id}>
+                                        {selectedMatch.player_2_name}
+                                      </option>
+                                    )}
+                                  </select>
+                                </Field>
+                                <Field label="Replay link">
+                                  <input
+                                    type="url"
+                                    value={editUrl}
+                                    onChange={(event) =>
+                                      setEditUrl(event.target.value)
+                                    }
+                                    className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-500"
+                                  />
+                                </Field>
+                                <Field label="Surviving Pokemon">
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    max={6}
+                                    value={editAlive}
+                                    onChange={(event) =>
+                                      setEditAlive(
+                                        event.target.value.replace(
+                                          /[^0-9]/g,
+                                          "",
+                                        ),
+                                      )
+                                    }
+                                    className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-500"
+                                  />
+                                </Field>
+                                <div className="flex gap-2 md:col-span-3">
+                                  <button
+                                    type="button"
+                                    disabled={isBusy}
+                                    onClick={() => handleSaveEditResult(result)}
+                                    className="rounded-xl bg-amber-500 px-3.5 py-2 text-sm font-semibold text-slate-950 transition hover:bg-amber-400 disabled:opacity-50"
+                                  >
+                                    Save edit
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setEditingResultId(null);
+                                      flushRealtime();
+                                    }}
+                                    className="rounded-xl border border-slate-700 px-3.5 py-2 text-sm text-slate-300 transition hover:bg-slate-800"
+                                  >
+                                    Cancel
+                                  </button>
                                 </div>
                               </div>
                             );
-                          })}
+                          }
+                          return (
+                            <div
+                              key={result.id}
+                              className="flex items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-950/50 p-3 text-sm"
+                            >
+                              <div className="flex items-center gap-2">
+                                <span className="rounded-full bg-slate-800 px-2 py-0.5 text-xs font-semibold text-slate-300">
+                                  Game {result.game_number}
+                                </span>
+                                <Spoiler hidden={hideSpoilers}>
+                                  <span className="font-semibold text-emerald-300">
+                                    <MemberName
+                                      name={winner.name}
+                                      color={winner.color}
+                                      className="font-semibold text-emerald-300"
+                                    />{" "}
+                                    wins
+                                  </span>
+                                </Spoiler>
+                                {result.pokemon_left_alive != null && (
+                                  <Spoiler hidden={hideSpoilers}>
+                                    <span className="text-slate-400">
+                                      • {result.pokemon_left_alive} alive
+                                    </span>
+                                  </Spoiler>
+                                )}
+                                {result.reporter_name && (
+                                  <span className="text-xs text-slate-500">
+                                    Submitted by{" "}
+                                    <MemberName
+                                      name={result.reporter_name}
+                                      color={result.reporter_name_color}
+                                    />
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2">
+                                {result.replay_url && (
+                                  <a
+                                    href={result.replay_url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="text-sky-400 underline decoration-sky-700 hover:text-sky-300"
+                                  >
+                                    Replay
+                                  </a>
+                                )}
+                                {/* A mirrored game has no stored result to correct. */}
+                                {goods.isStaff && !mirrored && (
+                                  <button
+                                    type="button"
+                                    disabled={isBusy}
+                                    onClick={() => openEditResult(result)}
+                                    className="rounded-lg border border-slate-700 px-2.5 py-1 text-xs text-slate-300 transition hover:bg-slate-800"
+                                  >
+                                    Edit
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   )}
@@ -2976,7 +3370,9 @@ function SchedulePageContent({
                     {upcomingWeekOptions.map((option) => (
                       <option key={option.key} value={option.key}>
                         {option.label}
-                        {option.key === defaultUpcomingWeekKey ? " (current)" : ""}
+                        {option.key === defaultUpcomingWeekKey
+                          ? " (current)"
+                          : ""}
                       </option>
                     ))}
                   </select>
@@ -3005,9 +3401,20 @@ function SchedulePageContent({
                       }`}
                     >
                       <div className="flex w-full items-start justify-between gap-3">
-                        <p className="font-semibold text-slate-100">
-                          {match.is_playoff ? "Postseason" : `Week ${match.week_number}`} •{" "}
-                          {match.player_1_name} vs {match.player_2_name}
+                        <p className="flex flex-wrap items-center gap-x-1 font-semibold text-slate-100">
+                          <span>
+                            {matchWeekLabel(match, firstPlayoffWeek)}
+                          </span>
+                          <span>•</span>
+                          <MemberName
+                            name={match.player_1_name}
+                            color={match.player_1_name_color}
+                          />
+                          <span>vs</span>
+                          <MemberName
+                            name={match.player_2_name}
+                            color={match.player_2_name_color}
+                          />
                         </p>
                         <StatusBadge status={match.status} />
                       </div>
@@ -3021,16 +3428,25 @@ function SchedulePageContent({
                           <div className="flex min-w-0 max-w-full items-center justify-center gap-2">
                             <Avatar
                               name={match.player_1_name}
+                              nameColor={match.player_1_name_color}
                               avatarUrl={match.player_1_avatar_url}
+                              initials={match.player_1_avatar_initials}
                               size={48}
                             />
                             <p className="truncate text-xs font-medium text-slate-400">
-                              {match.player_1_name}
+                              <MemberName
+                                name={match.player_1_name}
+                                color={match.player_1_name_color}
+                                className="truncate text-xs font-medium text-slate-400"
+                              />
                             </p>
                           </div>
                           <div className="mt-1 w-full">
                             <RosterSprites
-                              roster={goods.rostersByTeam[match.player_1_team_id] ?? []}
+                              roster={
+                                goods.rostersByTeam[match.player_1_team_id] ??
+                                []
+                              }
                             />
                           </div>
                         </div>
@@ -3041,16 +3457,25 @@ function SchedulePageContent({
                           <div className="flex min-w-0 max-w-full items-center justify-center gap-2">
                             <Avatar
                               name={match.player_2_name}
+                              nameColor={match.player_2_name_color}
                               avatarUrl={match.player_2_avatar_url}
+                              initials={match.player_2_avatar_initials}
                               size={48}
                             />
                             <p className="truncate text-xs font-medium text-slate-400">
-                              {match.player_2_name}
+                              <MemberName
+                                name={match.player_2_name}
+                                color={match.player_2_name_color}
+                                className="truncate text-xs font-medium text-slate-400"
+                              />
                             </p>
                           </div>
                           <div className="mt-1 w-full">
                             <RosterSprites
-                              roster={goods.rostersByTeam[match.player_2_team_id] ?? []}
+                              roster={
+                                goods.rostersByTeam[match.player_2_team_id ?? ""] ??
+                                []
+                              }
                             />
                           </div>
                         </div>
@@ -3099,6 +3524,7 @@ function SchedulePageContent({
                       hideSpoilers={hideSpoilers}
                       selected={selectedMatchId === match.id}
                       rostersByTeam={goods.rostersByTeam}
+                      firstPlayoffWeek={firstPlayoffWeek}
                       onSelect={() => {
                         setSelectedMatchId(match.id);
                         setSchedulingMatchId(null);
@@ -3120,11 +3546,17 @@ function SchedulePageContent({
                 <thead className="bg-slate-950 text-slate-300">
                   <tr>
                     <th className="px-4 py-3 text-left font-semibold">Rank</th>
-                    <th className="px-4 py-3 text-left font-semibold">Player</th>
+                    <th className="px-4 py-3 text-left font-semibold">
+                      Player
+                    </th>
                     <th className="px-4 py-3 text-center font-semibold">W</th>
                     <th className="px-4 py-3 text-center font-semibold">L</th>
-                    <th className="px-4 py-3 text-center font-semibold">KO Diff</th>
-                    <th className="px-4 py-3 text-left font-semibold">Pokemon</th>
+                    <th className="px-4 py-3 text-center font-semibold">
+                      KO Diff
+                    </th>
+                    <th className="px-4 py-3 text-left font-semibold">
+                      Pokemon
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800 bg-slate-900">
@@ -3137,15 +3569,21 @@ function SchedulePageContent({
                         <div className="flex items-center gap-3">
                           <Avatar
                             name={teamLabel(row.team_id, row.team_name)}
+                            nameColor={teamColor(row.team_id)}
                             avatarUrl={
                               goods.teams.find(
                                 (team) => team.id === row.team_id,
                               )?.owner_avatar_url ?? null
                             }
+                            initials={teamInitials(row.team_id)}
                             size={28}
                           />
                           <span className="font-medium text-slate-100">
-                            {teamLabel(row.team_id, row.team_name)}
+                            <MemberName
+                              name={teamLabel(row.team_id, row.team_name)}
+                              color={teamColor(row.team_id)}
+                              className="font-medium text-slate-100"
+                            />
                           </span>
                         </div>
                       </td>
@@ -3160,25 +3598,27 @@ function SchedulePageContent({
                       </td>
                       <td className="px-4 py-3">
                         <ul className="flex flex-wrap items-center gap-1.5">
-                          {(goods.rostersByTeam[row.team_id] ?? []).map((pokemon) => (
-                            <li key={pokemon.id}>
-                              {pokemon.spriteId > 0 ? (
-                                <img
-                                  src={getSpriteUrl(pokemon.spriteId)}
-                                  alt={pokemon.name}
-                                  title={pokemon.name}
-                                  width={56}
-                                  height={56}
-                                  loading="lazy"
-                                  className="h-14 w-14 object-contain"
-                                />
-                              ) : (
-                                <span className="flex h-14 w-14 items-center justify-center rounded-full bg-slate-700 text-base text-slate-400">
-                                  ?
-                                </span>
-                              )}
-                            </li>
-                          ))}
+                          {(goods.rostersByTeam[row.team_id] ?? []).map(
+                            (pokemon) => (
+                              <li key={pokemon.id}>
+                                {pokemon.spriteId > 0 ? (
+                                  <img
+                                    src={getSpriteUrl(pokemon.spriteId)}
+                                    alt={pokemon.name}
+                                    title={pokemon.name}
+                                    width={56}
+                                    height={56}
+                                    loading="lazy"
+                                    className="h-14 w-14 object-contain"
+                                  />
+                                ) : (
+                                  <span className="flex h-14 w-14 items-center justify-center rounded-full bg-slate-700 text-base text-slate-400">
+                                    ?
+                                  </span>
+                                )}
+                              </li>
+                            ),
+                          )}
                         </ul>
                       </td>
                     </tr>
@@ -3194,14 +3634,25 @@ function SchedulePageContent({
             title="Playoff bracket"
             action={
               goods.isOwner && goods.season?.status === "draft_complete" ? (
-                <button
-                  type="button"
-                  disabled={isBusy}
-                  onClick={handleAdvancePlayoffs}
-                  className="rounded-xl bg-amber-500 px-3.5 py-2 text-sm font-semibold text-slate-950 transition hover:bg-amber-400 disabled:opacity-50"
-                >
-                  Advance playoffs
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={isBusy}
+                    onClick={handleResetPlayoffs}
+                    title="Delete every playoff match and result so the bracket can be rebuilt"
+                    className="rounded-xl border border-slate-700 bg-slate-800 px-3.5 py-2 text-sm font-medium text-slate-300 transition hover:border-rose-800 hover:text-rose-300 disabled:opacity-50"
+                  >
+                    Reset playoffs
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isBusy}
+                    onClick={handleAdvancePlayoffs}
+                    className="rounded-xl bg-amber-500 px-3.5 py-2 text-sm font-semibold text-slate-950 transition hover:bg-amber-400 disabled:opacity-50"
+                  >
+                    Advance playoffs
+                  </button>
+                </div>
               ) : undefined
             }
           >
@@ -3217,94 +3668,31 @@ function SchedulePageContent({
                   : "Best of 3"}
               </p>
             )}
-            {playoffColumns.length === 0 ? (
+            {playoffTemplateRows.length === 0 ? (
               <p className="text-sm text-slate-400">
-                {goods.season?.status === "draft_complete"
-                  ? "The bracket is empty. Use “Advance playoffs” once the regular season is complete — the top seeded teams enter the postseason."
-                  : "The playoff bracket appears after the draft is complete."}
+                {goods.playoffTemplate?.unavailableReason ??
+                  (goods.season?.status === "draft_complete"
+                    ? "No bracket is defined for this league yet."
+                    : "The playoff bracket appears after the draft is complete.")}
               </p>
             ) : (
-              <div className="flex gap-4 overflow-x-auto pb-2">
-                {Array.from(
-                  new Set(playoffColumns.map((match) => match.week_number)),
-                ).map((week) => (
-                  <div
-                    key={week}
-                    className="flex min-w-[180px] shrink-0 flex-col gap-3"
-                  >
-                    <p className="text-center text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                      {(() => {
-                        const sample =
-                          playoffColumns.find(
-                            (match) => match.week_number === week,
-                          ) ?? null;
-                        if (!sample) return "";
-                        if (sample.bracket_phase === "gf") return "Grand final";
-                        if (sample.bracket_phase === "lower") {
-                          const lowerWeekIndex =
-                            week - (goods.settings?.regular_season_weeks ?? 0);
-                          return `Lower ${lowerWeekIndex}`;
-                        }
-                        const upperWeekIndex =
-                          week - (goods.settings?.regular_season_weeks ?? 0);
-                        return upperWeekIndex === 1
-                          ? "First round"
-                          : `Round ${upperWeekIndex}`;
-                      })()}
-                    </p>
-                    {playoffColumns
-                      .filter((match) => match.week_number === week)
-                      .map((match) => (
-                        <div
-                          key={match.id}
-                          className="space-y-2 rounded-xl border border-slate-800 bg-slate-950/60 p-3"
-                        >
-                          {[match.player_1_team_id, match.player_2_team_id].map(
-                            (teamId) => {
-                              const won = match.winner_team_id === teamId;
-                              const name =
-                                teamId === match.player_1_team_id
-                                  ? match.player_1_name
-                                  : match.player_2_name;
-                              return (
-                                <div
-                                  key={teamId}
-                                  className={`flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-sm ${
-                                    won
-                                      ? "bg-emerald-900/40 text-emerald-200"
-                                      : "text-slate-300"
-                                  }`}
-                                >
-                                  <span className="font-medium">{name}</span>
-                                  {won && <span className="text-emerald-400">▲</span>}
-                                </div>
-                              );
-                            },
-                          )}
-                          <div className="flex items-center justify-between gap-2 pt-1">
-                            <StatusBadge status={match.status} />
-                            {match.results.length > 0 && (
-                              <span className="text-xs text-slate-400">
-                                {match.results.length} game
-                                {match.results.length === 1 ? "" : "s"}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                  </div>
-                ))}
-              </div>
+              <PlayoffBracket
+                rows={playoffTemplateRows}
+                matches={goods.matches.filter((match) => match.is_playoff)}
+                resolveTeam={playoffTeamResolver}
+              />
             )}
-            {champion && (
+
+            {championWinner && (
               <p className="mt-4 rounded-xl border border-emerald-800 bg-emerald-900/30 p-3 text-sm text-emerald-200">
                 Champion:{" "}
                 <strong>
-                  {champion.winner_team_id === champion.player_1_team_id
-                    ? champion.player_1_name
-                    : champion.player_2_name}
+                  <MemberName
+                    name={championWinner.name}
+                    color={championWinner.color}
+                  />
                 </strong>{" "}
-                {champion.winner_team_id && <span className="text-emerald-400">— League champion</span>}
+                <span className="text-emerald-400">— League champion</span>
               </p>
             )}
           </SectionCard>
@@ -3314,60 +3702,92 @@ function SchedulePageContent({
           <>
             <SectionCard title="Match history">
               {history.length === 0 ? (
-                <p className="text-sm text-slate-400">No games have been posted yet.</p>
+                <p className="text-sm text-slate-400">
+                  No games have been posted yet.
+                </p>
               ) : (
                 <div className="space-y-2">
-                  {history.map(({ match, id, winner_team_id, game_number, replay_url, submitted_at, reporter_name }) => (
-                  <div
-                    key={id}
-                    className="flex items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-950/50 p-3 text-sm"
-                  >
-                    <div>
-                      <p className="font-semibold text-slate-100">
-                        {match.player_1_name} vs {match.player_2_name}
-                        <span className="ml-2 rounded-full bg-slate-800 px-2 py-0.5 text-xs font-semibold text-slate-300">
-                          {match.is_playoff ? "Postseason" : `Week ${match.week_number}`}{" "}
-                          • Game {game_number}
-                        </span>
-                      </p>
-                      <p className="mt-0.5 text-slate-400">
-                        <span className="text-emerald-300">
-                          {winner_team_id === match.player_1_team_id
-                            ? match.player_1_name
-                            : match.player_2_name}
-                        </span>{" "}
-                        won • {formatDateTimeInZone(submitted_at, timeZone)}
-                      </p>
-                      {reporter_name && (
-                        <p className="mt-0.5 text-xs text-slate-500">
-                          Submitted by {reporter_name}
-                        </p>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {replay_url && (
-                        <a
-                          href={replay_url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-sky-400 underline decoration-sky-700 hover:text-sky-300"
+                  {history.map(
+                    ({
+                      match,
+                      id,
+                      winner_team_id,
+                      game_number,
+                      replay_url,
+                      submitted_at,
+                      reporter_name,
+                      reporter_name_color,
+                    }) => {
+                      const winner = sideByTeamId(match, winner_team_id);
+
+                      return (
+                        <div
+                          key={id}
+                          className="flex items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-950/50 p-3 text-sm"
                         >
-                          Replay
-                        </a>
-                      )}
-                      {goods.isStaff && (
-                        <button
-                          type="button"
-                          disabled={isBusy}
-                          onClick={() => handleDeleteMatch(match)}
-                          className="rounded-lg border border-rose-800 px-2.5 py-1 text-xs text-rose-300 transition hover:bg-rose-900/40"
-                        >
-                          Delete
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ))}
+                          <div>
+                            <p className="font-semibold text-slate-100">
+                              <span className="inline-flex flex-wrap items-baseline gap-x-1">
+                                <MemberName
+                                  name={match.player_1_name}
+                                  color={match.player_1_name_color}
+                                />
+                                <span>vs</span>
+                                <MemberName
+                                  name={match.player_2_name}
+                                  color={match.player_2_name_color}
+                                />
+                              </span>
+                              <span className="ml-2 rounded-full bg-slate-800 px-2 py-0.5 text-xs font-semibold text-slate-300">
+                                {matchWeekLabel(match, firstPlayoffWeek)} • Game{" "}
+                                {game_number}
+                              </span>
+                            </p>
+                            <p className="mt-0.5 text-slate-400">
+                              <span className="text-emerald-300">
+                                <MemberName
+                                  name={winner.name}
+                                  color={winner.color}
+                                />
+                              </span>{" "}
+                              won • {formatDateTimeInZone(submitted_at, timeZone)}
+                            </p>
+                            {reporter_name && (
+                              <p className="mt-0.5 text-xs text-slate-500">
+                                Submitted by{" "}
+                                <MemberName
+                                  name={reporter_name}
+                                  color={reporter_name_color}
+                                />
+                              </p>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {replay_url && (
+                              <a
+                                href={replay_url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-sky-400 underline decoration-sky-700 hover:text-sky-300"
+                              >
+                                Replay
+                              </a>
+                            )}
+                            {goods.isStaff && (
+                              <button
+                                type="button"
+                                disabled={isBusy}
+                                onClick={() => handleDeleteMatch(match)}
+                                className="rounded-lg border border-rose-800 px-2.5 py-1 text-xs text-rose-300 transition hover:bg-rose-900/40"
+                              >
+                                Delete
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    },
+                  )}
                 </div>
               )}
             </SectionCard>
@@ -3382,6 +3802,7 @@ function SchedulePageContent({
             {goods.isOwner && (
               <ProposalHistoryPanel
                 groups={proposalHistoryGroups}
+                firstPlayoffWeek={firstPlayoffWeek}
                 timeZone={timeZone}
                 /*
                  * Still loading until the first read for this league and season
@@ -3424,7 +3845,9 @@ function Field({
         {label}
       </span>
       {children}
-      {hint ? <span className="mt-1 block text-xs text-slate-400">{hint}</span> : null}
+      {hint ? (
+        <span className="mt-1 block text-xs text-slate-400">{hint}</span>
+      ) : null}
     </label>
   );
 }

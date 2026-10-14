@@ -110,17 +110,15 @@ export async function POST(request: Request) {
     };
   });
 
-  // Mirror submit_game_result: a participant or the league owner may resolve replays.
-  const { data: league } = await supabase
-    .from("leagues")
-    .select("owner_id")
-    .eq("id", match.league_id)
-    .maybeSingle();
-  const isLeagueOwner = league?.owner_id === user.id;
+  // Mirror submit_game_result: a participant, or anyone who may edit this matchup
+  // card (the league owner, or an admin while the league allows it), may read replays.
+  const { data: canEdit } = await supabase.rpc("can_edit_matchups", {
+    p_match_id: match.id,
+  });
 
-  if (!isLeagueOwner && !participants.some((team) => team.ownerUserId === user.id)) {
+  if (canEdit !== true && !participants.some((team) => team.ownerUserId === user.id)) {
     return NextResponse.json(
-      { error: "Only the participants or the league owner can read a replay for this match." },
+      { error: "Only the participants, or those allowed to edit this matchup, can read a replay for it." },
       { status: 403 },
     );
   }

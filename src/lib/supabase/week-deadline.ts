@@ -112,6 +112,11 @@ export type WeekProgressState = {
   deadline_paused: boolean;
   next_deadline: string | null;
   can_progress: boolean;
+  /**
+   * True while the bracket still has an unplayed game, so the owner can advance the
+   * postseason from the same button. False once the tournament is decided.
+   */
+  playoffs_active: boolean;
   can_undo: boolean;
   /** The most recent progression that has not been undone. */
   latest_progress: WeekProgressEntry | null;
@@ -381,6 +386,7 @@ export async function loadWeekProgressState(
     deadline_paused: Boolean(state.deadline_paused),
     next_deadline: state.next_deadline ?? null,
     can_progress: Boolean(state.can_progress),
+    playoffs_active: Boolean(state.playoffs_active),
     can_undo: Boolean(state.can_undo),
     latest_progress: state.latest_progress ?? null,
   };

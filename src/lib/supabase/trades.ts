@@ -86,9 +86,16 @@ export type TradeTeam = {
   /** The owner's live display name, which is how the member is addressed. */
   owner_name: string | null;
   owner_avatar_url: string | null;
+  /** The owner's stored name colour, passed through raw for render-time normalization. */
+  owner_name_color: string | null;
   draft_position: number | null;
   total_salary_override: number | null;
-  /** The team's roster, enriched from the bundled catalog for display. */
+  /**
+   * The team's roster, enriched from the bundled catalog for display and ordered by
+   * tier, strongest first. Deliberately not in `acquired_at` order: a trade rewrites
+   * the acquisition time of everything that changed hands, so that order moved under
+   * the member every time they completed one.
+   */
   roster: TradePokemon[];
 };
 
@@ -117,6 +124,8 @@ export type TradeVote = {
   voter_user_id: string;
   /** The voter's display name, so a card can show who decided without a second read. */
   voter_name: string | null;
+  /** The voter's stored name colour, raw, or null when they have none set. */
+  voter_name_color: string | null;
   decision: "approved" | "rejected";
   /** True when the owner settled the trade without waiting for the quorum. */
   is_override: boolean;
@@ -131,6 +140,9 @@ export type Trade = {
   recipient_user_id: string;
   proposer_name: string;
   recipient_name: string;
+  /** Each side's stored name colour, raw, or null when they have none set. */
+  proposer_name_color: string | null;
+  recipient_name_color: string | null;
   created_at: string;
   updated_at: string;
   /** When the roster swap landed. Null until the trade completes. */
@@ -196,6 +208,13 @@ export type TeamSalary = {
  * database will hold.
  */
 export type TradeProjection = {
+  /**
+   * Tokens the proposing team has right now, before the trade settles. Infinite
+   * when the league has costs switched off, exactly as the projected figures are.
+   */
+  proposerCurrent: number;
+  /** The receiving team's balance right now, before the trade settles. */
+  recipientCurrent: number;
   /** Tokens remaining for the proposing team once the trade settles. */
   proposerRemaining: number;
   /** Tokens remaining for the receiving team once the trade settles. */
@@ -221,6 +240,12 @@ export type ApprovalProgress = {
   rejections: number;
   /** True once the approvals have reached the quorum. */
   quorumMet: boolean;
+  /**
+   * True once the rejections have reached the quorum, which is what settles the
+   * trade as rejected. Mirrors the same majority the approvals use: with three
+   * approvers a single rejection leaves the trade pending.
+   */
+  rejectionQuorumMet: boolean;
   /** True when the Owner settled it without waiting for the quorum. */
   overridden: boolean;
 };
@@ -235,8 +260,14 @@ type TradeRow = {
   completed_at: string | null;
   proposer_token_amount: number | null;
   recipient_token_amount: number | null;
-  proposer?: { display_name?: string | null } | null;
-  recipient?: { display_name?: string | null } | null;
+  proposer?: {
+    display_name?: string | null;
+    name_color?: string | null;
+  } | null;
+  recipient?: {
+    display_name?: string | null;
+    name_color?: string | null;
+  } | null;
 };
 
 type TradeItemRow = {
@@ -251,7 +282,10 @@ type TradeVoteRow = {
   decision: "approved" | "rejected";
   is_override: boolean;
   created_at: string;
-  profiles?: { display_name?: string | null } | null;
+  profiles?: {
+    display_name?: string | null;
+    name_color?: string | null;
+  } | null;
 };
 
 type RosterRow = {
@@ -362,7 +396,7 @@ export async function loadTradesPageData(leagueId: string): Promise<TradesGoods>
     supabase
       .from("teams")
       .select(
-        "id, owner_user_id, team_name, draft_position, total_salary_override, profiles: owner_user_id (display_name, avatar_url)",
+        "id, owner_user_id, team_name, draft_position, total_salary_override, profiles: owner_user_id (display_name, avatar_url, name_color)",
       )
       .eq("league_id", leagueId)
       .eq("season_id", season.id)
@@ -460,7 +494,11 @@ export async function loadTradesPageData(leagueId: string): Promise<TradesGoods>
       team_name: string;
       draft_position: number | null;
       total_salary_override: number | null;
-      profiles?: { display_name?: string | null; avatar_url?: string | null } | null;
+      profiles?: {
+        display_name?: string | null;
+        avatar_url?: string | null;
+        name_color?: string | null;
+      } | null;
     }[]
   ).map((row) => ({
     id: row.id,
@@ -468,9 +506,10 @@ export async function loadTradesPageData(leagueId: string): Promise<TradesGoods>
     team_name: row.team_name,
     owner_name: row.profiles?.display_name ?? null,
     owner_avatar_url: row.profiles?.avatar_url ?? null,
+    owner_name_color: row.profiles?.name_color ?? null,
     draft_position: row.draft_position,
     total_salary_override: row.total_salary_override,
-    roster: rosterByTeam.get(row.id) ?? [],
+    roster: sortByTier(rosterByTeam.get(row.id) ?? []),
   }));
 
   const myTeam = teams.find((team) => team.owner_user_id === user.id) ?? null;
@@ -501,6 +540,29 @@ export async function loadTradesPageData(leagueId: string): Promise<TradesGoods>
   };
 
   /*
+   * Each member's stored name colour, resolved the same way as the name and for
+   * the same reason: the team rows are already read, so preferring them means a
+   * colour change reaches every card at once and one place decides whose colour
+   * a card shows. Unlike the name there is no substitute to fall back to, so an
+   * unset colour stays null and the render site normalizes it to the default.
+   */
+  const colorByUserId = new Map<string, string | null>();
+  for (const team of teams) {
+    colorByUserId.set(team.owner_user_id, team.owner_name_color);
+  }
+
+  const resolveColor = (
+    userId: string,
+    embedded: string | null | undefined,
+  ): string | null => {
+    const fromTeam = colorByUserId.get(userId);
+    if (fromTeam != null) {
+      return fromTeam;
+    }
+    return embedded ?? null;
+  };
+
+  /*
    * No `.or(...)` filter here on purpose. RLS is the authority on who may read a
    * trade: the two parties at every stage, and any active member once it has
    * completed. Re-deriving that as a PostgREST `or` would be a second copy of the
@@ -510,7 +572,7 @@ export async function loadTradesPageData(leagueId: string): Promise<TradesGoods>
   const { data: tradeRows, error: tradeError } = await supabase
     .from("trades")
     .select(
-      "id, status, proposer_user_id, recipient_user_id, created_at, updated_at, completed_at, proposer_token_amount, recipient_token_amount, proposer: proposer_user_id (display_name), recipient: recipient_user_id (display_name)",
+      "id, status, proposer_user_id, recipient_user_id, created_at, updated_at, completed_at, proposer_token_amount, recipient_token_amount, proposer: proposer_user_id (display_name, name_color), recipient: recipient_user_id (display_name, name_color)",
     )
     .eq("league_id", leagueId)
     .eq("season_id", season.id)
@@ -549,7 +611,7 @@ export async function loadTradesPageData(leagueId: string): Promise<TradesGoods>
       supabase
         .from("trade_votes")
         .select(
-          "trade_id, voter_user_id, decision, is_override, created_at, profiles: voter_user_id (display_name)",
+          "trade_id, voter_user_id, decision, is_override, created_at, profiles: voter_user_id (display_name, name_color)",
         )
         .in("trade_id", tradeIds)
         .order("created_at", { ascending: true }),
@@ -600,6 +662,7 @@ export async function loadTradesPageData(leagueId: string): Promise<TradesGoods>
       current.push({
         voter_user_id: row.voter_user_id,
         voter_name: row.profiles?.display_name ?? null,
+        voter_name_color: row.profiles?.name_color ?? null,
         decision: row.decision,
         is_override: row.is_override,
         created_at: row.created_at,
@@ -620,13 +683,31 @@ export async function loadTradesPageData(leagueId: string): Promise<TradesGoods>
       row.recipient_user_id,
       row.recipient?.display_name,
     ),
+    proposer_name_color: resolveColor(
+      row.proposer_user_id,
+      row.proposer?.name_color,
+    ),
+    recipient_name_color: resolveColor(
+      row.recipient_user_id,
+      row.recipient?.name_color,
+    ),
     created_at: row.created_at,
     updated_at: row.updated_at,
     completed_at: row.completed_at,
     proposerTokenAmount: row.proposer_token_amount ?? 0,
     recipientTokenAmount: row.recipient_token_amount ?? 0,
-    items: (itemsByTrade.get(row.id) ?? []).sort((a, b) =>
-      a.side === b.side ? a.name.localeCompare(b.name) : a.side === "proposer" ? -1 : 1,
+    /*
+     * Grouped by side so a card reads "what leaves" then "what arrives", then by
+     * tier within each side for the same reason the picker is ordered that way: a
+     * card's side list used to be alphabetical, which put a Tier 9 under a Tier 1
+     * and gave no sense of whether a side was a net upgrade.
+     */
+    items: (itemsByTrade.get(row.id) ?? []).toSorted((a, b) =>
+      a.side === b.side
+        ? compareByTier(a, b)
+        : a.side === "proposer"
+          ? -1
+          : 1,
     ),
     votes: votesByTrade.get(row.id) ?? [],
   }));
@@ -855,8 +936,8 @@ export function getTeamSalary(goods: TradesGoods, teamId: string): TeamSalary {
  * @param incoming - Pokémon leaving the recipient's roster.
  * @param proposerTokens - Tokens the proposer is sending.
  * @param recipientTokens - Tokens the recipient is sending.
- * @returns The two projected balances, the two net deltas, and whether both sides
- *   stay solvent.
+ * @returns The two starting balances, the two projected balances, the two net
+ *   deltas, and whether both sides stay solvent.
  */
 export function projectTradeBalance(
   goods: TradesGoods,
@@ -886,10 +967,14 @@ export function projectTradeBalance(
     recipientTokens,
   );
 
-  const proposerRemaining = proposerSalary.remaining + proposerDelta;
-  const recipientRemaining = recipientSalary.remaining + recipientDelta;
+  const proposerCurrent = proposerSalary.remaining;
+  const recipientCurrent = recipientSalary.remaining;
+  const proposerRemaining = proposerCurrent + proposerDelta;
+  const recipientRemaining = recipientCurrent + recipientDelta;
 
   return {
+    proposerCurrent,
+    recipientCurrent,
     proposerRemaining,
     recipientRemaining,
     proposerDelta,
@@ -930,10 +1015,14 @@ export function requiredApprovals(approverCount: number): number {
  * earlier decision rather than adding to it, which is what keeps the tally equal to
  * the number of people who have actually spoken.
  *
+ * Both directions need the same quorum, which is what makes a rejection a vote
+ * rather than a veto: with three approvers one rejection leaves the trade pending
+ * for the others to weigh in on. `vote_on_trade` applies the identical rule.
+ *
  * @param trade - The trade whose votes are being tallied.
  * @param approverIds - The members who currently vote on trades this season.
- * @returns The approval and rejection counts, the quorum, and whether the Owner
- *   overrode it.
+ * @returns The approval and rejection counts, whether each has reached the quorum,
+ *   and whether the Owner overrode it.
  */
 export function approvalProgress(
   trade: Trade,
@@ -951,6 +1040,7 @@ export function approvalProgress(
     required,
     rejections,
     quorumMet: required > 0 && approvals >= required,
+    rejectionQuorumMet: required > 0 && rejections >= required,
     overridden: trade.votes.some((vote) => vote.is_override),
   };
 }
@@ -1148,6 +1238,44 @@ export function tradeSideLabels(
  */
 export function totalTierValue(items: TradePokemon[]): number {
   return items.reduce((sum, item) => sum + item.tier_value, 0);
+}
+
+/**
+ * Orders two Pokémon by tier, strongest first, breaking ties by name.
+ *
+ * Name is the tiebreak rather than an arbitrary stable order so that two Pokémon of
+ * the same tier never swap places between renders. Left to input order they would,
+ * because every refresh rebuilds these arrays from a fresh query and the row order
+ * Postgres returns is not guaranteed across identical queries.
+ *
+ * @param a - The left Pokémon to compare.
+ * @param b - The right Pokémon to compare.
+ * @returns A negative number when `a` sorts first, positive when `b` does, 0 when
+ *   the two are indistinguishable for display.
+ */
+export function compareByTier(a: TradePokemon, b: TradePokemon): number {
+  return b.tier_value - a.tier_value || a.name.localeCompare(b.name);
+}
+
+/**
+ * Orders a list of Pokémon strongest tier first.
+ *
+ * The trade page used to inherit `team_roster.acquired_at`, which held the roster in
+ * draft order only until the first trade landed: `complete_trade` writes every
+ * traded-in Pokémon with a fresh `acquired_at`, so anything a member received jumped
+ * to the bottom of their list and their picker reshuffled under their cursor. Tier
+ * is the ordering that means something in this league, and `complete_trade` carries
+ * the tier across with the Pokémon, so sorting on it survives a trade.
+ *
+ * Copies rather than sorting in place: the picker's filter returns its input array by
+ * reference when no search text is typed, so an in-place sort here would mutate an
+ * array shared with the component.
+ *
+ * @param rows - The Pokémon to order.
+ * @returns A new array ordered by tier, strongest first.
+ */
+export function sortByTier<T extends TradePokemon>(rows: T[]): T[] {
+  return rows.toSorted(compareByTier);
 }
 
 /**

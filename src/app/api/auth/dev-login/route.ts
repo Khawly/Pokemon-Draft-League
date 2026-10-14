@@ -29,6 +29,10 @@ const LOGIN_ACCOUNTS: Record<string, { email: string; password: string }> = {
     email: process.env.DEV_BOT1_EMAIL ?? "",
     password: process.env.DEV_BOT1_PASSWORD ?? "",
   },
+  bot2: {
+    email: process.env.DEV_BOT2_EMAIL ?? "",
+    password: process.env.DEV_BOT2_PASSWORD ?? "",
+  },
 };
 
 /**

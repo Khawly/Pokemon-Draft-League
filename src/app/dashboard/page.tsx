@@ -4,6 +4,10 @@
  * Verifies the signed-in user's session, resolves the active league, and
  * renders the dashboard shell with the user's profile plus the league's live
  * season data (standings, schedule, pool, roster, trades, notifications).
+ *
+ * The profile read here also carries the member's chosen name colour and avatar
+ * initials, which are handed to the shell so the header renders their name and
+ * their avatar the same way as every other page in the app.
  */
 
 "use client";
@@ -54,6 +58,8 @@ function DashboardPageContent() {
     email: string | null;
     displayName: string;
     avatarUrl: string | null;
+    avatarInitials: string | null;
+    nameColor: string | null;
   } | null>(null);
   const [leagueName, setLeagueName] = useState<string | null>(null);
   const [goods, setGoods] = useState<DashboardGoods | null>(null);
@@ -101,7 +107,7 @@ function DashboardPageContent() {
        */
       const { data: profileData } = await supabase
         .from("profiles")
-        .select("display_name, avatar_url")
+        .select("display_name, avatar_url, avatar_initials, name_color")
         .eq("id", user.id)
         .maybeSingle();
 
@@ -115,6 +121,8 @@ function DashboardPageContent() {
         email: user.email ?? "Unknown email",
         displayName,
         avatarUrl: (profileData?.avatar_url as string | null) ?? null,
+        avatarInitials: (profileData?.avatar_initials as string | null) ?? null,
+        nameColor: (profileData?.name_color as string | null) ?? null,
       });
     }
 
@@ -445,6 +453,8 @@ function DashboardPageContent() {
           displayName={sessionUser.displayName}
           email={sessionUser.email ?? "Unknown email"}
           avatarUrl={sessionUser.avatarUrl}
+          avatarInitials={sessionUser.avatarInitials}
+          nameColor={sessionUser.nameColor}
           leagueName={leagueName}
           leagueId={searchParams.get("leagueId") ?? null}
           goods={goods}

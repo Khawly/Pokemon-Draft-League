@@ -10,6 +10,7 @@ import { describe, expect, it } from "vitest";
 import {
   approvalProgress,
   canVoteOnTrade,
+  compareByTier,
   countOpenTrades,
   findTeamByOwner,
   formatTokenSwing,
@@ -17,6 +18,7 @@ import {
   isTradeOpen,
   projectTradeBalance,
   requiredApprovals,
+  sortByTier,
   totalTierValue,
   tradeOpponents,
   tradeSideLabels,
@@ -72,6 +74,7 @@ function makeGoods({
       team_name: "Snapshot",
       owner_name: null,
       owner_avatar_url: null,
+      owner_name_color: null,
       draft_position: null,
       total_salary_override: perTeamOverride?.[team.id] ?? null,
       roster: [],
@@ -115,13 +118,20 @@ function makeTrade(
     completed_at: null,
     proposerTokenAmount: 0,
     recipientTokenAmount: 0,
+    proposer_name_color: null,
+    recipient_name_color: null,
     items: [],
     votes: [],
     ...overrides,
   };
 }
 
-/** Builds a vote row. */
+/**
+ * Builds a vote row.
+ *
+ * The colour is left unset on purpose. Nothing in the pure logic reads it, so the
+ * fixtures should not imply it takes part in the quorum.
+ */
 function vote(
   voter: string,
   decision: "approved" | "rejected" = "approved",
@@ -130,6 +140,7 @@ function vote(
   return {
     voter_user_id: voter,
     voter_name: voter,
+    voter_name_color: null,
     decision,
     is_override: isOverride,
     created_at: "2026-01-02T00:00:00.000Z",
@@ -144,6 +155,7 @@ describe("findTeamByOwner", () => {
       team_name: "Ash",
       owner_name: "Ash",
       owner_avatar_url: null,
+      owner_name_color: null,
       draft_position: 1,
       total_salary_override: null,
       roster: [pokemon("pikachu", 3)],
@@ -154,6 +166,7 @@ describe("findTeamByOwner", () => {
       team_name: "Misty",
       owner_name: "Misty",
       owner_avatar_url: null,
+      owner_name_color: null,
       draft_position: 2,
       total_salary_override: null,
       roster: [pokemon("staryu", 2)],
@@ -698,6 +711,106 @@ describe("approvalProgress", () => {
     expect(progress.rejections).toBe(1);
   });
 
+  it("holds a single rejection short of settling the trade", () => {
+    // One rejection used to end the trade outright, so in a three-approver league a
+    // single admin could kill a trade that two votes would have carried. It is now
+    // a recorded vote that leaves the trade pending for the rest to weigh in on.
+    const progress = approvalProgress(
+      makeTrade({
+        status: "pending_approval",
+        votes: [vote("admin-1", "rejected")],
+      }),
+      approvers,
+    );
+    expect(progress.rejections).toBe(1);
+    expect(progress.required).toBe(2);
+    expect(progress.rejectionQuorumMet).toBe(false);
+  });
+
+  it("settles the trade once rejections reach the same majority as approvals", () => {
+    const progress = approvalProgress(
+      makeTrade({
+        status: "pending_approval",
+        votes: [vote("owner-1", "rejected"), vote("admin-1", "rejected")],
+      }),
+      approvers,
+    );
+    expect(progress.rejections).toBe(2);
+    expect(progress.rejectionQuorumMet).toBe(true);
+  });
+
+  it("needs every rejection when there are only two approvers", () => {
+    // (n / 2) + 1 with n = 2 is 2, so neither approver can reject alone.
+    const one = approvalProgress(
+      makeTrade({ status: "pending_approval", votes: [vote("owner-1", "rejected")] }),
+      ["owner-1", "admin-1"],
+    );
+    expect(one.required).toBe(2);
+    expect(one.rejectionQuorumMet).toBe(false);
+
+    const two = approvalProgress(
+      makeTrade({
+        status: "pending_approval",
+        votes: [vote("owner-1", "rejected"), vote("admin-1", "rejected")],
+      }),
+      ["owner-1", "admin-1"],
+    );
+    expect(two.rejectionQuorumMet).toBe(true);
+  });
+
+  it("lets the owner-only rejection settle on its own", () => {
+    const progress = approvalProgress(
+      makeTrade({
+        status: "pending_approval",
+        votes: [vote("owner-1", "rejected")],
+      }),
+      ["owner-1"],
+    );
+    expect(progress.required).toBe(1);
+    expect(progress.rejectionQuorumMet).toBe(true);
+  });
+
+  it("does not count a rejection from a former approver toward the quorum", () => {
+    const progress = approvalProgress(
+      makeTrade({
+        status: "pending_approval",
+        votes: [vote("admin-1", "rejected"), vote("admin-2", "rejected")],
+      }),
+      ["owner-1"],
+    );
+    expect(progress.rejections).toBe(0);
+    expect(progress.rejectionQuorumMet).toBe(false);
+  });
+
+  it("never reports a rejection quorum when there is nobody to vote", () => {
+    // The zero-denominator guard has to cover the rejection side too, or an empty
+    // league would read as 0 rejections "enough to reject".
+    const progress = approvalProgress(
+      makeTrade({
+        status: "pending_approval",
+        votes: [vote("owner-1", "rejected")],
+      }),
+      [],
+    );
+    expect(progress.required).toBe(0);
+    expect(progress.rejectionQuorumMet).toBe(false);
+  });
+
+  it("lets a re-vote replace an earlier rejection rather than adding to it", () => {
+    // vote_on_trade upserts on (trade_id, voter_user_id), so switching sides moves a
+    // single voice between the two counts instead of leaving two behind.
+    const progress = approvalProgress(
+      makeTrade({
+        status: "pending_approval",
+        votes: [vote("owner-1", "approved"), vote("admin-1", "rejected")],
+      }),
+      approvers,
+    );
+    expect(progress.approvals).toBe(1);
+    expect(progress.rejections).toBe(1);
+    expect(progress.rejectionQuorumMet).toBe(false);
+  });
+
   it("flags a trade the owner settled by override", () => {
     const progress = approvalProgress(
       makeTrade({
@@ -795,6 +908,66 @@ describe("projectTradeBalance", () => {
     expect(projection.recipientDelta).toBe(-6);
     expect(projection.recipientRemaining).toBe(84);
     expect(projection.affordable).toBe(true);
+  });
+
+  it("reports where each side starts, so the delta has something to sit on", () => {
+    /*
+     * The projection panel shows three figures per member, so the two ends have to
+     * be true bookends: current + delta = projected. Without the starting balance a
+     * member can only see where they land, not what the move between costs them.
+     */
+    const goods = makeGoods({
+      teams: [
+        { id: "team-1", owner_user_id: "user-1" },
+        { id: "team-2", owner_user_id: "user-2" },
+      ],
+      spentByTeam: { "team-1": 40, "team-2": 10 },
+      budget: 100,
+    });
+
+    const projection = projectTradeBalance(
+      goods,
+      "team-1",
+      "team-2",
+      [pokemon("garchomp", 8)],
+      [pokemon("ditto", 2)],
+    );
+
+    expect(projection.proposerCurrent).toBe(60);
+    expect(projection.proposerCurrent + projection.proposerDelta).toBe(
+      projection.proposerRemaining,
+    );
+    expect(projection.recipientCurrent).toBe(90);
+    expect(projection.recipientCurrent + projection.recipientDelta).toBe(
+      projection.recipientRemaining,
+    );
+  });
+
+  it("holds the current balance still no matter what is selected", () => {
+    // The current figure is the balance before the trade, so it must not drift with
+    // the selection the way the projected figure does.
+    const goods = makeGoods({
+      teams: [
+        { id: "team-1", owner_user_id: "user-1" },
+        { id: "team-2", owner_user_id: "user-2" },
+      ],
+      spentByTeam: { "team-1": 40, "team-2": 10 },
+      budget: 100,
+    });
+
+    const empty = projectTradeBalance(goods, "team-1", "team-2", [], []);
+    const loaded = projectTradeBalance(
+      goods,
+      "team-1",
+      "team-2",
+      [pokemon("garchomp", 8)],
+      [pokemon("ditto", 2)],
+    );
+
+    expect(empty.proposerCurrent).toBe(loaded.proposerCurrent);
+    expect(empty.recipientCurrent).toBe(loaded.recipientCurrent);
+    expect(empty.proposerRemaining).toBe(empty.proposerCurrent);
+    expect(empty.proposerDelta).toBe(0);
   });
 
   it("refuses a trade that would leave a side below zero", () => {
@@ -898,6 +1071,77 @@ describe("totalTierValue", () => {
 
   it("is zero for an empty side", () => {
     expect(totalTierValue([])).toBe(0);
+  });
+});
+
+describe("sortByTier", () => {
+  it("puts the strongest tier first", () => {
+    const sorted = sortByTier([
+      pokemon("weak", 1),
+      pokemon("best", 9),
+      pokemon("mid", 5),
+    ]);
+    expect(sorted.map((row) => row.pokemon_id)).toEqual(["best", "mid", "weak"]);
+  });
+
+  it("breaks a tier tie by name so the order cannot drift between renders", () => {
+    // Two Pokémon of the same tier must not swap places each time the page reloads,
+    // which is what leaving ties to input order would allow.
+    const sorted = sortByTier([
+      pokemon("Zapdos", 7),
+      pokemon("Moltres", 7),
+      pokemon("Articuno", 7),
+    ]);
+    expect(sorted.map((row) => row.pokemon_id)).toEqual([
+      "Articuno",
+      "Moltres",
+      "Zapdos",
+    ]);
+  });
+
+  it("leaves the input array untouched", () => {
+    // The picker returns its input array by reference when no search text is typed,
+    // so sorting in place here would reorder an array the component still holds.
+    const roster = [pokemon("weak", 1), pokemon("best", 9)];
+    sortByTier(roster);
+    expect(roster.map((row) => row.pokemon_id)).toEqual(["weak", "best"]);
+  });
+
+  it("holds its order when a trade rearranges acquisition order", () => {
+    /*
+     * The regression this ordering exists for: complete_trade writes every received
+     * Pokémon with a fresh acquired_at, so an acquired_at-ordered roster sent the
+     * Pokemon a member had just traded for to the bottom of their picker. Feeding
+     * those same Pokemon back in the post-trade order must still list them by tier.
+     */
+    const afterTrade = [
+      pokemon("traded-for-strong", 9),
+      pokemon("kept-weak", 1),
+      pokemon("traded-for-mid", 5),
+    ];
+    expect(sortByTier(afterTrade).map((row) => row.pokemon_id)).toEqual([
+      "traded-for-strong",
+      "traded-for-mid",
+      "kept-weak",
+    ]);
+  });
+
+  it("sorts an unranked Pokemon last rather than first", () => {
+    // tier_value 0 renders as "Unranked" and is also the fallback for a Pokemon the
+    // catalog could not resolve, so it must not lead a list of real picks.
+    const sorted = sortByTier([pokemon("unknown", 0), pokemon("real", 4)]);
+    expect(sorted.map((row) => row.pokemon_id)).toEqual(["real", "unknown"]);
+  });
+});
+
+describe("compareByTier", () => {
+  it("ranks higher tiers ahead of lower ones", () => {
+    expect(compareByTier(pokemon("a", 8), pokemon("b", 2))).toBeLessThan(0);
+    expect(compareByTier(pokemon("a", 2), pokemon("b", 8))).toBeGreaterThan(0);
+  });
+
+  it("falls through to the name when the tiers match", () => {
+    expect(compareByTier(pokemon("A", 5), pokemon("B", 5))).toBeLessThan(0);
   });
 });
 

@@ -10,6 +10,7 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
+import { confirmDiscardUnsavedChanges } from "@/lib/unsaved-changes";
 
 /** A single entry in the settings dropdown, with optional visibility flags. */
 type SettingsItem = {
@@ -225,12 +226,54 @@ function TopNavContent() {
     );
   }
 
-  function handleLeagueChange(event: React.ChangeEvent<HTMLSelectElement>) {
+  /*
+   * The single exit point for every navigation this bar performs.
+   *
+   * `beforeunload` cannot cover these: they are client-side transitions that never
+   * unload the document, so the browser's own "leave site?" dialog never appears and
+   * a settings form with unsaved edits would vanish without a word. Asking the dirty
+   * page first is what makes the warning actually fire on the way out of a form.
+   *
+   * Navigating to the page already open is left unguarded on purpose. A member on
+   * /settings who picks "User Settings" from this very menu is not leaving anything,
+   * and prompting them to discard edits they are still editing would be wrong.
+   */
+  async function navigate(href: string) {
+    const targetPath = href.split("?")[0];
+
+    if (targetPath !== pathname) {
+      const allowed = await confirmDiscardUnsavedChanges();
+
+      if (!allowed) {
+        return;
+      }
+    }
+
+    router.push(href);
+  }
+
+  async function handleLeagueChange(event: React.ChangeEvent<HTMLSelectElement>) {
     const nextValue = event.target.value;
 
     if (nextValue === "create-league") {
-      router.push("/create-league");
+      await navigate("/create-league");
       return;
+    }
+
+    /*
+     * Written only after the dirty page has agreed to let go. Persisting the choice
+     * first and then being cancelled would leave the stored league pointing
+     * somewhere the member never actually navigated to.
+     */
+    const target = `/dashboard?leagueId=${nextValue}`;
+    const targetPath = target.split("?")[0];
+
+    if (targetPath !== pathname) {
+      const allowed = await confirmDiscardUnsavedChanges();
+
+      if (!allowed) {
+        return;
+      }
     }
 
     try {
@@ -239,24 +282,18 @@ function TopNavContent() {
       // Ignore storage errors so the nav still works in restricted environments.
     }
 
-    router.push(`/dashboard?leagueId=${nextValue}`);
+    await navigate(target);
   }
 
-  function handleSettingsSelect(path: string) {
+  async function handleSettingsSelect(path: string) {
     setIsMenuOpen(false);
 
     if (!selectedLeague || selectedLeague === "create-league") {
-      router.push(path);
+      await navigate(path);
       return;
     }
 
-    const nextPath = path === "/settings" ? "/settings" : path;
-    const targetUrl =
-      path === "/settings"
-        ? `${nextPath}?leagueId=${selectedLeague}`
-        : `${nextPath}?leagueId=${selectedLeague}`;
-
-    router.push(targetUrl);
+    await navigate(`${path}?leagueId=${selectedLeague}`);
   }
 
   return (
@@ -266,11 +303,11 @@ function TopNavContent() {
           type="button"
           onClick={() => {
             if (!selectedLeague || selectedLeague === "create-league") {
-              router.push("/dashboard");
+              void navigate("/dashboard");
               return;
             }
 
-            router.push(`/dashboard?leagueId=${selectedLeague}`);
+            void navigate(`/dashboard?leagueId=${selectedLeague}`);
           }}
           className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-700 bg-slate-900 text-slate-100 transition hover:border-slate-500 hover:bg-slate-800"
           aria-label="Go home"

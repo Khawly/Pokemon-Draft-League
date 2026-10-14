@@ -5,7 +5,8 @@
  * per-team salary editing, and owner-only actions (promote to admin, demote,
  * transfer ownership, remove). All members have read-only roster access and can
  * leave the league themselves. Join dates are shown in the time zone the member
- * picked in user settings.
+ * picked in user settings. Each member's name is rendered in the colour they
+ * picked in their own profile.
  */
 "use client";
 
@@ -15,6 +16,8 @@ import { supabase } from "@/lib/supabase/client";
 import { formatDateTimeInZone } from "@/lib/datetime";
 import { useUserTimeZone } from "@/lib/user-timezone";
 import { useConfirm } from "@/components/confirm-dialog";
+import { MemberName } from "@/components/member-name";
+import { MemberAvatar } from "@/components/member-avatar";
 
 /** Normalized representation of an active league member for display and mutation. */
 type MemberRow = {
@@ -28,6 +31,13 @@ type MemberRow = {
   display_name: string | null;
   /** URL of the user's avatar image, or null if unset. */
   avatar_url: string | null;
+  /**
+   * The member's stored avatar initials, raw, or null when they have not picked
+   * any and the shared derivation from their name applies.
+   */
+  avatar_initials: string | null;
+  /** The member's stored name colour, raw, or null when they have not chosen one. */
+  name_color: string | null;
   /** Per-member token salary override, or null to use the league default. */
   total_token_salary: number | null;
 };
@@ -164,7 +174,7 @@ function MembersSettingsPageContent() {
         const { data: memberships, error: membershipsError } = await supabase
           .from("league_members")
           .select(
-            "user_id, role, joined_at, is_active, total_token_salary, profiles: user_id (display_name, avatar_url)",
+            "user_id, role, joined_at, is_active, total_token_salary, profiles: user_id (display_name, avatar_url, avatar_initials, name_color)",
           )
           .eq("league_id", league.id)
           .eq("is_active", true)
@@ -178,6 +188,8 @@ function MembersSettingsPageContent() {
           const profile = member.profiles as {
             display_name?: string | null;
             avatar_url?: string | null;
+            avatar_initials?: string | null;
+            name_color?: string | null;
           } | null;
 
           return {
@@ -187,6 +199,8 @@ function MembersSettingsPageContent() {
             joined_at: member.joined_at,
             display_name: profile?.display_name || "Member",
             avatar_url: profile?.avatar_url || null,
+            avatar_initials: profile?.avatar_initials ?? null,
+            name_color: profile?.name_color ?? null,
             total_token_salary:
               typeof member.total_token_salary === "number"
                 ? member.total_token_salary
@@ -244,7 +258,7 @@ function MembersSettingsPageContent() {
       const userIds = freshMembers.map((member) => member.user_id);
       const { data: freshProfiles } = await supabase
         .from("profiles")
-        .select("id, display_name, avatar_url")
+        .select("id, display_name, avatar_url, avatar_initials, name_color")
         .in("id", userIds);
 
       const profileById = new Map(
@@ -259,6 +273,8 @@ function MembersSettingsPageContent() {
           joined_at: member.joined_at,
           display_name: profile?.display_name || "Member",
           avatar_url: profile?.avatar_url || null,
+          avatar_initials: profile?.avatar_initials ?? null,
+          name_color: profile?.name_color ?? null,
           // Preserved: reloadMembers is about roles, so it must not discard a salary
           // edit the owner has typed but not yet saved.
           total_token_salary: members.find(
@@ -733,25 +749,21 @@ function MembersSettingsPageContent() {
                     >
                       <td className="px-3 py-3">
                         <div className="flex items-center gap-3">
-                          <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-amber-500 text-sm font-bold text-slate-950">
-                            {member.avatar_url ? (
-                              <img
-                                src={member.avatar_url}
-                                alt={member.display_name || "Member"}
-                                className="h-full w-full object-cover"
-                              />
-                            ) : (
-                              <span>
-                                {(member.display_name || "M")
-                                  .charAt(0)
-                                  .toUpperCase()}
-                              </span>
-                            )}
-                          </div>
+                          <MemberAvatar
+                            name={member.display_name}
+                            color={member.name_color}
+                            avatarUrl={member.avatar_url}
+                            initials={member.avatar_initials}
+                            size={40}
+                            className="border-transparent"
+                          />
                           <div>
-                            <div className="font-medium text-white">
-                              {member.display_name || "Member"}
-                            </div>
+                            <MemberName
+                              name={member.display_name}
+                              color={member.name_color}
+                              className="font-medium text-white"
+                              fallback="Member"
+                            />
                             {isCurrentUser && (
                               <div className="text-xs text-amber-300">You</div>
                             )}

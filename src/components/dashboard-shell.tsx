@@ -112,6 +112,8 @@ export interface DashboardShellProps {
   notificationError?: string | null;
   /** Panel-level confirmation text, e.g. how many notifications were removed. */
   notificationNotice?: string | null;
+  /** Called when the member picks a different season in the header. */
+  onSelectSeason?: (seasonId: string) => void;
 }
 
 /** Props for the {@link RulesPanel} component. */
@@ -392,6 +394,7 @@ export function DashboardShell({
   isClearingNotifications = false,
   notificationError = null,
   notificationNotice = null,
+  onSelectSeason,
 }: DashboardShellProps) {
   const router = useRouter();
   const scheduleRoute = routeFor("schedule", leagueId);
@@ -588,6 +591,27 @@ export function DashboardShell({
               )}
             </button>
           ))}
+
+          {/*
+            The season choice. Only shown once there is more than one, so a league in its
+            first season is not offered a list of one.
+          */}
+          {goods.seasons.length > 1 && onSelectSeason && (
+            <label className="ml-auto flex items-center gap-2 text-sm text-slate-400">
+              <span className="hidden sm:inline">Season</span>
+              <select
+                value={goods.season?.id ?? ""}
+                onChange={(event) => onSelectSeason(event.target.value)}
+                className="rounded-full border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-500"
+              >
+                {goods.seasons.map((season) => (
+                  <option key={season.id} value={season.id}>
+                    {season.name?.trim() || `Season ${season.season_number}`}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
         </div>
       </header>
 

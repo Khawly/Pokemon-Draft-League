@@ -177,6 +177,7 @@ function LeagueSettingsPageContent() {
   const [deadlineTime, setDeadlineTime] = useState("20:00");
   const [deadlineTimeZone, setDeadlineTimeZone] = useState("UTC");
   const [isDeadlineSaving, setIsDeadlineSaving] = useState(false);
+  const [isStartingSeason, setIsStartingSeason] = useState(false);
   const [isProgressing, setIsProgressing] = useState(false);
   const [progressState, setProgressState] = useState<WeekProgressState | null>(
     null,
@@ -1017,6 +1018,57 @@ function LeagueSettingsPageContent() {
     );
   }
 
+  /**
+   * Starts the next season.
+   *
+   * Confirmed first, and worded in terms of what the owner keeps and what they lose: the
+   * rules carry forward and last season stays readable, but the new one has no Pokemon,
+   * no results and no draft pool, which is not obvious from a button labelled "start".
+   *
+   * The page reloads afterwards rather than patching its own state. The season pointer,
+   * team ids and every season-scoped value change at once, and a reload is the one way to
+   * be sure nothing is left holding the old season.
+   */
+  async function handleStartNewSeason() {
+    if (!leagueId) {
+      setError("Select a league before starting a season.");
+      return;
+    }
+
+    const confirmed = await confirm({
+      title: "Start a new season?",
+      detail:
+        "This season's rules are copied into a new season. Every member gets a fresh team with no Pokemon and no results, and no draft pool is carried over. This season is kept and can be selected again from the dashboard.",
+      confirmLabel: "Start new season",
+    });
+
+    if (!confirmed) {
+      return;
+    }
+
+    setIsStartingSeason(true);
+    setError(null);
+
+    try {
+      const { error: startError } = await supabase.rpc("start_new_season", {
+        p_league_id: leagueId,
+      });
+
+      if (startError) {
+        throw new Error(startError.message);
+      }
+
+      window.location.reload();
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : "The new season could not be started.",
+      );
+      setIsStartingSeason(false);
+    }
+  }
+
   return (
     <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
       <div className="mx-auto max-w-5xl space-y-6">
@@ -1550,6 +1602,31 @@ function LeagueSettingsPageContent() {
               )}
             </div>
           </div>
+        </section>
+
+        {/*
+          Starting a season sits at the bottom, apart from the settings above it. It is not
+          a setting: it is the one action here that changes what every other page is about,
+          so it is separated from the controls that only change a rule.
+        */}
+        <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-lg shadow-slate-950/30">
+          <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">
+            Season
+          </h2>
+          <p className="mt-2 text-sm text-slate-400">
+            Starting a new season copies this season&apos;s rules and creates a
+            fresh team for every member with no Pokémon, no results and no
+            draft pool. This season is kept and stays readable.
+          </p>
+
+          <button
+            type="button"
+            disabled={isStartingSeason || !leagueId}
+            onClick={() => void handleStartNewSeason()}
+            className="mt-4 rounded-xl bg-amber-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {isStartingSeason ? "Starting season..." : "Start new season"}
+          </button>
         </section>
       </div>
 

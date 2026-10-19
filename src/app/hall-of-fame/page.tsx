@@ -117,7 +117,7 @@ function ChampionCard({ entry }: { entry: HallOfFameEntry }) {
                   <PokeballSprite
                     spriteId={pokemon.spriteId}
                     name={pokemon.name}
-                    size={90}
+                    size={75}
                   />
                 </li>
               ))}
@@ -215,9 +215,9 @@ function HallOfFameContent() {
         <header className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-2xl shadow-slate-950/40">
           <h1 className="text-3xl font-bold text-white">Hall of Fame</h1>
           <p className="mt-1 text-sm text-slate-400">
-            Every champion this league has crowned, with the badge their
-            title is worth. Eight titles earn a region&apos;s badges, then the
-            next region begins.
+            Every champion this league has crowned, with the badge their title
+            is worth. Eight titles earn a region&apos;s badges, then the next
+            region begins.
           </p>
         </header>
 

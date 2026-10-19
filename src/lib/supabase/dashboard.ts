@@ -222,6 +222,8 @@ export type DashboardRules = {
 export type DashboardGoods = {
   /** Latest season, or null when the league has not created one yet. */
   season: DashboardSeason | null;
+  /** Every season in the league, oldest first, for the header's season choice. */
+  seasons: DashboardSeason[];
   /** Teams in the season. */
   teamsCount: number;
   /**
@@ -323,6 +325,7 @@ export type DashboardGoods = {
 function emptyGoods(): DashboardGoods {
   return {
     season: null,
+    seasons: [],
     teamsCount: 0,
     teams: [],
     rosteredPokemonCount: 0,
@@ -497,17 +500,46 @@ export function matchStatusLabel(status: DashboardMatch["status"]): string {
 export async function loadDashboardData(
   leagueId: string,
   userId: string,
+  seasonId?: string | null,
 ): Promise<DashboardGoods> {
-  const { data: seasonRow, error: seasonError } = await loadLatestSeason<DashboardSeason>(
-    leagueId,
-    "id, season_number, status, name",
-  );
+  /*
+   * The season list is read alongside the season itself, because the header offers them as
+   * a choice and a choice needs the options even when the default is the newest.
+   */
+  const [seasonRowResult, seasonsResult] = await Promise.all([
+    seasonId
+      ? supabase
+          .from("seasons")
+          .select("id, season_number, status, name")
+          .eq("id", seasonId)
+          .eq("league_id", leagueId)
+          .maybeSingle()
+      : loadLatestSeason<DashboardSeason>(
+          leagueId,
+          "id, season_number, status, name",
+        ),
+    supabase
+      .from("seasons")
+      .select("id, season_number, status, name")
+      .eq("league_id", leagueId)
+      .order("season_number", { ascending: true }),
+  ]);
+
+  const seasonError = seasonRowResult.error;
 
   if (seasonError) {
     throw new Error("This league's season could not be loaded.");
   }
 
-  const season = (seasonRow as DashboardSeason | null) ?? null;
+  const seasons = ((seasonsResult.data ?? []) as DashboardSeason[]) ?? [];
+
+  /*
+   * A stored season that no longer exists -- or belongs to a league the member has since
+   * left -- falls back to the newest rather than rendering an empty page.
+   */
+  const requested = (seasonRowResult.data as DashboardSeason | null) ?? null;
+  const season =
+    requested ?? (seasons.length > 0 ? seasons[seasons.length - 1] : null);
 
   if (!season) {
     return emptyGoods();
@@ -529,7 +561,7 @@ const [settingsResult, teamResult, standingsResult, matchResult, rulesResult, le
         .eq("league_id", leagueId)
         .eq("season_id", season.id)
         .order("draft_position", { ascending: true, nullsFirst: false }),
-      supabase.rpc("season_standings", { p_league_id: leagueId }),
+      supabase.rpc("season_standings_for", { p_league_id: leagueId, p_season_id: season.id }),
       supabase
         .from("matches")
         .select(
@@ -868,6 +900,7 @@ const [settingsResult, teamResult, standingsResult, matchResult, rulesResult, le
 
   return {
     season,
+    seasons,
     teamsCount: teams.length,
     teams,
     rosteredPokemonCount: rosterRows.length,

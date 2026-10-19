@@ -26,6 +26,7 @@ import {
   type DashboardGoods,
 } from "@/lib/supabase/dashboard";
 import { useRealtimeInvalidation } from "@/lib/use-realtime-invalidation";
+import { getSelectedSeason, setSelectedSeason } from "@/lib/season-selection";
 import { markNotificationsRead } from "@/lib/supabase/schedule";
 
 /**
@@ -190,7 +191,12 @@ function DashboardPageContent() {
       }
 
       try {
-        const next = await loadDashboardData(resolvedLeagueId, user.id);
+        const next = await loadDashboardData(
+          resolvedLeagueId,
+          user.id,
+          // The season the member last chose for this league, or null for the newest.
+          getSelectedSeason(resolvedLeagueId),
+        );
         setGoods(next);
         setError(null);
       } catch (loadError) {
@@ -244,6 +250,27 @@ function DashboardPageContent() {
   const reloadLeague = useCallback(async () => {
     await loadLeagueRef.current?.();
   }, []);
+
+  /**
+   * Switches the season on screen.
+   *
+   * The choice is stored per league and the dashboard reloaded with it, so every panel
+   * that reads the season -- standings, matchups, teams, roster -- moves together rather
+   * than leaving half the page on the previous season.
+   */
+  const handleSelectSeason = useCallback(
+    async (seasonId: string) => {
+      if (!goods?.leagueId) {
+        return;
+      }
+
+      setSelectedSeason(goods.leagueId, seasonId);
+      await reloadLeague();
+    },
+    // The compiler infers the whole object from `goods?.leagueId`, so naming the object
+    // keeps the manual dependencies in step with it.
+    [goods, reloadLeague],
+  );
 
   /**
    * Clears this week's match-time alerts when the member opens the schedule.
@@ -463,6 +490,7 @@ function DashboardPageContent() {
           leagueName={leagueName}
           leagueId={searchParams.get("leagueId") ?? null}
           goods={goods}
+          onSelectSeason={handleSelectSeason}
           onScheduleVisited={() => void handleScheduleVisited()}
           onTradesVisited={() => void handleTradesVisited()}
           onClearNotifications={() => void handleClearNotifications()}

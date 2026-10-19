@@ -66,6 +66,8 @@ export interface DashboardShellProps {
   displayName: string;
   /** The authenticated user's email address. */
   email: string;
+  /** The signed-in member's id, so their own name can carry the champion crown. */
+  userId?: string | null;
   /** Optional URL for the user's avatar image. Falls back to an initial-based placeholder. */
   avatarUrl?: string | null;
   /**
@@ -375,6 +377,7 @@ function LineupSprites({ roster }: LineupSpritesProps) {
 export function DashboardShell({
   displayName,
   email,
+  userId = null,
   avatarUrl,
   avatarInitials = null,
   nameColor,
@@ -503,7 +506,11 @@ export function DashboardShell({
 
               <div className="flex-1">
                 <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-slate-300">
-                  <MemberName name={displayName} color={nameColor} />
+                  <MemberName
+                    name={displayName}
+                    color={nameColor}
+                    userId={userId}
+                  />
 
                   {myStanding && myRank != null ? (
                     <>
@@ -727,11 +734,13 @@ export function DashboardShell({
                             <MemberName
                               name={match.player_1_name}
                               color={match.player_1_name_color}
+                              userId={match.player_1_user_id}
                             />
                             <span>vs</span>
                             <MemberName
                               name={match.player_2_name}
                               color={match.player_2_name_color}
+                              userId={match.player_2_user_id}
                             />
                           </p>
                           <p className="mt-1 text-sm text-slate-400">

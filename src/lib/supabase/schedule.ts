@@ -719,11 +719,24 @@ export async function loadScheduleMatches(
 export async function loadScheduleStandings(
   leagueId: string,
   seasonId: string,
-): Promise<{ standings: StandingsRow[]; championTeamId: string | null }> {
-  const [standingsResult, championResult] = await Promise.all([
+): Promise<{
+  standings: StandingsRow[];
+  championTeamId: string | null;
+  crownedMemberIds: string[];
+}> {
+  const [standingsResult, championResult, crownResult] = await Promise.all([
     supabase.rpc("season_standings", { p_league_id: leagueId }),
     // Not fatal on its own: a champion banner is one line on the page.
     supabase.rpc("playoff_champion", {
+      p_league_id: leagueId,
+      p_season_id: seasonId,
+    }),
+    /*
+     * Members who wear the crown in this season's view: the playoff winner of this season,
+     * and the winner of the season before. Loaded here rather than on its own because a
+     * result that moves the standings is exactly what can decide a champion.
+     */
+    supabase.rpc("crowned_members", {
       p_league_id: leagueId,
       p_season_id: seasonId,
     }),
@@ -736,6 +749,11 @@ export async function loadScheduleStandings(
   return {
     standings: toStandingsRows(standingsResult.data),
     championTeamId: (championResult.data as string | null) ?? null,
+    crownedMemberIds: crownResult.error
+      ? []
+      : ((crownResult.data ?? []) as { user_id: string }[]).map(
+          (row) => row.user_id,
+        ),
   };
 }
 
@@ -776,6 +794,8 @@ export type SchedulePageGoods = {
   myTeamId: string | null;
   /** Team id of the champion, or null while the tournament runs or nobody won it. */
   championTeamId: string | null;
+  /** Member ids who should show the champion crown in this season's view. */
+  crownedMemberIds: string[];
   /**
    * The league owner's display name.
    *
@@ -898,6 +918,7 @@ export async function loadSchedulePageData(
     isStaff: false,
     myTeamId: null,
     championTeamId: null,
+    crownedMemberIds: [],
     ownerDisplayName: null,
   };
 
@@ -1080,6 +1101,7 @@ export async function loadSchedulePageData(
     rostersByTeam,
     standings,
     championTeamId: standingsAndChampion.championTeamId,
+    crownedMemberIds: standingsAndChampion.crownedMemberIds,
     ownerDisplayName,
     // Loaded with everything else so the playoffs tab can draw the whole bracket on
     // first render, rather than only the rounds that have been generated.

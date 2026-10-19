@@ -53,6 +53,7 @@ import { MemberName } from "@/components/member-name";
 import { MemberAvatar } from "@/components/member-avatar";
 import { PlayoffBracket } from "@/components/playoff-bracket";
 import { ManualScheduleEditor } from "@/components/manual-schedule-editor";
+import { CrownProvider } from "@/components/crown-provider";
 import {
   loadWeekProgressState,
   runWeekDeadlineSweep,
@@ -278,6 +279,11 @@ function MatchupHistoryCard({
         name={name}
         color={nameColor}
         className="font-semibold text-slate-100"
+        userId={
+          teamId === match.player_1_team_id
+            ? match.player_1_user_id
+            : match.player_2_user_id
+        }
       />
       {gameRecord(match, teamId) && (
         <Spoiler hidden={hideSpoilers}>
@@ -354,6 +360,11 @@ function MatchupHistoryCard({
                         name={winner.name}
                         color={winner.color}
                         className="font-semibold text-emerald-300"
+                        userId={
+                          result.winner_team_id === match.player_1_team_id
+                            ? match.player_1_user_id
+                            : match.player_2_user_id
+                        }
                       />{" "}
                       wins
                     </span>
@@ -1267,6 +1278,8 @@ function SchedulePageContent({
               matches,
               standings: live?.[0].standings ?? previous.standings,
               championTeamId: live?.[0].championTeamId ?? previous.championTeamId,
+              crownedMemberIds:
+                live?.[0].crownedMemberIds ?? previous.crownedMemberIds,
             }
           : previous,
       );
@@ -2519,7 +2532,8 @@ function SchedulePageContent({
 
   return (
     <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
-      <div className="mx-auto max-w-6xl space-y-6">
+      <CrownProvider crownedUserIds={goods.crownedMemberIds}>
+        <div className="mx-auto max-w-6xl space-y-6">
         <header className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-2xl shadow-slate-950/40">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -4065,7 +4079,8 @@ function SchedulePageContent({
         )}
 
         {confirmDialog}
-      </div>
+        </div>
+      </CrownProvider>
     </main>
   );
 }

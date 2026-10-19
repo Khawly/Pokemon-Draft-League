@@ -155,6 +155,9 @@ export type DashboardMatch = {
   /** Each side's stored avatar initials, raw, or null when the owner has none set. */
   player_1_avatar_initials: string | null;
   player_2_avatar_initials: string | null;
+  /** Each side's owner, so a champion's crown can follow them onto the card. */
+  player_1_user_id: string | null;
+  player_2_user_id: string | null;
 };
 
 /** A ranked standings row, already ordered by the database. */
@@ -245,6 +248,8 @@ export type DashboardGoods = {
   hasPlayoffs: boolean;
   /** League match format, used to describe the next match. */
   matchFormat: "single" | "best_of_3" | null;
+  /** Member ids who should show the champion crown in this season's view. */
+  crownedMemberIds: string[];
 /** Open trade proposals the member sent or received. */
   pendingTradesCount: number;
   /**
@@ -341,6 +346,7 @@ standings: [],
     tradeAlertCount: 0,
     isOwner: false,
     leagueId: "",
+    crownedMemberIds: [],
   };
 }
 
@@ -507,7 +513,7 @@ export async function loadDashboardData(
     return emptyGoods();
   }
 
-const [settingsResult, teamResult, standingsResult, matchResult, rulesResult, leagueResult] =
+const [settingsResult, teamResult, standingsResult, matchResult, rulesResult, leagueResult, crownResult] =
     await Promise.all([
       supabase
         .from("league_settings")
@@ -554,6 +560,14 @@ const [settingsResult, teamResult, standingsResult, matchResult, rulesResult, le
         .select("owner_id")
         .eq("id", leagueId)
         .maybeSingle(),
+      /*
+       * Members wearing the champion crown this season. A failure is not fatal: the
+       * dashboard is a dozen panels and a missing crown costs a decoration, not the page.
+       */
+      supabase.rpc("crowned_members", {
+        p_league_id: leagueId,
+        p_season_id: season.id,
+      }),
     ]);
 
   const settings = settingsResult.data as {
@@ -642,6 +656,8 @@ const [settingsResult, teamResult, standingsResult, matchResult, rulesResult, le
     player_2_name_color: row.player_2?.owner?.name_color ?? null,
     player_1_avatar_initials: row.player_1?.owner?.avatar_initials ?? null,
     player_2_avatar_initials: row.player_2?.owner?.avatar_initials ?? null,
+    player_1_user_id: row.player_1?.owner_user_id ?? null,
+    player_2_user_id: row.player_2?.owner_user_id ?? null,
   }));
 
 
@@ -875,6 +891,11 @@ standings,
     tradeAlertCount: tradeAlerts.count,
     leagueId,
     isOwner,
+    crownedMemberIds: crownResult.error
+      ? []
+      : ((crownResult.data ?? []) as { user_id: string }[]).map(
+          (row) => row.user_id,
+        ),
   };
 }
 

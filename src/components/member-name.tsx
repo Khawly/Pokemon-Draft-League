@@ -14,6 +14,7 @@
 "use client";
 
 import { mergeNameColorClasses } from "@/lib/name-colors";
+import { useCrowned } from "@/components/crown-provider";
 
 /** Props for the {@link MemberName} component. */
 export interface MemberNameProps {
@@ -31,6 +32,14 @@ export interface MemberNameProps {
   className?: string;
   /** Shown when there is no name at all. */
   fallback?: string;
+  /**
+   * The member's user id, when the caller has it.
+   *
+   * Optional so the forty-odd existing call sites keep working unchanged; a name without
+   * it simply never shows a crown. Passing it is what lets a champion's title follow them
+   * onto that surface.
+   */
+  userId?: string | null;
 }
 
 /**
@@ -44,8 +53,10 @@ export function MemberName({
   color,
   className,
   fallback = "Unnamed",
+  userId,
 }: MemberNameProps) {
   const resolved = name?.trim();
+  const crowned = useCrowned(userId);
 
   if (!resolved) {
     return <span className={className}>{fallback}</span>;
@@ -60,5 +71,19 @@ export function MemberName({
    */
   const classes = mergeNameColorClasses(className, color);
 
-  return <span className={classes}>{resolved}</span>;
+  return (
+    <span className={classes}>
+      {crowned && (
+        <span
+          role="img"
+          aria-label="League champion"
+          title="League champion"
+          className="mr-1"
+        >
+          👑
+        </span>
+      )}
+      {resolved}
+    </span>
+  );
 }

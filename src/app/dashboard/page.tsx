@@ -15,6 +15,7 @@
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { DashboardShell } from "@/components/dashboard-shell";
+import { CrownProvider } from "@/components/crown-provider";
 import { useConfirm } from "@/components/confirm-dialog";
 import { supabase } from "@/lib/supabase/client";
 import {
@@ -55,6 +56,7 @@ function DashboardPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [sessionUser, setSessionUser] = useState<{
+    id: string;
     email: string | null;
     displayName: string;
     avatarUrl: string | null;
@@ -118,6 +120,7 @@ function DashboardPageContent() {
         "Trainer";
 
       setSessionUser({
+        id: user.id,
         email: user.email ?? "Unknown email",
         displayName,
         avatarUrl: (profileData?.avatar_url as string | null) ?? null,
@@ -449,9 +452,11 @@ function DashboardPageContent() {
   return (
     <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
       <div className="mx-auto max-w-6xl">
-        <DashboardShell
+        <CrownProvider crownedUserIds={goods.crownedMemberIds}>
+          <DashboardShell
           displayName={sessionUser.displayName}
           email={sessionUser.email ?? "Unknown email"}
+          userId={sessionUser.id}
           avatarUrl={sessionUser.avatarUrl}
           avatarInitials={sessionUser.avatarInitials}
           nameColor={sessionUser.nameColor}
@@ -465,6 +470,7 @@ function DashboardPageContent() {
           notificationError={notificationError}
           notificationNotice={notice}
         />
+        </CrownProvider>
       </div>
       {confirmDialog}
     </main>

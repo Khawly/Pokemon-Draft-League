@@ -34,6 +34,7 @@ import {
 } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
+import { getSelectedSeason } from "@/lib/season-selection";
 import { getSpriteUrl } from "@/lib/pokeapi";
 import { useConfirm } from "@/components/confirm-dialog";
 import { MemberName } from "@/components/member-name";
@@ -1362,7 +1363,7 @@ function TradesPageContent({
   const [tab, setTab] = useState<TradesTab>("new");
 
   const refresh = useCallback(async (leagueId: string): Promise<TradesGoods> => {
-    const next = await loadTradesPageData(leagueId);
+    const next = await loadTradesPageData(leagueId, getSelectedSeason(leagueId));
     setGoods(next);
     return next;
   }, []);
@@ -1418,7 +1419,7 @@ function TradesPageContent({
           return;
         }
 
-        const next = await loadTradesPageData(selectedLeagueId);
+        const next = await loadTradesPageData(selectedLeagueId, getSelectedSeason(selectedLeagueId));
         if (!cancelled) {
           setGoods(next);
         }

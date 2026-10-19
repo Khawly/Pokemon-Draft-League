@@ -9,7 +9,7 @@
  * by RLS), plus the salary derivation the UI shows per team.
  */
 import { supabase } from "@/lib/supabase/client";
-import { loadLatestSeason } from "@/lib/supabase/seasons";
+import { loadSeason } from "@/lib/supabase/seasons";
 import {
   getPokemonDetailsBySlug,
   getPokemonEntryBySlug,
@@ -175,6 +175,7 @@ type RosterRow = {
  */
 export async function loadTeamPageData(
   leagueId: string,
+  seasonId?: string | null,
 ): Promise<TeamPageGoods> {
   const {
     data: { user },
@@ -195,9 +196,10 @@ export async function loadTeamPageData(
     throw new Error("This league could not be loaded.");
   }
 
-  const { data: seasonRow, error: seasonError } = await loadLatestSeason<TeamSeason>(
+  const { data: seasonRow, error: seasonError } = await loadSeason<TeamSeason>(
     leagueId,
     "id, season_number, status, name",
+    seasonId,
   );
 
   if (seasonError) {

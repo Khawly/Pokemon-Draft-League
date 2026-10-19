@@ -15,7 +15,7 @@
  * approval has got without re-deriving it.
  */
 import { supabase } from "@/lib/supabase/client";
-import { loadLatestSeason } from "@/lib/supabase/seasons";
+import { loadSeason } from "@/lib/supabase/seasons";
 import { getPokemonEntryBySlug } from "@/lib/pokeapi";
 
 /**
@@ -331,7 +331,10 @@ function toTradePokemon(row: RosterRow): TradePokemon {
  * @throws If the user is not signed in, the league is missing, or a core query
  *   fails.
  */
-export async function loadTradesPageData(leagueId: string): Promise<TradesGoods> {
+export async function loadTradesPageData(
+  leagueId: string,
+  seasonId?: string | null,
+): Promise<TradesGoods> {
   const {
     data: { user },
     error: userError,
@@ -351,9 +354,10 @@ export async function loadTradesPageData(leagueId: string): Promise<TradesGoods>
     throw new Error("This league could not be loaded.");
   }
 
-  const { data: seasonRow, error: seasonError } = await loadLatestSeason<TradeSeason>(
+  const { data: seasonRow, error: seasonError } = await loadSeason<TradeSeason>(
     leagueId,
     "id, season_number, status, name",
+    seasonId,
   );
 
   if (seasonError) {

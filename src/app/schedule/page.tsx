@@ -47,6 +47,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { supabase } from "@/lib/supabase/client";
+import { getSelectedSeason } from "@/lib/season-selection";
 import { readReplaySummary } from "@/lib/replay-summary";
 import { useConfirm } from "@/components/confirm-dialog";
 import { MemberName } from "@/components/member-name";
@@ -1008,7 +1009,7 @@ function SchedulePageContent({
   const timeZone = useUserTimeZone();
 
   const refresh = useCallback(async (leagueId: string) => {
-    const next = await loadSchedulePageData(leagueId);
+    const next = await loadSchedulePageData(leagueId, getSelectedSeason(leagueId));
     setGoods(next);
     if (next.settings) {
       setForm({

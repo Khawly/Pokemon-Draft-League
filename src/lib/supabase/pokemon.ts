@@ -9,7 +9,7 @@
  * renders.
  */
 import { supabase } from "@/lib/supabase/client";
-import { loadLatestSeason } from "@/lib/supabase/seasons";
+import { loadSeason } from "@/lib/supabase/seasons";
 import {
   getPokemonDetailsBySlug,
   getPokemonEntryBySlug,
@@ -222,6 +222,7 @@ type TransactionRow = {
  */
 export async function loadPokemonPageData(
   leagueId: string,
+  seasonId?: string | null,
 ): Promise<PokemonGoods> {
   const {
     data: { user },
@@ -242,9 +243,10 @@ export async function loadPokemonPageData(
     throw new Error("This league could not be loaded.");
   }
 
-  const { data: seasonRow, error: seasonError } = await loadLatestSeason<PokemonSeason>(
+  const { data: seasonRow, error: seasonError } = await loadSeason<PokemonSeason>(
     leagueId,
     "id, season_number, status, name",
+    seasonId,
   );
 
   if (seasonError) {

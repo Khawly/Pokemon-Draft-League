@@ -25,6 +25,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { AbilityTooltip } from "@/components/ability-tooltip";
 import { supabase } from "@/lib/supabase/client";
+import { getSelectedSeason } from "@/lib/season-selection";
 import { getSpriteUrl } from "@/lib/pokeapi";
 import { formatSeasonLabel } from "@/lib/supabase/seasons";
 import { formatDateTimeInZone } from "@/lib/datetime";
@@ -881,7 +882,7 @@ function TeamsPageContent({
 
   const refresh = useCallback(
     async (leagueId: string) => {
-      const next = await loadTeamPageData(leagueId);
+      const next = await loadTeamPageData(leagueId, getSelectedSeason(leagueId));
       setGoods(next);
       setSelectedTeamId((current) => current ?? next.myTeamId ?? next.teams[0]?.id ?? null);
       return next;
@@ -940,7 +941,7 @@ function TeamsPageContent({
           return;
         }
 
-        const next = await loadTeamPageData(selectedLeagueId);
+        const next = await loadTeamPageData(selectedLeagueId, getSelectedSeason(selectedLeagueId));
         if (!cancelled) {
           setGoods(next);
           setSelectedTeamId(

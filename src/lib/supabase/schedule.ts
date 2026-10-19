@@ -10,7 +10,7 @@
  * submitting and (staff-only) editing game results, and forfeiting a match.
  */
 import { supabase } from "@/lib/supabase/client";
-import { loadLatestSeason } from "@/lib/supabase/seasons";
+import { loadSeason } from "@/lib/supabase/seasons";
 import { getPokemonEntryBySlug } from "@/lib/pokeapi";
 
 /**
@@ -725,7 +725,12 @@ export async function loadScheduleStandings(
   crownedMemberIds: string[];
 }> {
   const [standingsResult, championResult, crownResult] = await Promise.all([
-    supabase.rpc("season_standings", { p_league_id: leagueId }),
+    // Scoped to the season on screen rather than to the newest one: looking back at an
+    // older season should rank that season's results.
+    supabase.rpc("season_standings_for", {
+      p_league_id: leagueId,
+      p_season_id: seasonId,
+    }),
     // Not fatal on its own: a champion banner is one line on the page.
     supabase.rpc("playoff_champion", {
       p_league_id: leagueId,
@@ -869,6 +874,7 @@ type ScheduleMatchRow = {
  */
 export async function loadSchedulePageData(
   leagueId: string,
+  seasonId?: string | null,
 ): Promise<SchedulePageGoods> {
   const {
     data: { user },
@@ -889,9 +895,10 @@ export async function loadSchedulePageData(
     throw new Error("This league could not be loaded.");
   }
 
-  const { data: seasonRow, error: seasonError } = await loadLatestSeason<ScheduleSeason>(
+  const { data: seasonRow, error: seasonError } = await loadSeason<ScheduleSeason>(
     leagueId,
     "id, season_number, status, name",
+    seasonId,
   );
 
   if (seasonError) {

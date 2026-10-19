@@ -65,6 +65,60 @@ export async function loadLatestSeason<T>(
 }
 
 /**
+ * Loads the season a page should show: the one the member selected, or the newest.
+ *
+ * A season id that does not belong to the league is ignored rather than trusted, which is
+ * what happens when a member switches leagues with a choice still stored from the last one.
+ * Falling back to the newest keeps the page working instead of rendering a season they
+ * cannot see.
+ *
+ * The `name` fallback in {@link loadLatestSeason} is reused, so a database that predates the
+ * column behaves the same here.
+ *
+ * @param leagueId - League the season belongs to.
+ * @param columns - Comma separated column list; must include `season_number`.
+ * @param seasonId - The selected season, or null for the newest.
+ * @returns The season row, or null when the league has no seasons.
+ */
+export async function loadSeason<T>(
+  leagueId: string,
+  columns: string,
+  seasonId?: string | null,
+): Promise<LatestSeasonResult<T>> {
+  if (!seasonId) {
+    return loadLatestSeason<T>(leagueId, columns);
+  }
+
+  const run = async (select: string) =>
+    supabase
+      .from("seasons")
+      .select(select)
+      .eq("id", seasonId)
+      .eq("league_id", leagueId)
+      .maybeSingle();
+
+  const { data, error } = await run(columns);
+
+  if (!error) {
+    return { data: (data as T | null) ?? null, error: null };
+  }
+
+  if (!columns.includes("name")) {
+    return { data: null, error };
+  }
+
+  const { data: legacyData, error: legacyError } = await run(
+    columns.replace("name, ", "").replace(", name", ""),
+  );
+
+  if (legacyError) {
+    return { data: null, error: legacyError };
+  }
+
+  return { data: (legacyData as T | null) ?? null, error: null };
+}
+
+/**
  * Builds the label used wherever the app names the active season.
  *
  * Prefers the owner-set name and falls back to the numbered form, so seasons

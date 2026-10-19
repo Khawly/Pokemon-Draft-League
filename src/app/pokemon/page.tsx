@@ -22,6 +22,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { supabase } from "@/lib/supabase/client";
+import { getSelectedSeason } from "@/lib/season-selection";
 import { AbilityTooltip } from "@/components/ability-tooltip";
 import { MemberName } from "@/components/member-name";
 import { getSpriteUrl } from "@/lib/pokeapi";
@@ -979,7 +980,7 @@ function PokemonPageContent({
 
   const refresh = useCallback(
     async (leagueId: string): Promise<PokemonGoods> => {
-      const next = await loadPokemonPageData(leagueId);
+      const next = await loadPokemonPageData(leagueId, getSelectedSeason(leagueId));
       setGoods(next);
       return next;
     },
@@ -1037,7 +1038,7 @@ function PokemonPageContent({
           return;
         }
 
-        const next = await loadPokemonPageData(selectedLeagueId);
+        const next = await loadPokemonPageData(selectedLeagueId, getSelectedSeason(selectedLeagueId));
         if (!cancelled) {
           setGoods(next);
         }

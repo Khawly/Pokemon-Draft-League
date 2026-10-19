@@ -40,6 +40,7 @@ import {
 } from "@/lib/pokeapi";
 import { AbilityTooltip } from "@/components/ability-tooltip";
 import { useConfirm } from "@/components/confirm-dialog";
+import { LoadingGif } from "@/components/loading-gif";
 
 /** A named, saved draft pool for a league season. */
 type PoolSummary = {
@@ -286,7 +287,7 @@ export default function PoolPage() {
       fallback={
         <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
           <div className="mx-auto max-w-5xl rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
-            Loading draft pool...
+            <LoadingGif label="Loading draft pool" />
           </div>
         </main>
       }
@@ -1705,7 +1706,7 @@ function PoolPageContent({
     return (
       <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
         <div className="mx-auto max-w-5xl rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
-          Loading draft pool...
+          <LoadingGif label="Loading draft pool" />
         </div>
       </main>
     );

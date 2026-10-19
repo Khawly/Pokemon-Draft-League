@@ -12,6 +12,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AuthForm } from "@/components/auth-form";
 import { supabase } from "@/lib/supabase/client";
+import { LoadingGif } from "@/components/loading-gif";
 
 /**
  * Home page. Redirects to the dashboard when a session already exists, else
@@ -107,7 +108,7 @@ export default function Home() {
     return (
       <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(245,158,11,0.18),_rgba(15,23,42,0.2)_30%,_#020817_100%)] px-6 py-10 text-slate-100">
         <div className="mx-auto max-w-5xl rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
-          Loading home page...
+          <LoadingGif label="Loading home page" />
         </div>
       </main>
     );

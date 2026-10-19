@@ -27,6 +27,8 @@ import {
 } from "@/lib/supabase/rules";
 import { useUserTimeZone } from "@/lib/user-timezone";
 import { formatDateTimeInZone } from "@/lib/datetime";
+import { getSelectedSeason } from "@/lib/season-selection";
+import { LoadingGif } from "@/components/loading-gif";
 
 /** LocalStorage key used by the top nav to persist the selected league. */
 const SELECTED_LEAGUE_STORAGE_KEY = "pokemon-draft-league:selected-league";
@@ -45,7 +47,7 @@ export default function RulesPage() {
       fallback={
         <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
           <div className="mx-auto max-w-6xl rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
-            Loading rules...
+            <LoadingGif label="Loading rules" />
           </div>
         </main>
       }
@@ -68,6 +70,7 @@ function RulesPageContent() {
   const [leagueName, setLeagueName] = useState<string>("");
   const [rules, setRules] = useState<LeagueRules | null>(null);
   const [isOwner, setIsOwner] = useState(false);
+  const [isCurrentSeason, setIsCurrentSeason] = useState(true);
   const [draft, setDraft] = useState<string>("");
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -75,10 +78,15 @@ function RulesPageContent() {
   const [notice, setNotice] = useState<string | null>(null);
 
   const load = useCallback(async (leagueId: string) => {
-    const data = await loadRulesPageData(leagueId);
+    const data = await loadRulesPageData(
+      leagueId,
+      // The season the member last chose for this league, or null for the newest.
+      getSelectedSeason(leagueId),
+    );
     setLeagueName(data.league?.name ?? "");
     setRules(data.rules);
     setIsOwner(!!data.league && data.league.ownerId === data.currentUserId);
+    setIsCurrentSeason(data.isCurrentSeason);
     // Seeds the editor from what was saved, so opening the page never looks like
     // an unsaved change.
     setDraft(data.rules?.content ?? "");
@@ -131,13 +139,17 @@ function RulesPageContent() {
           return;
         }
 
-        const data = await loadRulesPageData(leagueId);
+        const data = await loadRulesPageData(
+          leagueId,
+          getSelectedSeason(leagueId),
+        );
         if (cancelled) {
           return;
         }
         setLeagueName(data.league?.name ?? "");
         setRules(data.rules);
         setIsOwner(!!data.league && data.league.ownerId === data.currentUserId);
+        setIsCurrentSeason(data.isCurrentSeason);
         setDraft(data.rules?.content ?? "");
       } catch (caughtError) {
         if (!cancelled) {
@@ -221,13 +233,14 @@ function RulesPageContent() {
   }
 
   const savedContent = rules?.content ?? "";
-  const hasUnsavedChanges = isOwner && draft !== savedContent;
+  const hasUnsavedChanges =
+    isOwner && isCurrentSeason && draft !== savedContent;
 
   if (isLoading) {
     return (
       <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
         <div className="mx-auto max-w-6xl rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
-          Loading rules...
+          <LoadingGif label="Loading rules" />
         </div>
       </main>
     );
@@ -244,11 +257,26 @@ function RulesPageContent() {
             {leagueName || "League rules"}
           </h1>
           <p className="mt-1 text-sm text-slate-400">
-            {isOwner
-              ? "Set the rules for this season. Members see them as soon as you save."
-              : "The rules the league owner has set for this season."}
+            {!isCurrentSeason
+              ? "The rules as they stood for this season. Only the current season can be edited."
+              : isOwner
+                ? "Set the rules for this season. Members see them as soon as you save."
+                : "The rules the league owner has set for this season."}
           </p>
         </header>
+
+        {!isCurrentSeason && (
+          <div className="rounded-2xl border border-sky-800/60 bg-sky-950/40 px-5 py-4 text-sm text-sky-200">
+            <p className="font-semibold uppercase tracking-[0.15em] text-sky-300">
+              Viewing history
+            </p>
+            <p className="mt-1">
+              This is not the league&apos;s current season, so its rules are
+              read-only. Switch to the current season from the dashboard to edit
+              them.
+            </p>
+          </div>
+        )}
 
         {error && (
           <div className="rounded-xl border border-red-800 bg-red-950/60 px-4 py-3 text-sm text-red-200">
@@ -256,7 +284,7 @@ function RulesPageContent() {
           </div>
         )}
 
-        {isOwner && (
+        {isOwner && isCurrentSeason && (
           <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-lg shadow-slate-950/30">
             <h2 className="text-lg font-semibold text-white">Edit rules</h2>
             <p className="mt-1 text-sm text-slate-400">

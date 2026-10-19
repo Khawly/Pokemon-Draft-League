@@ -9,7 +9,7 @@
  * by RLS), plus the salary derivation the UI shows per team.
  */
 import { supabase } from "@/lib/supabase/client";
-import { loadSeason } from "@/lib/supabase/seasons";
+import { isCurrentSeason, loadSeason } from "@/lib/supabase/seasons";
 import {
   getPokemonDetailsBySlug,
   getPokemonEntryBySlug,
@@ -124,6 +124,11 @@ export type TeamPageGoods = {
     owner_id: string;
   };
   season: TeamSeason | null;
+  /**
+   * Whether this is the league's newest season. Past seasons are read-only, so the page
+   * uses this to hide roster drops and match deletions.
+   */
+  isCurrentSeason: boolean;
   settings: TeamSettings | null;
   teams: TeamInfo[];
   /** Rosters keyed by team id, sorted by draft_position within teams. */
@@ -215,6 +220,7 @@ export async function loadTeamPageData(
       owner_id: league.owner_id,
     },
     season,
+    isCurrentSeason: true,
     settings: null,
     teams: [],
     rostersByTeam: new Map<string, TeamRosterPokemon[]>(),
@@ -229,6 +235,8 @@ export async function loadTeamPageData(
   if (!season) {
     return base;
   }
+
+  const viewingCurrentSeason = await isCurrentSeason(leagueId, season.id);
 
   const [settingsResult, teamResult, memberResult] = await Promise.all([
     supabase
@@ -464,6 +472,7 @@ winner_name: row.winner?.owner?.display_name ?? row.winner?.team_name ?? null,
 
   return {
     ...base,
+    isCurrentSeason: viewingCurrentSeason,
     settings,
     teams,
     rostersByTeam: rosterByTeam,

@@ -42,6 +42,7 @@ import {
   type TeamPageGoods,
   type TeamRosterPokemon,
 } from "@/lib/supabase/teams";
+import { LoadingGif } from "@/components/loading-gif";
 
 /** LocalStorage key used by the top nav to persist the selected league. */
 const SELECTED_LEAGUE_STORAGE_KEY = "pokemon-draft-league:selected-league";
@@ -113,7 +114,7 @@ export default function TeamsPage() {
       fallback={
         <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
           <div className="mx-auto max-w-5xl rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
-            Loading teams...
+            <LoadingGif label="Loading teams" />
           </div>
         </main>
       }
@@ -1027,6 +1028,7 @@ function TeamsPageContent({
 
   const canDrop = Boolean(
     goods &&
+      goods.isCurrentSeason &&
       goods.season?.status === "draft_complete" &&
       goods.myTeamId &&
       selectedTeamId === goods.myTeamId,
@@ -1094,7 +1096,7 @@ function TeamsPageContent({
     return (
       <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
         <div className="mx-auto max-w-5xl rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
-          Loading teams...
+          <LoadingGif label="Loading teams" />
         </div>
       </main>
     );
@@ -1287,6 +1289,19 @@ function TeamsPageContent({
           )}
         </header>
 
+        {!goods.isCurrentSeason && (
+          <div className="rounded-2xl border border-sky-800/60 bg-sky-950/40 px-5 py-4 text-sm text-sky-200">
+            <p className="font-semibold uppercase tracking-[0.15em] text-sky-300">
+              Viewing history
+            </p>
+            <p className="mt-1">
+              This is not the league&apos;s current season, so its rosters are
+              read-only. Switch to the current season from the dashboard to make
+              changes.
+            </p>
+          </div>
+        )}
+
         {isBusy && (
           <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 text-sm text-slate-400">
             Updating roster...
@@ -1344,7 +1359,7 @@ function TeamsPageContent({
             <MatchHistory
               teamName={selectedTeamHeading}
               matches={selectedMatches}
-              isStaff={goods.isStaff}
+              isStaff={goods.isStaff && goods.isCurrentSeason}
               onDelete={handleDeleteMatch}
             />
           </>

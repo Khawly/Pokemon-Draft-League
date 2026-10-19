@@ -60,6 +60,7 @@ function makeGoods({
       status: "draft_complete",
       name: null,
     },
+    isCurrentSeason: true,
     settings: {
       enable_pokemon_costs: enableCosts,
       total_token_salary: budget,

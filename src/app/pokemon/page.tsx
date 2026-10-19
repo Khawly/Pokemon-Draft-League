@@ -43,6 +43,7 @@ import {
   type PokemonTeam,
 } from "@/lib/supabase/pokemon";
 import { TYPE_LIST } from "@/lib/typechart";
+import { LoadingGif } from "@/components/loading-gif";
 
 /** LocalStorage key used by the top nav to persist the selected league. */
 const SELECTED_LEAGUE_STORAGE_KEY = "pokemon-draft-league:selected-league";
@@ -81,7 +82,7 @@ export default function PokemonPage() {
       fallback={
         <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
           <div className="mx-auto max-w-5xl rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
-            Loading free agents...
+            <LoadingGif label="Loading free agents" />
           </div>
         </main>
       }
@@ -1110,17 +1111,20 @@ function PokemonPageContent({
 
   const canPickup = Boolean(
     goods &&
+      goods.isCurrentSeason &&
       goods.season?.status === "draft_complete" &&
       goods.myTeam != null,
   );
 
   const pickupHint = !goods
     ? ""
-    : !goods.myTeam
-      ? "You do not own a team in this season, so you cannot pick up free agents."
-      : goods.season?.status !== "draft_complete"
-        ? "Free agent pickups unlock once the draft is complete."
-        : "";
+    : !goods.isCurrentSeason
+      ? "This is a past season, so its rosters are read-only. Switch to the current season from the dashboard to make changes."
+      : !goods.myTeam
+        ? "You do not own a team in this season, so you cannot pick up free agents."
+        : goods.season?.status !== "draft_complete"
+          ? "Free agent pickups unlock once the draft is complete."
+          : "";
 
   function handleSort(column: PokemonSortKey) {
     if (sortKey === column) {
@@ -1197,7 +1201,7 @@ function PokemonPageContent({
     return (
       <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
         <div className="mx-auto max-w-5xl rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
-          Loading free agents...
+          <LoadingGif label="Loading free agents" />
         </div>
       </main>
     );

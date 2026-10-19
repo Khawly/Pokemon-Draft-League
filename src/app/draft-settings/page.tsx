@@ -11,6 +11,7 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import { loadUserTimeZone } from "@/lib/user-timezone";
+import { LoadingGif } from "@/components/loading-gif";
 
 /**
  * Draft settings page that suspends rendering until the client-only
@@ -22,7 +23,7 @@ export default function DraftSettingsPage() {
       fallback={
         <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
           <div className="mx-auto max-w-5xl rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
-            Loading draft settings...
+            <LoadingGif label="Loading draft settings" />
           </div>
         </main>
       }
@@ -270,7 +271,7 @@ function DraftSettingsPageContent() {
     return (
       <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
         <div className="mx-auto max-w-5xl rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
-          Loading draft settings...
+          <LoadingGif label="Loading draft settings" />
         </div>
       </main>
     );

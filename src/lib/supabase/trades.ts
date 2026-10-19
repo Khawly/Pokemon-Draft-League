@@ -15,7 +15,7 @@
  * approval has got without re-deriving it.
  */
 import { supabase } from "@/lib/supabase/client";
-import { loadSeason } from "@/lib/supabase/seasons";
+import { isCurrentSeason, loadSeason } from "@/lib/supabase/seasons";
 import { getPokemonEntryBySlug } from "@/lib/pokeapi";
 
 /**
@@ -166,6 +166,11 @@ export type TradesGoods = {
     owner_id: string;
   };
   season: TradeSeason | null;
+  /**
+   * Whether this is the league's newest season. Past seasons are read-only, so the page
+   * uses this to hide the trade composer and the vote controls.
+   */
+  isCurrentSeason: boolean;
   settings: TradeSettings | null;
   teams: TradeTeam[];
   /** The signed-in user's team in the current season, or null. */
@@ -373,6 +378,7 @@ export async function loadTradesPageData(
       owner_id: league.owner_id,
     },
     season,
+    isCurrentSeason: true,
     settings: null,
     teams: [],
     myTeam: null,
@@ -388,6 +394,8 @@ export async function loadTradesPageData(
   if (!season) {
     return base;
   }
+
+  const viewingCurrentSeason = await isCurrentSeason(leagueId, season.id);
 
   const [settingsResult, teamResult, memberResult] = await Promise.all([
     supabase
@@ -732,6 +740,7 @@ export async function loadTradesPageData(
 
   return {
     ...base,
+    isCurrentSeason: viewingCurrentSeason,
     settings,
     teams,
     myTeam,

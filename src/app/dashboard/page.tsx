@@ -28,6 +28,7 @@ import {
 import { useRealtimeInvalidation } from "@/lib/use-realtime-invalidation";
 import { getSelectedSeason, setSelectedSeason } from "@/lib/season-selection";
 import { markNotificationsRead } from "@/lib/supabase/schedule";
+import { LoadingGif } from "@/components/loading-gif";
 
 /**
  * Streams the dashboard content behind a Suspense loading fallback so the
@@ -39,7 +40,7 @@ export default function DashboardPage() {
       fallback={
         <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
           <div className="mx-auto max-w-5xl rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
-            Loading dashboard...
+            <LoadingGif label="Loading dashboard" />
           </div>
         </main>
       }
@@ -460,7 +461,7 @@ function DashboardPageContent() {
     return (
       <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
         <div className="mx-auto max-w-5xl rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
-          Loading dashboard...
+          <LoadingGif label="Loading dashboard" />
         </div>
       </main>
     );

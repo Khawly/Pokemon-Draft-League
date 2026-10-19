@@ -129,6 +129,7 @@ import {
   type ScheduleRosterSprite,
   type SchedulePageGoods,
 } from "@/lib/supabase/schedule";
+import { LoadingGif } from "@/components/loading-gif";
 
 /** LocalStorage key used by the top nav to persist the selected league. */
 const SELECTED_LEAGUE_STORAGE_KEY = "pokemon-draft-league:selected-league";
@@ -714,7 +715,7 @@ function ProposalHistoryPanel({
     return (
       <SectionCard title="Match proposal history">
         <p className="text-sm text-slate-400">
-          Loading the match proposal log...
+          <LoadingGif label="Loading the match proposal log" />
         </p>
       </SectionCard>
     );
@@ -846,7 +847,7 @@ export default function SchedulePage() {
       fallback={
         <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
           <div className="mx-auto max-w-5xl rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
-            Loading schedule...
+            <LoadingGif label="Loading schedule" />
           </div>
         </main>
       }
@@ -1160,7 +1161,16 @@ function SchedulePageContent({
    * deadline configured, where nothing maintains a week pointer.
    */
   const currentWeek = useMemo(() => {
-    if (weekProgress?.deadline_enabled && weekProgress.current_week > 0) {
+    /*
+     * The deadline pointer belongs to the current season. On a history view it would
+     * report a week from a different season's calendar, so the matches themselves decide
+     * instead -- which is also how a league with no deadlines is handled.
+     */
+    if (
+      goods?.isCurrentSeason &&
+      weekProgress?.deadline_enabled &&
+      weekProgress.current_week > 0
+    ) {
       return weekProgress.current_week;
     }
 
@@ -1182,7 +1192,7 @@ function SchedulePageContent({
       }
     }
     return null;
-  }, [regularMatches, weekProgress]);
+  }, [goods?.isCurrentSeason, regularMatches, weekProgress]);
 
   /*
    * What the header calls the phase the league is in.
@@ -1195,10 +1205,12 @@ function SchedulePageContent({
     () =>
       seasonPhaseLabel({
         currentWeek,
-        regularSeasonCompleted: weekProgress?.regular_season_completed === true,
+        regularSeasonCompleted:
+          goods?.isCurrentSeason === true &&
+          weekProgress?.regular_season_completed === true,
         regularMatches,
       }),
-    [currentWeek, regularMatches, weekProgress],
+    [currentWeek, goods?.isCurrentSeason, regularMatches, weekProgress],
   );
 
   const selectedMatch = useMemo(
@@ -1402,6 +1414,7 @@ function SchedulePageContent({
     () =>
       Boolean(
         goods &&
+        goods.isCurrentSeason &&
         selectedMatch &&
         myMatch &&
         selectedMatch.status !== "completed" &&
@@ -1420,12 +1433,13 @@ function SchedulePageContent({
     () =>
       Boolean(
         goods?.canEditMatchups &&
+        goods?.isCurrentSeason &&
         selectedMatch &&
         selectedMatch.status !== "completed" &&
         selectedMatch.status !== "forfeit" &&
         selectedMatch.status !== "cancelled",
       ),
-    [goods?.canEditMatchups, selectedMatch],
+    [goods?.canEditMatchups, goods?.isCurrentSeason, selectedMatch],
   );
 
   /**
@@ -2507,7 +2521,7 @@ function SchedulePageContent({
     return (
       <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
         <div className="mx-auto max-w-5xl rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
-          Loading schedule...
+          <LoadingGif label="Loading schedule" />
         </div>
       </main>
     );
@@ -2523,7 +2537,14 @@ function SchedulePageContent({
     );
   }
 
-  const tabs = goods.isOwner ? TABS : TABS.filter((tab) => tab !== "Setup");
+  /*
+   * Setup is the owner's switchboard, and a past season has nothing to set up: its
+   * schedule is already whatever it was. Hiding it rather than disabling it keeps a
+   * history view from looking like a live one.
+   */
+  const tabs = goods.isOwner
+    ? TABS.filter((tab) => goods.isCurrentSeason || tab !== "Setup")
+    : TABS.filter((tab) => tab !== "Setup");
   const generateDisabled =
     isBusy || !Number.isInteger(form.weeks) || form.weeks < 1;
 
@@ -2582,12 +2603,31 @@ function SchedulePageContent({
         </header>
 
         {/*
+         * A history view says so, in the place the member will look first. Without this,
+         * a past season's page looks exactly like the live one until an action turns out
+         * to be missing -- which reads as a bug rather than as a rule.
+         */}
+        {!goods.isCurrentSeason && (
+          <div className="rounded-2xl border border-sky-800/60 bg-sky-950/40 px-5 py-4 text-sm text-sky-200">
+            <p className="font-semibold uppercase tracking-[0.15em] text-sky-300">
+              Viewing history
+            </p>
+            <p className="mt-1">
+              This is not the league&apos;s current season, so it is read-only.
+              Results, standings and history are shown as they finished. To
+              schedule or report a match, switch to the current season from the
+              dashboard.
+            </p>
+          </div>
+        )}
+
+        {/*
          * The weekly deadline is a league-wide commitment, so it is announced in
          * its own banner rather than as another line of grey subtext in the
          * header: a member who has not proposed a time yet needs to know how
          * long they have left to agree on one.
          */}
-        {hasDeadline && (
+        {goods.isCurrentSeason && hasDeadline && (
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-500/40 bg-amber-500/10 px-5 py-4">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-300">
@@ -2605,7 +2645,7 @@ function SchedulePageContent({
           </div>
         )}
 
-        {!hasDeadline && (
+        {goods.isCurrentSeason && !hasDeadline && (
           <div className="rounded-2xl border border-slate-800 bg-slate-900/60 px-5 py-3 text-sm text-slate-400">
             {weekProgress?.deadline_enabled
               ? "Weekly deadlines are enabled for this league, but no first deadline date has been set yet."
@@ -2624,7 +2664,7 @@ function SchedulePageContent({
           </div>
         )}
 
-        {activeTab === "Setup" && goods.isOwner && (
+        {activeTab === "Setup" && goods.isOwner && goods.isCurrentSeason && (
           <SectionCard
             title="Schedule setup"
             action={
@@ -3113,6 +3153,7 @@ function SchedulePageContent({
                   )}
 
                   {goods.canEditMatchups &&
+                    goods.isCurrentSeason &&
                     selectedMatch.status === "forfeit" && (
                       <div className="flex flex-wrap justify-center gap-2">
                         <button
@@ -3233,7 +3274,7 @@ function SchedulePageContent({
                         </p>
                         {isLoadingAvailability ? (
                           <p className="mt-2 text-sm text-slate-500">
-                            Loading availability...
+                            <LoadingGif label="Loading availability" />
                           </p>
                         ) : availabilityError ? (
                           <p className="mt-2 text-sm text-slate-500">
@@ -3892,7 +3933,9 @@ function SchedulePageContent({
           <SectionCard
             title="Playoff bracket"
             action={
-              goods.isOwner && goods.season?.status === "draft_complete" ? (
+              goods.isOwner &&
+              goods.isCurrentSeason &&
+              goods.season?.status === "draft_complete" ? (
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
@@ -4032,7 +4075,7 @@ function SchedulePageContent({
                                 Replay
                               </a>
                             )}
-                            {goods.isStaff && (
+                            {goods.isStaff && goods.isCurrentSeason && (
                               <button
                                 type="button"
                                 disabled={isBusy}

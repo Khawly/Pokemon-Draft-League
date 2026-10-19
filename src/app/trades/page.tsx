@@ -71,6 +71,7 @@ import {
   type TradePokemon,
   type TradesGoods,
 } from "@/lib/supabase/trades";
+import { LoadingGif } from "@/components/loading-gif";
 
 /** LocalStorage key used by the top nav to persist the selected league. */
 const SELECTED_LEAGUE_STORAGE_KEY = "pokemon-draft-league:selected-league";
@@ -122,7 +123,7 @@ export default function TradesPage() {
       fallback={
         <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
           <div className="mx-auto max-w-5xl rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
-            Loading trades...
+            <LoadingGif label="Loading trades" />
           </div>
         </main>
       }
@@ -405,6 +406,13 @@ interface TradeCardProps {
   isOwner: boolean;
   /** Runs the named action, which the card gates by role. */
   onAction: (action: TradeAction, trade: Trade) => void;
+  /**
+   * When true, the card shows the trade but offers no controls.
+   *
+   * Set while a past season is on screen: the trade is history there, and an action
+   * would be applied to the current season rather than the one being read.
+   */
+  readOnly?: boolean;
 }
 
 /** The actions a {@link TradeCard} can offer. */
@@ -437,6 +445,7 @@ function TradeCard({
   canVote,
   isOwner,
   onAction,
+  readOnly = false,
 }: TradeCardProps) {
   const labels = tradeSideLabels(trade, goods.currentUserId);
   const readerIsProposer = isProposer(trade, goods.currentUserId);
@@ -672,6 +681,7 @@ function TradeCard({
         answer theirs, so each control appears only where it does something. The
         "Clear" control is the spec's action on a settled or refused card.
       */}
+      {!readOnly && (
       <footer className="mt-5 flex flex-wrap gap-2 border-t border-slate-800 pt-4">
         {readerIsRecipient && trade.status === "awaiting_response" && (
           <>
@@ -763,6 +773,7 @@ function TradeCard({
           </button>
         )}
       </footer>
+      )}
     </article>
   );
 }
@@ -1560,7 +1571,21 @@ function TradesPageContent({
     }
 
     return [
-      { id: "new", label: "New Trade", badge: 0, total: 0, subject: "trade" },
+      /*
+       * A past season has nothing to propose into. Its trades are history, and a new one
+       * would be filed against the current season -- the one the member is not reading.
+       */
+      ...(goods.isCurrentSeason
+        ? [
+            {
+              id: "new" as TradesTab,
+              label: "New Trade",
+              badge: 0,
+              total: 0,
+              subject: "trade",
+            },
+          ]
+        : []),
       {
         id: "mine",
         label: "My Trades",
@@ -1817,7 +1842,7 @@ function TradesPageContent({
     return (
       <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
         <div className="mx-auto max-w-5xl rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
-          Loading trades...
+          <LoadingGif label="Loading trades" />
         </div>
       </main>
     );
@@ -1940,12 +1965,19 @@ function TradesPageContent({
           </div>
         )}
 
-        {tab === "new" && (
+        {tab === "new" && goods.isCurrentSeason && (
           <ProposalBuilder
             goods={goods}
             busy={Boolean(busyTradeId)}
             onSubmit={handlePropose}
           />
+        )}
+
+        {tab === "new" && !goods.isCurrentSeason && (
+          <p className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 text-sm text-slate-400">
+            This is a past season, so its trades are read-only. Switch to the
+            current season from the dashboard to propose a trade.
+          </p>
         )}
 
         {tab === "mine" && (
@@ -1970,6 +2002,7 @@ function TradesPageContent({
                   canVote={canVoteOnTrade(trade, goods.canApprove)}
                   isOwner={goods.userRole === "owner"}
                   onAction={handleAction}
+                  readOnly={!goods.isCurrentSeason}
                 />
               ))
             )}
@@ -1993,6 +2026,7 @@ function TradesPageContent({
                   canVote={canVoteOnTrade(trade, goods.canApprove)}
                   isOwner={goods.userRole === "owner"}
                   onAction={handleAction}
+                  readOnly={!goods.isCurrentSeason}
                 />
               ))
             )}
@@ -2016,6 +2050,7 @@ function TradesPageContent({
                   canVote={false}
                   isOwner={false}
                   onAction={handleAction}
+                  readOnly={!goods.isCurrentSeason}
                 />
               ))
             )}

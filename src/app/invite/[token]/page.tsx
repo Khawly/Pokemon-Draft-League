@@ -15,6 +15,7 @@ import {
   joinLeagueByInvite,
   type LeagueInviteInfo,
 } from "@/lib/supabase/invites";
+import { LoadingGif } from "@/components/loading-gif";
 
 /**
  * Invite landing page that streams the invite content inside a Suspense
@@ -33,7 +34,7 @@ export default function InvitePage({
       fallback={
         <main className="flex min-h-screen items-center justify-center bg-slate-950 px-4 py-10 text-slate-100">
           <div className="rounded-2xl border border-slate-700 bg-slate-900 px-6 py-4 text-sm text-slate-300 shadow-lg shadow-slate-950/40">
-            Loading invite...
+            <LoadingGif label="Loading invite" />
           </div>
         </main>
       }
@@ -151,7 +152,7 @@ function InviteContent({ params }: { params: Promise<{ token: string }> }) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-slate-950 px-4 py-10 text-slate-100">
         <div className="rounded-2xl border border-slate-700 bg-slate-900 px-6 py-4 text-sm text-slate-300 shadow-lg shadow-slate-950/40">
-          Loading invite...
+          <LoadingGif label="Loading invite" />
         </div>
       </main>
     );

@@ -27,6 +27,7 @@ import {
   loadHallOfFame,
   type HallOfFameEntry,
 } from "@/lib/supabase/hall-of-fame";
+import { LoadingGif } from "@/components/loading-gif";
 
 /**
  * Entry point for the Hall of Fame route.
@@ -42,7 +43,7 @@ export default function HallOfFamePage() {
       fallback={
         <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
           <div className="mx-auto max-w-6xl rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
-            Loading the Hall of Fame...
+            <LoadingGif label="Loading the Hall of Fame" />
           </div>
         </main>
       }
@@ -227,7 +228,7 @@ function HallOfFameContent() {
           </p>
         ) : loading ? (
           <p className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 text-sm text-slate-400">
-            Loading the Hall of Fame...
+            <LoadingGif label="Loading the Hall of Fame" />
           </p>
         ) : error ? (
           <p className="rounded-2xl border border-rose-900 bg-rose-950/40 p-6 text-sm text-rose-200">

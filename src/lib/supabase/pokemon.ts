@@ -9,7 +9,7 @@
  * renders.
  */
 import { supabase } from "@/lib/supabase/client";
-import { loadSeason } from "@/lib/supabase/seasons";
+import { isCurrentSeason, loadSeason } from "@/lib/supabase/seasons";
 import {
   getPokemonDetailsBySlug,
   getPokemonEntryBySlug,
@@ -142,6 +142,12 @@ export type PokemonGoods = {
     owner_id: string;
   };
   season: PokemonSeason | null;
+  /**
+   * Whether this is the league's newest season. Past seasons are read-only, so the page
+   * uses this to disable pickups rather than offering an action that would land on the
+   * season the member is not looking at.
+   */
+  isCurrentSeason: boolean;
   settings: PokemonSettings | null;
   /** Free agents: in-pool Pokémon not on any team's roster. */
   pool: PokemonPoolRow[];
@@ -262,6 +268,7 @@ export async function loadPokemonPageData(
       owner_id: league.owner_id,
     },
     season,
+    isCurrentSeason: true,
     settings: null,
     pool: [],
     myTeam: null,
@@ -276,6 +283,8 @@ export async function loadPokemonPageData(
   if (!season) {
     return base;
   }
+
+  const viewingCurrentSeason = await isCurrentSeason(leagueId, season.id);
 
   const [settingsResult, teamResult, memberResult] = await Promise.all([
     supabase
@@ -490,6 +499,7 @@ export async function loadPokemonPageData(
 
   return {
     ...base,
+    isCurrentSeason: viewingCurrentSeason,
     settings,
     pool,
     myTeam: myTeam

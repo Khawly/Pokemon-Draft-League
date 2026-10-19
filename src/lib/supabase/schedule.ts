@@ -10,7 +10,7 @@
  * submitting and (staff-only) editing game results, and forfeiting a match.
  */
 import { supabase } from "@/lib/supabase/client";
-import { loadSeason } from "@/lib/supabase/seasons";
+import { isCurrentSeason, loadSeason } from "@/lib/supabase/seasons";
 import { getPokemonEntryBySlug } from "@/lib/pokeapi";
 
 /**
@@ -777,6 +777,14 @@ export type SchedulePageGoods = {
     owner_id: string;
   };
   season: ScheduleSeason | null;
+  /**
+   * Whether the season on screen is the league's newest.
+   *
+   * Only the newest season is writable, so this is what the page uses to turn a history
+   * view into a read-only one rather than offering actions that would land on a season
+   * the member is not looking at.
+   */
+  isCurrentSeason: boolean;
   settings: ScheduleSettings | null;
   teams: ScheduleTeam[];
   /** Matches for the current season, ordered by week then created time. */
@@ -914,6 +922,7 @@ export async function loadSchedulePageData(
       owner_id: league.owner_id,
     },
     season,
+    isCurrentSeason: true,
     settings: null,
     teams: [],
     matches: [],
@@ -933,6 +942,12 @@ export async function loadSchedulePageData(
   if (!season) {
     return base;
   }
+
+  /*
+   * Whether the page is showing history. A read failure reports the season as current,
+   * which leaves the page usable rather than silently read-only.
+   */
+  const viewingCurrentSeason = await isCurrentSeason(leagueId, season.id);
 
   const [settingsResult, teamResult, memberResult, standingsAndChampion] =
     await Promise.all([
@@ -1103,6 +1118,7 @@ export async function loadSchedulePageData(
 
   return {
     ...base,
+    isCurrentSeason: viewingCurrentSeason,
     settings,
     teams,
     matches,
@@ -1113,7 +1129,7 @@ export async function loadSchedulePageData(
     ownerDisplayName,
     // Loaded with everything else so the playoffs tab can draw the whole bracket on
     // first render, rather than only the rounds that have been generated.
-    playoffTemplate: await loadPlayoffTemplate(leagueId),
+    playoffTemplate: await loadPlayoffTemplate(leagueId, season.id),
     userRole,
     isOwner: userRole === "owner",
     canEditMatchups:
@@ -1328,10 +1344,12 @@ export type SchedulePlayoffTemplate = {
  * a missing playoff feature.
  *
  * @param leagueId - The league whose bracket should be described.
+ * @param seasonId - The season to draw, or null for the league's newest.
  * @returns The template rows, or the reason none could be produced.
  */
 export async function loadPlayoffTemplate(
   leagueId: string,
+  seasonId?: string | null,
 ): Promise<SchedulePlayoffTemplate> {
   /*
    * Both brackets in one call site. The consolation bracket's template is empty when the
@@ -1339,8 +1357,14 @@ export async function loadPlayoffTemplate(
    * sheet draws the two from one list.
    */
   const [playoff, toilet] = await Promise.all([
-    supabase.rpc("playoff_bracket_template", { p_league_id: leagueId }),
-    supabase.rpc("toilet_bracket_template", { p_league_id: leagueId }),
+    supabase.rpc("playoff_bracket_template_for", {
+      p_league_id: leagueId,
+      p_season_id: seasonId ?? null,
+    }),
+    supabase.rpc("toilet_bracket_template_for", {
+      p_league_id: leagueId,
+      p_season_id: seasonId ?? null,
+    }),
   ]);
 
   if (playoff.error) {

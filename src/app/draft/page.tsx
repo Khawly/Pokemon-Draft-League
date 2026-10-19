@@ -64,6 +64,7 @@ import {
   getSpriteUrl,
 } from "@/lib/pokeapi";
 import { useUserTimeZone } from "@/lib/user-timezone";
+import { LoadingGif } from "@/components/loading-gif";
 
 /*
  * Small shared building blocks, mirroring the pool page's sprite/type/tier
@@ -2881,7 +2882,7 @@ function DraftArena({ leagueId }: { leagueId: string }) {
       <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
         <div className="mx-auto max-w-7xl space-y-6">
           <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 text-sm text-slate-400">
-            {error ? error : "Loading draft..."}
+            {error ? error : <LoadingGif label="Loading draft" />}
           </div>
         </div>
       </main>
@@ -3005,7 +3006,7 @@ export default function DraftPage() {
       fallback={
         <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
           <div className="mx-auto max-w-7xl rounded-2xl border border-slate-800 bg-slate-900/80 p-6 text-sm text-slate-400">
-            Loading draft arena...
+            <LoadingGif label="Loading draft arena" />
           </div>
         </main>
       }

@@ -18,6 +18,7 @@ import { useUserTimeZone } from "@/lib/user-timezone";
 import { useConfirm } from "@/components/confirm-dialog";
 import { MemberName } from "@/components/member-name";
 import { MemberAvatar } from "@/components/member-avatar";
+import { LoadingGif } from "@/components/loading-gif";
 
 /** Normalized representation of an active league member for display and mutation. */
 type MemberRow = {
@@ -52,7 +53,7 @@ export default function MembersSettingsPage() {
       fallback={
         <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
           <div className="mx-auto max-w-5xl rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
-            Loading members settings...
+            <LoadingGif label="Loading members settings" />
           </div>
         </main>
       }
@@ -626,7 +627,7 @@ function MembersSettingsPageContent() {
     return (
       <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
         <div className="mx-auto max-w-5xl rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
-          Loading members settings...
+          <LoadingGif label="Loading members settings" />
         </div>
       </main>
     );

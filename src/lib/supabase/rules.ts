@@ -8,7 +8,7 @@
  * change the row and which refuses anyone who is not the league's owner.
  */
 import { supabase } from "@/lib/supabase/client";
-import { loadLatestSeason } from "@/lib/supabase/seasons";
+import { isCurrentSeason, loadSeason } from "@/lib/supabase/seasons";
 
 /** The league's rules for the current season. */
 export type LeagueRules = {
@@ -38,13 +38,19 @@ const RULES_SELECT =
  * two more round trips to answer a question the rules query already sits inside.
  *
  * @param leagueId - The league whose rules to read.
- * @returns A promise resolving to the league, the rules, and the caller's id.
- * @throws If the league or its latest season cannot be resolved.
+ * @param seasonId - The season to read, or null for the league's newest.
+ * @returns A promise resolving to the league, the rules, the caller's id, and whether the
+ * season shown is the one that can still be edited.
+ * @throws If the league or its season cannot be resolved.
  */
-export async function loadRulesPageData(leagueId: string): Promise<{
+export async function loadRulesPageData(
+  leagueId: string,
+  seasonId?: string | null,
+): Promise<{
   league: { id: string; name: string; ownerId: string } | null;
   rules: LeagueRules | null;
   currentUserId: string;
+  isCurrentSeason: boolean;
 }> {
   const {
     data: { user },
@@ -66,9 +72,9 @@ export async function loadRulesPageData(leagueId: string): Promise<{
     owner_id: string;
   } | null) ?? null;
 
-  const { data: seasonRow, error: seasonError } = await loadLatestSeason<{
+  const { data: seasonRow, error: seasonError } = await loadSeason<{
     id: string;
-  }>(leagueId, "id");
+  }>(leagueId, "id", seasonId);
 
   if (seasonError) {
     throw new Error("This league's season could not be loaded.");
@@ -84,8 +90,15 @@ export async function loadRulesPageData(leagueId: string): Promise<{
       league: leagueSummary,
       rules: null,
       currentUserId: user?.id ?? "",
+      isCurrentSeason: true,
     };
   }
+
+  /*
+   * Only the current season can still be edited: the save RPC always writes to the newest
+   * season, so offering the editor while looking back would overwrite the wrong rules.
+   */
+  const viewingCurrentSeason = await isCurrentSeason(leagueId, season.id);
 
   const { data, error } = await supabase
     .from("rules_documents")
@@ -120,6 +133,7 @@ export async function loadRulesPageData(leagueId: string): Promise<{
         }
       : null,
     currentUserId: user?.id ?? "",
+    isCurrentSeason: viewingCurrentSeason,
   };
 }
 

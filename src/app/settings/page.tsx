@@ -42,6 +42,7 @@ import {
 import { MemberName } from "@/components/member-name";
 import { MemberAvatar } from "@/components/member-avatar";
 import { resolveAvatarInitials } from "@/lib/avatar-initials";
+import { LoadingGif } from "@/components/loading-gif";
 
 /**
  * Picks the zone to show in the settings form for a stored profile value.
@@ -633,7 +634,7 @@ export default function SettingsPage() {
     return (
       <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
         <div className="mx-auto max-w-4xl rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
-          Loading your profile...
+          <LoadingGif label="Loading your profile" />
         </div>
       </main>
     );

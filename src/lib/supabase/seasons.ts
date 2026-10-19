@@ -100,7 +100,17 @@ export async function loadSeason<T>(
   const { data, error } = await run(columns);
 
   if (!error) {
-    return { data: (data as T | null) ?? null, error: null };
+    const row = (data as T | null) ?? null;
+
+    /*
+     * A stored season id that no longer resolves -- the season was deleted, or the member
+     * is reading a choice left over from another league -- falls back to the newest rather
+     * than rendering a page with no season on it. The choice is a convenience, not a claim
+     * that the season still exists.
+     */
+    return row
+      ? { data: row, error: null }
+      : loadLatestSeason<T>(leagueId, columns);
   }
 
   if (!columns.includes("name")) {
@@ -115,7 +125,45 @@ export async function loadSeason<T>(
     return { data: null, error: legacyError };
   }
 
-  return { data: (legacyData as T | null) ?? null, error: null };
+  const legacyRow = (legacyData as T | null) ?? null;
+
+  return legacyRow
+    ? { data: legacyRow, error: null }
+    : loadLatestSeason<T>(leagueId, columns);
+}
+
+/**
+ * Reports whether a season is the league's newest.
+ *
+ * Only the newest season is writable, so the pages use this to present an older one as
+ * read-only. Comparing against the newest row rather than trusting the caller means a
+ * stale season id cannot make an old season look live.
+ *
+ * A read failure reports true. Failing open is deliberate: the database still scopes every
+ * write to the newest season, so the worst case is an action that succeeds where it should
+ * have -- and that is far better than a transient error locking a live season.
+ *
+ * @param leagueId - League the season belongs to.
+ * @param seasonId - The season being shown.
+ * @returns Whether that season is the newest for the league.
+ */
+export async function isCurrentSeason(
+  leagueId: string,
+  seasonId: string,
+): Promise<boolean> {
+  const { data, error } = await supabase
+    .from("seasons")
+    .select("id")
+    .eq("league_id", leagueId)
+    .order("season_number", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error || !data) {
+    return true;
+  }
+
+  return (data as { id: string }).id === seasonId;
 }
 
 /**

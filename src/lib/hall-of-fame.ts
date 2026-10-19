@@ -18,6 +18,8 @@ export const BADGES_PER_REGION = 8;
 type Region = {
   /** Region name, as it is shown beside the badge. */
   region: string;
+  /** File-name stem for this region's badge images, e.g. `kanto`. */
+  slug: string;
   /** Badge names in order, or an empty list when the region has no established ones. */
   names: string[];
 };
@@ -25,6 +27,7 @@ type Region = {
 const REGIONS: Region[] = [
   {
     region: "Kanto",
+    slug: "kanto",
     names: [
       "Boulder",
       "Cascade",
@@ -38,6 +41,7 @@ const REGIONS: Region[] = [
   },
   {
     region: "Johto",
+    slug: "johto",
     names: [
       "Zephyr",
       "Hive",
@@ -51,6 +55,7 @@ const REGIONS: Region[] = [
   },
   {
     region: "Hoenn",
+    slug: "hoenn",
     names: [
       "Stone",
       "Knuckle",
@@ -64,6 +69,7 @@ const REGIONS: Region[] = [
   },
   {
     region: "Sinnoh",
+    slug: "sinnoh",
     names: [
       "Coal",
       "Forest",
@@ -77,6 +83,7 @@ const REGIONS: Region[] = [
   },
   {
     region: "Unova",
+    slug: "unova",
     names: [
       "Trio",
       "Basic",
@@ -90,6 +97,7 @@ const REGIONS: Region[] = [
   },
   {
     region: "Kalos",
+    slug: "kalos",
     names: [
       "Bug",
       "Cliff",
@@ -104,9 +112,9 @@ const REGIONS: Region[] = [
   // Alola awards island trials rather than gym badges, and Paldea's badges have no
   // established names. Both are listed so the sequence keeps moving through the regions,
   // and both fall back to a numbered label.
-  { region: "Alola", names: [] },
-  { region: "Galar", names: [] },
-  { region: "Paldea", names: [] },
+  { region: "Alola", slug: "alola", names: [] },
+  { region: "Galar", slug: "galar", names: [] },
+  { region: "Paldea", slug: "paldea", names: [] },
 ];
 
 /** The badge one season's champion is awarded. */
@@ -121,6 +129,11 @@ export type SeasonBadge = {
   name: string;
   /** The full label, e.g. "Boulder Badge". */
   label: string;
+  /**
+   * The badge's image under `public/badges`, or null for a region past the ones with
+   * artwork.
+   */
+  sprite: string | null;
 };
 
 /**
@@ -153,6 +166,9 @@ export function badgeForSeason(seasonNumber: number): SeasonBadge {
     region,
     number,
     name,
-    label: name.endsWith("Badge") ? name : `${name} Badge`,
+    // A region with no established name is already labelled "Badge 3", so appending the
+    // word again would read "Badge 3 Badge".
+    label: name.startsWith("Badge ") ? name : `${name} Badge`,
+    sprite: known ? `/badges/${known.slug}-${number}.png` : null,
   };
 }

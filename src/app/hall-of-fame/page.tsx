@@ -17,12 +17,12 @@ import { useSearchParams } from "next/navigation";
 import { GymBadge } from "@/components/gym-badge";
 import { MemberAvatar } from "@/components/member-avatar";
 import { MemberName } from "@/components/member-name";
+import { PokeballSprite } from "@/components/pokeball-sprite";
 import { badgeForSeason } from "@/lib/hall-of-fame";
 import {
   getSelectedLeague,
   SELECTED_LEAGUE_CHANGED_EVENT,
 } from "@/lib/league-selection";
-import { getSpriteUrl } from "@/lib/pokeapi";
 import {
   loadHallOfFame,
   type HallOfFameEntry,
@@ -60,73 +60,66 @@ export default function HallOfFamePage() {
  */
 function ChampionCard({ entry }: { entry: HallOfFameEntry }) {
   const badge = badgeForSeason(entry.season);
+
+  /*
+   * The member's name and the team's name are usually the same string, so the card showed
+   * it twice. The displayed name is whatever the profile has, falling back to the team; the
+   * team line is gone because it repeated the line above it.
+   */
   const displayName = entry.displayName?.trim() || entry.teamName;
 
   return (
-    <article className="rounded-2xl border border-slate-800 bg-slate-900/80 p-5 shadow-lg shadow-slate-950/30">
-      <div className="flex items-start gap-5">
+    <article className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-lg shadow-slate-950/30">
+      <div className="flex flex-wrap items-center gap-6">
         <GymBadge
           region={badge.region}
           number={badge.number}
           label={badge.label}
+          sprite={badge.sprite}
+          size={72}
         />
 
-        <div className="min-w-0 flex-1">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-            {entry.seasonName?.trim() || `Season ${entry.season}`}
-          </p>
-
-          <div className="mt-2 flex items-center gap-3">
-            <MemberAvatar
+        <div className="flex min-w-[16rem] items-center gap-4">
+          <MemberAvatar
+            name={displayName}
+            color={entry.nameColor}
+            avatarUrl={entry.avatarUrl}
+            initials={entry.avatarInitials}
+            size={64}
+          />
+          <div className="min-w-0">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+              {entry.seasonName?.trim() || `Season ${entry.season}`}
+            </p>
+            <MemberName
               name={displayName}
               color={entry.nameColor}
-              avatarUrl={entry.avatarUrl}
-              initials={entry.avatarInitials}
-              size={48}
+              userId={entry.ownerUserId}
+              className="mt-1 block truncate text-xl font-bold text-white"
             />
-            <div className="min-w-0">
-              <MemberName
-                name={displayName}
-                color={entry.nameColor}
-                userId={entry.ownerUserId}
-                className="block truncate text-lg font-bold text-white"
-              />
-              <p className="truncate text-xs text-slate-500">
-                {entry.teamName}
-              </p>
-            </div>
           </div>
         </div>
-      </div>
 
-      <div className="mt-4 border-t border-slate-800 pt-3">
-        {entry.pokemon.length === 0 ? (
-          <p className="text-xs text-slate-500">
-            No roster was recorded for this season.
-          </p>
-        ) : (
-          <ul className="flex flex-wrap gap-1.5">
-            {entry.pokemon.map((pokemon) => (
-              <li key={pokemon.id}>
-                <span
-                  title={pokemon.name}
-                  className="flex items-center gap-1 rounded-lg border border-slate-800 bg-slate-950/60 px-1.5 py-1"
-                >
-                  {/* Sprites are local files; a plain img is right here. */}
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={getSpriteUrl(pokemon.spriteId)}
-                    alt={pokemon.name}
-                    width={40}
-                    height={40}
-                    loading="lazy"
-                    className="h-10 w-10 [image-rendering:pixelated]"
+        <div className="min-w-0 flex-1 basis-[24rem]">
+          {entry.pokemon.length === 0 ? (
+            <p className="text-sm text-slate-500">
+              No roster was recorded for this season.
+            </p>
+          ) : (
+            <ul className="flex flex-wrap items-center gap-3">
+              {entry.pokemon.map((pokemon) => (
+                <li key={pokemon.id}>
+                  {/* Three times the roster strip's sprite size. */}
+                  <PokeballSprite
+                    spriteId={pokemon.spriteId}
+                    name={pokemon.name}
+                    size={120}
                   />
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       </div>
     </article>
   );
@@ -242,7 +235,7 @@ function HallOfFameContent() {
             final is settled.
           </p>
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="flex flex-col gap-4">
             {entries.map((entry) => (
               <ChampionCard key={entry.season} entry={entry} />
             ))}

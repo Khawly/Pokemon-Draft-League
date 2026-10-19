@@ -219,6 +219,73 @@ export type StandingsRow = {
 };
 
 /**
+ * A signature of everything about a match that feeds the standings table.
+ *
+ * The standings are derived from settled matches and from the per-game results behind
+ * their KO differential, so a change to any of those makes the table stale and a change to
+ * anything else does not. Naming that set here keeps the comparison below honest: adding a
+ * field to what the table reads without adding it here would silently leave the table
+ * behind.
+ */
+function standingsSignature(match: ScheduleMatch): string {
+  const results = match.results
+    .map(
+      (result) =>
+        `${result.id}:${result.winner_team_id}:${result.pokemon_left_alive ?? ""}`,
+    )
+    .join(",");
+
+  return `${match.status}:${match.winner_team_id ?? ""}:${results}`;
+}
+
+/**
+ * Whether a change to the season's matches could have moved the standings or the champion.
+ *
+ * Used to decide how much a realtime update has to re-read. A scheduling change, a
+ * proposal, or a note being added all leave the table exactly as it was, and those are the
+ * common case; a result landing is what moves it. Re-reading two more endpoints for every
+ * one of them is most of what made a realtime update cost a dozen requests.
+ *
+ * Compares the whole set rather than only the matches present in both, so a game being
+ * created or removed counts as a move: a bracket round appearing changes what the champion
+ * function would answer.
+ *
+ * @param before - The matches the page was showing.
+ * @param after - The matches just read.
+ * @returns True when the standings and champion are worth re-reading.
+ */
+export function movesStandings(
+  before: ScheduleMatch[],
+  after: ScheduleMatch[],
+): boolean {
+  if (before.length !== after.length) {
+    return true;
+  }
+
+  const previous = new Map(
+    before.map((match) => [match.id, standingsSignature(match)]),
+  );
+
+  for (const match of after) {
+    const signature = previous.get(match.id);
+
+    // A match that was not there before.
+    if (signature === undefined) {
+      return true;
+    }
+
+    if (signature !== standingsSignature(match)) {
+      return true;
+    }
+
+    previous.delete(match.id);
+  }
+
+  // Anything left over was in the old set and is not in the new one.
+  return previous.size > 0;
+}
+
+/**
  * Marks the member's own notifications as read.
  *
  * Used by the dashboard to clear the Schedule nav badge: opening the schedule is
@@ -470,6 +537,206 @@ export async function loadProposalHistory(
 const MATCHES_WITH_PARTICIPANTS_SELECT =
   "id, week_number, is_playoff, playoff_round_no, bracket_phase, bracket_slot, scheduled_at, status, winner_team_id, notes, created_at, player_1_team_id, player_2_team_id, player_1: player_1_team_id (team_name, owner_user_id, owner: owner_user_id (display_name, avatar_url, name_color, avatar_initials)), player_2: player_2_team_id (team_name, owner_user_id, owner: owner_user_id (display_name, avatar_url, name_color, avatar_initials)), forfeited_by: forfeited_by_user_id (display_name, name_color)";
 
+/**
+ * The same match read, with each match's results and pending proposal embedded.
+ *
+ * Resolving the relationships in one request rather than three is what makes the cheap
+ * refresh affordable. Reading the two child tables separately needs the match ids first,
+ * so it is a sequential round trip each, and those three requests were the bulk of what a
+ * realtime update cost when the page reloaded its whole payload.
+ *
+ * The proposal embed is filtered to pending at the query, so the payload carries the one
+ * row a card can act on rather than every reschedule attempt ever made against the match.
+ * PostgREST applies `proposals.status` to the embed rather than to the parent, so matches
+ * with no pending offer still come back, with an empty array.
+ */
+const MATCHES_WITH_LIVE_SELECT = `${MATCHES_WITH_PARTICIPANTS_SELECT}, results:match_results (id, winner_team_id, replay_url, game_number, pokemon_left_alive, submitted_at, reporter: reporter_user_id (display_name, name_color)), proposals:match_scheduling_proposals (id, proposed_by, proposed_at, notes, status, created_at, responded_at)`;
+
+/** A played game of a match, as it arrives embedded in a match read. */
+type EmbeddedResult = Omit<
+  ScheduleMatchResult,
+  "match_id" | "reporter_name" | "reporter_name_color"
+> & {
+  reporter?: {
+    display_name?: string | null;
+    name_color?: string | null;
+  } | null;
+};
+
+/** A scheduling proposal, as it arrives embedded in a match read. */
+type EmbeddedProposal = Omit<ScheduleProposal, "match_id">;
+
+/** The live part of the schedule page: what a match changing can move. */
+export type ScheduleLiveData = {
+  matches: ScheduleMatch[];
+  standings: StandingsRow[];
+  championTeamId: string | null;
+};
+
+/** Narrows a raw standings RPC row to the shape the page renders. */
+function toStandingsRows(data: unknown): StandingsRow[] {
+  return ((data ?? []) as StandingsRow[]).map((row) => ({
+    team_id: row.team_id,
+    team_name: row.team_name,
+    wins: Number(row.wins),
+    losses: Number(row.losses),
+    ko_diff: Number(row.ko_diff),
+  }));
+}
+
+/**
+ * Loads every match in the season with its results and pending proposal attached.
+ *
+ * @param leagueId - League whose matches to read.
+ * @param seasonId - Season to read them for.
+ * @param ownerDisplayName - The league owner's name, used to attribute a forfeit filed
+ *   before attribution was recorded. Passed in rather than read again, because it is the
+ *   owner's profile and does not change while the page is open.
+ * @returns The season's matches, ordered by week then creation.
+ * @throws If the read fails.
+ */
+export async function loadScheduleMatches(
+  leagueId: string,
+  seasonId: string,
+  ownerDisplayName: string | null,
+): Promise<ScheduleMatch[]> {
+  const { data: matchRows, error: matchError } = await supabase
+    .from("matches")
+    .select(MATCHES_WITH_LIVE_SELECT)
+    .eq("league_id", leagueId)
+    .eq("season_id", seasonId)
+    // Narrows the embedded proposals, not the matches: see MATCHES_WITH_LIVE_SELECT.
+    .eq("proposals.status", "pending")
+    .order("week_number", { ascending: true })
+    .order("created_at", { ascending: true });
+
+  if (matchError) {
+    throw new Error("Matches could not be loaded.");
+  }
+
+  return ((matchRows ?? []) as unknown as ScheduleMatchRow[]).map(
+    (row): ScheduleMatch => {
+      /*
+       * Results arrive embedded and unordered. Sorted by game number so a card lists
+       * game 1 before game 2 without the renderer having to know to do it, which is what
+       * the separate read happened to produce by insertion order.
+       */
+      const results = (row.results ?? [])
+        .map(
+          (result): ScheduleMatchResult => ({
+            id: result.id,
+            winner_team_id: result.winner_team_id,
+            replay_url: result.replay_url,
+            game_number: result.game_number,
+            pokemon_left_alive: result.pokemon_left_alive,
+            submitted_at: result.submitted_at,
+            reporter_name: result.reporter?.display_name ?? null,
+            reporter_name_color: result.reporter?.name_color ?? null,
+          }),
+        )
+        .sort((a, b) => a.game_number - b.game_number);
+
+      // Only the pending offer changes what the card has to say; the rest of the log is
+      // the owner-only history panel's business.
+      const pending =
+        (row.proposals ?? []).find(
+          (proposal) => proposal.status === "pending",
+        ) ?? null;
+
+      return {
+        id: row.id,
+        week_number: row.week_number,
+        is_playoff: row.is_playoff,
+        playoff_round_no: row.playoff_round_no ?? null,
+        bracket_phase: row.bracket_phase,
+        bracket_slot: row.bracket_slot,
+        scheduled_at: row.scheduled_at,
+        created_at: row.created_at,
+        status: row.status,
+        winner_team_id: row.winner_team_id,
+        notes: row.notes,
+        player_1_team_id: row.player_1_team_id,
+        player_2_team_id: row.player_2_team_id,
+        /*
+         * The owner's live display name, not the team's name. `teams.team_name` is a
+         * snapshot copied out of `profiles.display_name` when the draft started and is not
+         * editable anywhere, so labelling a player with it left every matchup showing the
+         * name the member had before they changed it, next to their up-to-date avatar. The
+         * team name is kept as the fallback for a profile with no display name set.
+         */
+        player_1_name:
+          row.player_1?.owner?.display_name ?? row.player_1?.team_name ?? "Team 1",
+        player_2_name:
+          row.player_2?.owner?.display_name ??
+          row.player_2?.team_name ??
+          // A one-sided playoff game is a bye: the opponent dropped out by double
+          // forfeit, so there is no team here to name.
+          (row.player_2_team_id ? "Team 2" : "Bye"),
+        player_1_name_color: row.player_1?.owner?.name_color ?? null,
+        player_2_name_color: row.player_2?.owner?.name_color ?? null,
+        player_1_avatar_url: row.player_1?.owner?.avatar_url ?? null,
+        player_2_avatar_url: row.player_2?.owner?.avatar_url ?? null,
+        player_1_avatar_initials: row.player_1?.owner?.avatar_initials ?? null,
+        player_2_avatar_initials: row.player_2?.owner?.avatar_initials ?? null,
+        player_1_user_id: row.player_1?.owner_user_id ?? "",
+        player_2_user_id: row.player_2?.owner_user_id ?? "",
+        results,
+        // A forfeit with no recorded filer is attributed to the league owner.
+        forfeited_by_name: row.forfeited_by?.display_name ?? ownerDisplayName,
+        // Only the recorded filer's colour is carried; the owner fallback above names the
+        // owner without knowing whose colour that would be.
+        forfeited_by_name_color: row.forfeited_by?.name_color ?? null,
+        pending_proposal: pending
+          ? {
+              id: pending.id,
+              proposed_by: pending.proposed_by,
+              proposed_at: pending.proposed_at,
+              notes: pending.notes,
+              status: pending.status,
+              created_at: pending.created_at,
+              responded_at: pending.responded_at,
+            }
+          : null,
+      };
+    },
+  );
+}
+
+/**
+ * Loads the standings table and the champion.
+ *
+ * The two are read together because they move together: both are derived from settled
+ * playoff and regular matches, so a caller that needs one after a result almost always
+ * needs the other.
+ *
+ * @param leagueId - League whose standings to read.
+ * @param seasonId - Season that owns the champion.
+ * @returns The ranked rows and the champion team id, or null while the bracket runs.
+ * @throws If the standings read fails.
+ */
+export async function loadScheduleStandings(
+  leagueId: string,
+  seasonId: string,
+): Promise<{ standings: StandingsRow[]; championTeamId: string | null }> {
+  const [standingsResult, championResult] = await Promise.all([
+    supabase.rpc("season_standings", { p_league_id: leagueId }),
+    // Not fatal on its own: a champion banner is one line on the page.
+    supabase.rpc("playoff_champion", {
+      p_league_id: leagueId,
+      p_season_id: seasonId,
+    }),
+  ]);
+
+  if (standingsResult.error) {
+    throw new Error("Standings could not be loaded.");
+  }
+
+  return {
+    standings: toStandingsRows(standingsResult.data),
+    championTeamId: (championResult.data as string | null) ?? null,
+  };
+}
+
 /** Complete schedule page payload for a league. */
 export type SchedulePageGoods = {
   /**
@@ -507,6 +774,14 @@ export type SchedulePageGoods = {
   myTeamId: string | null;
   /** Team id of the champion, or null while the tournament runs or nobody won it. */
   championTeamId: string | null;
+  /**
+   * The league owner's display name.
+   *
+   * Carried so a cheap match refresh can attribute a forfeit filed before attribution was
+   * recorded without re-reading the owner's profile, which does not change while the page
+   * is open.
+   */
+  ownerDisplayName: string | null;
 };
 
 type ScheduleMatchRow = {
@@ -531,6 +806,10 @@ type ScheduleMatchRow = {
   notes: string | null;
   player_1_team_id: string;
   player_2_team_id: string | null;
+  /** Played games, embedded by {@link MATCHES_WITH_LIVE_SELECT}. */
+  results?: EmbeddedResult[] | null;
+  /** Every proposal for the match; only the pending one is kept. */
+  proposals?: EmbeddedProposal[] | null;
   player_1?: {
     team_name?: string;
     owner_user_id?: string;
@@ -617,19 +896,15 @@ export async function loadSchedulePageData(
     isStaff: false,
     myTeamId: null,
     championTeamId: null,
+    ownerDisplayName: null,
   };
 
   if (!season) {
     return base;
   }
 
-  const [
-    settingsResult,
-    teamResult,
-    memberResult,
-    standingsResult,
-    championResult,
-  ] = await Promise.all([
+  const [settingsResult, teamResult, memberResult, standingsAndChampion] =
+    await Promise.all([
       supabase
         .from("league_settings")
         .select(
@@ -650,34 +925,26 @@ export async function loadSchedulePageData(
         .select("user_id, role")
         .eq("league_id", leagueId)
         .eq("is_active", true),
-      supabase.rpc("season_standings", { p_league_id: leagueId }),
       /*
-       * The champion, from the function that decides it.
+       * The standings and the champion, from the functions that decide them.
        *
-       * This used to be worked out on the page by picking a finished final, and falling
-       * back to "the last completed winners game" for a league with no finals. That
-       * fallback is a single elimination rule, and in a double elimination bracket it
+       * The champion used to be worked out on the page by picking a finished final, and
+       * falling back to "the last completed winners game" for a league with no finals.
+       * That fallback is a single elimination rule, and in a double elimination bracket it
        * matches the first completed game of the first round, so the banner named a
        * champion one round into the tournament. A settled bye is indistinguishable from a
        * completed game that way, which is how it surfaced as soon as a bye appeared.
        */
-      supabase.rpc("playoff_champion", {
-        p_league_id: leagueId,
-        p_season_id: season.id,
-      }),
+      loadScheduleStandings(leagueId, season.id),
     ]);
 
   /*
-   * The champion read is deliberately not fatal. A champion banner is one line on the
-   * page, and refusing to load the whole schedule because the function that names the
-   * champion failed would be a poor trade; the banner simply does not appear.
+   * The champion read is deliberately not fatal inside loadScheduleStandings, but a
+   * standings failure is. A champion banner is one line on the page, and refusing to load
+   * the whole schedule because the function that names the champion failed would be a poor
+   * trade; the standings table is the page.
    */
-  if (
-    settingsResult.error ||
-    teamResult.error ||
-    memberResult.error ||
-    standingsResult.error
-  ) {
+  if (settingsResult.error || teamResult.error || memberResult.error) {
     throw new Error("Schedule data could not be loaded.");
   }
 
@@ -740,38 +1007,12 @@ export async function loadSchedulePageData(
   const userRole = myMembership?.role ?? null;
   const myTeam = teams.find((team) => team.owner_user_id === user.id);
 
-  const standings = ((standingsResult.data ?? []) as {
-    team_id: string;
-    team_name: string;
-    wins: number;
-    losses: number;
-    ko_diff: number;
-  }[]).map((row) => ({
-    team_id: row.team_id,
-    team_name: row.team_name,
-    wins: Number(row.wins),
-    losses: Number(row.losses),
-    ko_diff: Number(row.ko_diff),
-  }));
-
-  const { data: matchRows, error: matchError } = await supabase
-    .from("matches")
-    .select(MATCHES_WITH_PARTICIPANTS_SELECT)
-    .eq("league_id", leagueId)
-    .eq("season_id", season.id)
-    .order("week_number", { ascending: true })
-    .order("created_at", { ascending: true });
-
-  if (matchError) {
-    throw new Error("Matches could not be loaded.");
-  }
-
-  const matchIds = (matchRows ?? []).map((row) => row.id);
+  const standings = standingsAndChampion.standings;
 
   /*
-   * The league owner's display name, used to attribute a forfeit whose filer was
-   * not recorded (forfeits filed before attribution existed). A missing profile
-   * or a failed read just leaves the name unset rather than failing the page.
+   * The league owner's display name, used to attribute a forfeit whose filer was not
+   * recorded (forfeits filed before attribution existed). A missing profile or a failed
+   * read just leaves the name unset rather than failing the page.
    */
   const { data: ownerProfile } = await supabase
     .from("profiles")
@@ -780,6 +1021,12 @@ export async function loadSchedulePageData(
     .maybeSingle();
   const ownerDisplayName =
     (ownerProfile as { display_name?: string | null } | null)?.display_name ?? null;
+
+  const matches = await loadScheduleMatches(
+    leagueId,
+    season.id,
+    ownerDisplayName,
+  );
 
   /*
    * Rosters for every team in the season, so each matchup card can show both
@@ -821,126 +1068,6 @@ export async function loadSchedulePageData(
     }
   }
 
-  const resultsByMatch = new Map<string, ScheduleMatchResult[]>();
-  if (matchIds.length > 0) {
-    const { data: resultRows, error: resultsError } = await supabase
-      .from("match_results")
-      .select(
-        "id, match_id, winner_team_id, replay_url, game_number, pokemon_left_alive, submitted_at, reporter: reporter_user_id (display_name, name_color)",
-      )
-      .in("match_id", matchIds);
-
-    if (resultsError) {
-      throw new Error("Match results could not be loaded.");
-    }
-
-    for (const row of (resultRows ?? []) as unknown as (Omit<
-      ScheduleMatchResult,
-      "match_id" | "reporter_name" | "reporter_name_color"
-    > & {
-      match_id: string;
-      reporter?: {
-        display_name?: string | null;
-        name_color?: string | null;
-      } | null;
-    })[]) {
-      const current = resultsByMatch.get(row.match_id) ?? [];
-      current.push({
-        id: row.id,
-        winner_team_id: row.winner_team_id,
-        replay_url: row.replay_url,
-        game_number: row.game_number,
-        pokemon_left_alive: row.pokemon_left_alive,
-        submitted_at: row.submitted_at,
-        reporter_name: row.reporter?.display_name ?? null,
-        reporter_name_color: row.reporter?.name_color ?? null,
-      });
-      resultsByMatch.set(row.match_id, current);
-    }
-  }
-
-  /*
-   * Only the still-pending proposal changes what the card has to say, so just that
-   * one is read. Asking for every historical row would grow with every reschedule
-   * attempt while telling the user nothing extra.
-   */
-  const pendingProposals = new Map<string, ScheduleProposal>();
-  if (matchIds.length > 0) {
-    const { data: proposalRows, error: proposalError } = await supabase
-      .from("match_scheduling_proposals")
-      .select("id, match_id, proposed_by, proposed_at, notes, status, created_at, responded_at")
-      .in("match_id", matchIds)
-      .eq("status", "pending");
-
-    if (proposalError) {
-      throw new Error("Match time proposals could not be loaded.");
-    }
-
-    for (const row of (proposalRows ?? []) as (Omit<ScheduleProposal, "match_id"> & {
-      match_id: string;
-    })[]) {
-      pendingProposals.set(row.match_id, {
-        id: row.id,
-        proposed_by: row.proposed_by,
-        proposed_at: row.proposed_at,
-        notes: row.notes,
-        status: row.status,
-        created_at: row.created_at,
-        responded_at: row.responded_at,
-      });
-    }
-  }
-
-  const matches = ((matchRows ?? []) as unknown as ScheduleMatchRow[]).map(
-    (row): ScheduleMatch => ({
-      id: row.id,
-      week_number: row.week_number,
-      is_playoff: row.is_playoff,
-      playoff_round_no: row.playoff_round_no ?? null,
-      bracket_phase: row.bracket_phase,
-      bracket_slot: row.bracket_slot,
-      scheduled_at: row.scheduled_at,
-      created_at: row.created_at,
-      status: row.status,
-      winner_team_id: row.winner_team_id,
-      notes: row.notes,
-      player_1_team_id: row.player_1_team_id,
-      player_2_team_id: row.player_2_team_id,
-      /*
-       * The owner's live display name, not the team's name. `teams.team_name` is
-       * a snapshot copied out of `profiles.display_name` when the draft started
-       * and is not editable anywhere, so labelling a player with it left every
-       * matchup showing the name the member had before they changed it, next to
-       * their up-to-date avatar. The team name is kept as the fallback for a
-       * profile with no display name set.
-       */
-      player_1_name:
-        row.player_1?.owner?.display_name ?? row.player_1?.team_name ?? "Team 1",
-      player_2_name:
-        row.player_2?.owner?.display_name ??
-        row.player_2?.team_name ??
-        // A one-sided playoff game is a bye: the opponent dropped out by double forfeit,
-        // so there is no team here to name.
-        (row.player_2_team_id ? "Team 2" : "Bye"),
-      player_1_name_color: row.player_1?.owner?.name_color ?? null,
-      player_2_name_color: row.player_2?.owner?.name_color ?? null,
-      player_1_avatar_url: row.player_1?.owner?.avatar_url ?? null,
-      player_2_avatar_url: row.player_2?.owner?.avatar_url ?? null,
-      player_1_avatar_initials: row.player_1?.owner?.avatar_initials ?? null,
-      player_2_avatar_initials: row.player_2?.owner?.avatar_initials ?? null,
-      player_1_user_id: row.player_1?.owner_user_id ?? "",
-      player_2_user_id: row.player_2?.owner_user_id ?? "",
-      results: resultsByMatch.get(row.id) ?? [],
-      // A forfeit with no recorded filer is attributed to the league owner.
-      forfeited_by_name: row.forfeited_by?.display_name ?? ownerDisplayName,
-      // Only the recorded filer's colour is carried; the owner fallback above
-      // names the owner without knowing whose colour that would be.
-      forfeited_by_name_color: row.forfeited_by?.name_color ?? null,
-      pending_proposal: pendingProposals.get(row.id) ?? null,
-    }),
-  );
-
-
   return {
     ...base,
     settings,
@@ -948,9 +1075,8 @@ export async function loadSchedulePageData(
     matches,
     rostersByTeam,
     standings,
-    // Null while the tournament is running, and null when it ended with no champion,
-    // which a double forfeit can cause by eliminating the last two sides standing.
-    championTeamId: (championResult.data as string | null) ?? null,
+    championTeamId: standingsAndChampion.championTeamId,
+    ownerDisplayName,
     // Loaded with everything else so the playoffs tab can draw the whole bracket on
     // first render, rather than only the rounds that have been generated.
     playoffTemplate: await loadPlayoffTemplate(leagueId),

@@ -100,8 +100,11 @@ import {
   firstPlayoffWeekOf,
   isByeMatch,
   loadProposalHistory,
+  loadScheduleMatches,
   loadSchedulePageData,
+  loadScheduleStandings,
   matchWeekLabel,
+  movesStandings,
   nextPowerOfTwo,
   proposeMatchTime,
   proposalOutcomeLabel,
@@ -858,6 +861,20 @@ function SchedulePageContent({
   const router = useRouter();
   const { confirm, confirmDialog } = useConfirm();
   const [goods, setGoods] = useState<SchedulePageGoods | null>(null);
+
+  /**
+   * The current payload, readable from a callback without re-creating it.
+   *
+   * The realtime handler needs to compare the incoming matches against the ones on screen
+   * to know whether the standings moved, and taking `goods` as a dependency would tear
+   * down and rebuild the realtime subscription on every update it made.
+   */
+  const goodsRef = useRef<SchedulePageGoods | null>(null);
+
+  // Kept in step with the state, so a callback can read the latest without depending on it.
+  useEffect(() => {
+    goodsRef.current = goods;
+  }, [goods]);
   const [isLoading, setIsLoading] = useState(true);
   const [isBusy, setIsBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -1180,16 +1197,71 @@ function SchedulePageContent({
 
   const isFormOpen = useCallback(() => formOpen, [formOpen]);
 
-  /** Re-reads the schedule after a real-time change, unless a form is open. */
-  const reloadForRealtime = useCallback(() => {
-    const leagueId = goods?.league.id;
+/**
+   * Re-reads the schedule after a real-time change, unless a form is open.
+   *
+   * Deliberately not the full payload. A change to the match table is the common case by
+   * a wide margin, and most of those are scheduling rather than results, so re-reading the
+   * league, season, teams, members, settings, rosters and bracket template as well was
+   * paying a dozen requests for one row that moved. Those do not change while the page is
+   * open, and the ones that can are picked up by the full refresh the page's own actions
+   * already trigger.
+   *
+   * The standings and champion are re-read only when a result actually landed, which is
+   * what they are derived from; see {@link movesStandings}. That makes the usual realtime
+   * update a single request.
+   */
+  const reloadForRealtime = useCallback(async () => {
+    const leagueId = goodsRef.current?.league.id;
+    const seasonId = goodsRef.current?.season?.id;
 
-    if (!leagueId) {
+    if (!leagueId || !seasonId) {
       return;
     }
 
-    void refresh(leagueId);
-  }, [goods?.league.id, refresh]);
+    try {
+      const matches = await loadScheduleMatches(
+        leagueId,
+        seasonId,
+        goodsRef.current?.ownerDisplayName ?? null,
+      );
+
+      const standingsMoved = movesStandings(
+        goodsRef.current?.matches ?? [],
+        matches,
+      );
+
+      /*
+       * A settled match can also be what closes a week, and the header reads the week
+       * pointer for the phase label and the current week, so it is re-read alongside the
+       * table rather than on every change. Both are consequences of a result landing.
+       */
+      const live = standingsMoved
+        ? await Promise.all([
+            loadScheduleStandings(leagueId, seasonId),
+            loadWeekProgressState(leagueId).catch(() => null),
+          ])
+        : null;
+
+      setGoods((previous) =>
+        previous
+          ? {
+              ...previous,
+              matches,
+              standings: live?.[0].standings ?? previous.standings,
+              championTeamId: live?.[0].championTeamId ?? previous.championTeamId,
+            }
+          : previous,
+      );
+
+      if (live) {
+        setWeekProgress(live[1]);
+      }
+    } catch {
+      // A failed background refresh leaves the page showing what it had rather than
+      // throwing the member out of a page they are reading.
+    }
+  }, []);
 
   /*
    * Live updates for the matchups, their agreed times, and the proposals behind

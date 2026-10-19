@@ -19,6 +19,7 @@ import {
   proposalWeekLabel,
   firstPlayoffWeekOf,
   matchWeekLabel,
+  movesStandings,
   seasonPhaseLabel,
   type ProposalHistoryEntry,
   type ScheduleMatch,
@@ -89,6 +90,89 @@ player_1_name: "Player One",
     pending_proposal: null,
   };
 }
+
+describe("movesStandings", () => {
+  /** A settled match, so the fixture has a winner and a status worth changing. */
+  const settled = (): ScheduleMatch => ({
+    ...matchWith(2, 0),
+    status: "completed",
+    winner_team_id: "team-1",
+  });
+
+  it("says no when only the scheduling moved", () => {
+    // The common realtime event: somebody proposes or accepts a time. Nothing the table is
+    // derived from changed, so re-reading it would be two endpoints for nothing.
+    const before = settled();
+    const after = { ...before, scheduled_at: "2026-08-01T18:00:00.000Z" };
+
+    expect(movesStandings([before], [after])).toBe(false);
+  });
+
+  it("says no when only a proposal or a note changed", () => {
+    const before = settled();
+    const after = {
+      ...before,
+      notes: "rescheduled",
+      pending_proposal: {
+        id: "proposal-1",
+        proposed_by: "user-1",
+        proposed_at: "2026-08-01T18:00:00.000Z",
+        notes: null,
+        status: "pending" as const,
+        created_at: "2026-08-01T12:00:00.000Z",
+        responded_at: null,
+      },
+    };
+
+    expect(movesStandings([before], [after])).toBe(false);
+  });
+
+  it("says yes when a result is submitted", () => {
+    const before = { ...settled(), status: "in_progress" as const, winner_team_id: null };
+    const after = settled();
+
+    expect(movesStandings([before], [after])).toBe(true);
+  });
+
+  it("says yes when a game result is edited but the winner does not change", () => {
+    // KO differential is read from the per-game rows, so a corrected survivor count moves
+    // the table even though the match's own winner is the same.
+    const before = settled();
+    const after: ScheduleMatch = {
+      ...before,
+      results: before.results.map((result, index) =>
+        index === 0 ? { ...result, pokemon_left_alive: 4 } : result,
+      ),
+    };
+
+    expect(movesStandings([before], [after])).toBe(true);
+  });
+
+  it("says yes when a game is created or removed", () => {
+    // A bracket round appearing is what changes the answer the champion function gives.
+    const before = settled();
+    const added: ScheduleMatch = { ...settled(), id: "match-2" };
+
+    expect(movesStandings([before], [before, added])).toBe(true);
+    expect(movesStandings([before, added], [before])).toBe(true);
+  });
+
+  it("says yes when the winner changes", () => {
+    const before = settled();
+    const after: ScheduleMatch = { ...before, winner_team_id: "team-2" };
+
+    expect(movesStandings([before], [after])).toBe(true);
+  });
+
+  it("says no for an unchanged set", () => {
+    // The steady state: a scheduled time elsewhere in the league moved, and this match did
+    // not. Cheap refresh has to survive being handed its own previous answer.
+    const before = settled();
+
+    expect(movesStandings([before], [{ ...before }])).toBe(false);
+    expect(movesStandings([], [])).toBe(false);
+  });
+});
 
 describe("winsRequired", () => {
   it("needs one win for a single game", () => {

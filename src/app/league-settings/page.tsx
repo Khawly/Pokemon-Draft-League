@@ -1130,18 +1130,24 @@ function LeagueSettingsPageContent() {
                 />
               </div>
 
-              <label className="flex items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-950/60 p-3 text-sm text-slate-200">
-                <span>Enable Transaction Costs</span>
-                <input
-                  type="checkbox"
-                  checked={enableTransactionCosts}
-                  onChange={(event) => {
-                    setEnableTransactionCosts(event.target.checked);
-                    setHasUnsavedChanges(true);
-                  }}
-                  className="h-4 w-4 accent-amber-500"
-                />
-              </label>
+              <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-3">
+                <label className="flex items-center justify-between gap-3 text-sm text-slate-200">
+                  <span>Enable Transaction Costs</span>
+                  <input
+                    type="checkbox"
+                    checked={enableTransactionCosts}
+                    onChange={(event) => {
+                      setEnableTransactionCosts(event.target.checked);
+                      setHasUnsavedChanges(true);
+                    }}
+                    className="h-4 w-4 accent-amber-500"
+                  />
+                </label>
+                <p className="mt-2 text-xs text-slate-500">
+                  Applies to free agent acquisitions only. Trades do not incur
+                  this cost.
+                </p>
+              </div>
 
               {enableTransactionCosts && (
                 <div>

@@ -196,7 +196,17 @@ BEGIN
     RETURN;
   END IF;
 
-  -- A winner came from one side, so the other side is the loser of that game.
+  /*
+   * Which side advances depends on what the feeder is asking for. A winner feeder takes
+   * the winner; a loser feeder takes the other side. Without this branch every feeder
+   * returned the loser, so a team that won its toilet game advanced its opponent.
+   */
+  IF p_kind = 'winner' THEN
+    RETURN QUERY SELECT v_winner, TRUE;
+    RETURN;
+  END IF;
+
+  -- A loser feeder: the winner came from one side, so the other side is the loser.
   RETURN QUERY SELECT (CASE WHEN v_winner = v_p1 THEN v_p2 ELSE v_p1 END), TRUE;
 END;
 $$;
@@ -490,7 +500,15 @@ BEGIN
     WHERE src.phase = 'upper'
     ORDER BY src.round_no, src.slot
   LOOP
-    game_label := v_row.game_label;
+    /*
+     * Toilet games carry their own labels.
+     *
+     * The structure numbers every bracket's games from G1, so reusing its labels here put
+     * G5, G6 and G7 in the winners bracket and the Toilet Bowl at the same time. Relabelling
+     * to T<n> keeps them distinct, and the feeder references below are rewritten to match so
+     * a game still points at the game that feeds it.
+     */
+    game_label := 'T' || substring(v_row.game_label FROM 2);
     phase := 'toilet';
     round_no := v_row.round_no;
     week := v_row.week;
@@ -504,7 +522,7 @@ BEGIN
     IF v_kind = 'seed' THEN
       feeder_a := 'seed ' || v_ref;
     ELSIF v_kind = 'winner' THEN
-      feeder_a := 'W(' || v_ref || ')';
+      feeder_a := 'W(T' || substring(v_ref FROM 2) || ')';
     ELSE
       feeder_a := 'Bye';
     END IF;
@@ -515,7 +533,7 @@ BEGIN
     IF v_kind = 'seed' THEN
       feeder_b := 'seed ' || v_ref;
     ELSIF v_kind = 'winner' THEN
-      feeder_b := 'W(' || v_ref || ')';
+      feeder_b := 'W(T' || substring(v_ref FROM 2) || ')';
     ELSE
       feeder_b := 'Bye';
     END IF;

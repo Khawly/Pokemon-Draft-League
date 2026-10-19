@@ -114,6 +114,7 @@ import {
   respondToMatchProposal,
   saveManualSchedule,
   seasonPhaseLabel,
+  setToiletBowl,
   submitGameResult,
   updateGameResult,
   type ProposalHistoryEntry,
@@ -927,6 +928,7 @@ function SchedulePageContent({
     "automatic",
   );
   const [isSavingManual, setIsSavingManual] = useState(false);
+  const [isSavingToilet, setIsSavingToilet] = useState(false);
 
   const [schedulingMatchId, setSchedulingMatchId] = useState<string | null>(
     null,
@@ -2004,6 +2006,37 @@ function SchedulePageContent({
     }
   }
 
+  async function handleToggleToiletBowl(enabled: boolean) {
+    if (!goods) {
+      return;
+    }
+
+    setIsSavingToilet(enabled);
+
+    try {
+      await setToiletBowl(goods.league.id, enabled);
+      setGoods((previous) =>
+        previous && previous.settings
+          ? {
+              ...previous,
+              settings: { ...previous.settings, enable_toilet_bowl: enabled },
+            }
+          : previous,
+      );
+      setNotice(
+        enabled
+          ? "Toilet Bowl enabled. It is built from the non-playoff teams when the playoffs open."
+          : "Toilet Bowl disabled.",
+      );
+    } catch (cause) {
+      setError(
+        cause instanceof Error ? cause.message : "The setting could not be saved.",
+      );
+    } finally {
+      setIsSavingToilet(false);
+    }
+  }
+
   async function handleAdvancePlayoffs() {
     if (!goods) {
       return;
@@ -2687,6 +2720,28 @@ function SchedulePageContent({
                     : "—"}
                 </div>
               </Field>
+            </div>
+
+            <div className="mt-5 rounded-xl border border-slate-800 bg-slate-950/60 p-3">
+              <label className="flex items-center justify-between gap-3 text-sm text-slate-200">
+                <span>Toilet Bowl bracket</span>
+                <input
+                  type="checkbox"
+                  checked={goods.settings?.enable_toilet_bowl === true}
+                  disabled={isSavingToilet}
+                  onChange={(event) =>
+                    void handleToggleToiletBowl(event.target.checked)
+                  }
+                  className="h-4 w-4 accent-amber-500"
+                />
+              </label>
+              <p className="mt-2 text-xs text-slate-500">
+                Every team that misses the playoff field plays its own
+                single-elimination consolation bracket, seeded by the regular
+                season standings. It appears on the Playoffs tab and advances
+                with the same button. Its winner does not get the champion
+                crown.
+              </p>
             </div>
             {scheduleMode === "automatic" ? (
               <p className="mt-4 text-sm text-slate-400">

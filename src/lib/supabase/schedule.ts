@@ -53,6 +53,8 @@ export type ScheduleSettings = {
   total_rounds: number;
   /** Whether admins may act on matchup cards (the owner always may). */
   admins_edit_matchups: boolean;
+  /** Whether the teams that miss the playoff field play a consolation bracket. */
+  enable_toilet_bowl: boolean;
 };
 
 /** A team slot in the season with its owner's resolved display info. */
@@ -104,7 +106,7 @@ export type ScheduleMatch = {
    * weeks and in two phases at once, so this is what the bracket round label counts.
    */
   playoff_round_no: number | null;
-  bracket_phase: "upper" | "lower" | "gf" | null;
+  bracket_phase: "upper" | "lower" | "gf" | "toilet" | null;
 
 /**
    * Position of this game within its round, as written by the bracket generator.
@@ -908,7 +910,7 @@ export async function loadSchedulePageData(
       supabase
         .from("league_settings")
         .select(
-          "regular_season_weeks, match_format, playoff_team_count, playoff_match_format, playoff_format, enable_pokemon_costs, total_token_salary, allow_per_team_salary, total_rounds, admins_edit_matchups",
+          "regular_season_weeks, match_format, playoff_team_count, playoff_match_format, playoff_format, enable_pokemon_costs, total_token_salary, allow_per_team_salary, total_rounds, admins_edit_matchups, enable_toilet_bowl",
         )
         .eq("season_id", season.id)
         .maybeSingle(),
@@ -959,6 +961,7 @@ export async function loadSchedulePageData(
     allow_per_team_salary: boolean;
     total_rounds: number;
     admins_edit_matchups: boolean;
+    enable_toilet_bowl: boolean;
   } | null;
 
   const settings: ScheduleSettings | null = settingsRow
@@ -973,6 +976,7 @@ export async function loadSchedulePageData(
         allow_per_team_salary: settingsRow.allow_per_team_salary,
         total_rounds: settingsRow.total_rounds,
         admins_edit_matchups: settingsRow.admins_edit_matchups === true,
+        enable_toilet_bowl: settingsRow.enable_toilet_bowl === true,
       }
     : null;
 
@@ -1257,7 +1261,7 @@ export function inspectManualSchedule(
  */
 export type SchedulePlayoffTemplateRow = {
   game_label: string;
-  phase: "upper" | "lower" | "gf";
+  phase: "upper" | "lower" | "gf" | "toilet";
   round_no: number;
   week: number;
   /**
@@ -1299,18 +1303,53 @@ export type SchedulePlayoffTemplate = {
 export async function loadPlayoffTemplate(
   leagueId: string,
 ): Promise<SchedulePlayoffTemplate> {
-  const { data, error } = await supabase.rpc("playoff_bracket_template", {
+  /*
+   * Both brackets in one call site. The consolation bracket's template is empty when the
+   * setting is off, so merging costs nothing for a league that does not use it, and the
+   * sheet draws the two from one list.
+   */
+  const [playoff, toilet] = await Promise.all([
+    supabase.rpc("playoff_bracket_template", { p_league_id: leagueId }),
+    supabase.rpc("toilet_bracket_template", { p_league_id: leagueId }),
+  ]);
+
+  if (playoff.error) {
+    return { rows: [], unavailableReason: playoff.error.message };
+  }
+
+  // A failed consolation read is not worth failing the bracket over: the playoff sheet is
+  // the page, and the extra section simply does not appear.
+  const toiletRows = toilet.error
+    ? []
+    : ((toilet.data ?? []) as SchedulePlayoffTemplateRow[]);
+
+  return {
+    rows: [...((playoff.data ?? []) as SchedulePlayoffTemplateRow[]), ...toiletRows],
+    unavailableReason: null,
+  };
+}
+
+/**
+ * Turns the consolation bracket on or off (owner only).
+ *
+ * @param leagueId - The league to change.
+ * @param enabled - Whether the non-playoff teams should play their own bracket.
+ * @returns The stored value.
+ */
+export async function setToiletBowl(
+  leagueId: string,
+  enabled: boolean,
+): Promise<boolean> {
+  const { data, error } = await supabase.rpc("set_toilet_bowl", {
     p_league_id: leagueId,
+    p_enabled: enabled,
   });
 
   if (error) {
-    return { rows: [], unavailableReason: error.message };
+    throw new Error(error.message || "The consolation bracket setting could not be saved.");
   }
 
-  return {
-    rows: (data ?? []) as SchedulePlayoffTemplateRow[],
-    unavailableReason: null,
-  };
+  return Boolean(data);
 }
 
 /**

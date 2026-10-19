@@ -18,7 +18,7 @@ export interface BracketShapeRow {
 }
 
 /** Which part of the bracket a game belongs to. */
-export type BracketPhase = "upper" | "lower" | "gf";
+export type BracketPhase = "upper" | "lower" | "gf" | "toilet";
 
 /** A template row in full, which is what a card is drawn from. */
 export interface BracketTemplateRow extends BracketShapeRow {
@@ -59,6 +59,7 @@ const PHASE_LABEL_PREFIX: Record<BracketPhase, string> = {
   upper: "G",
   lower: "L",
   gf: "GF",
+  toilet: "T",
 };
 
 /**
@@ -68,7 +69,12 @@ const PHASE_LABEL_PREFIX: Record<BracketPhase, string> = {
  * @returns True when the phase can be drawn, false when it is null or unrecognised.
  */
 function isBracketPhase(phase: string | null): phase is BracketPhase {
-  return phase === "upper" || phase === "lower" || phase === "gf";
+  return (
+    phase === "upper" ||
+    phase === "lower" ||
+    phase === "gf" ||
+    phase === "toilet"
+  );
 }
 
 /**

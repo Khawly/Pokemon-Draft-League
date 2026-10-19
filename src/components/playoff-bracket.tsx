@@ -352,6 +352,7 @@ export function PlayoffBracket({ rows, matches, resolveTeam }: PlayoffBracketPro
       {section("Winners bracket", "upper")}
       {section("Losers bracket", "lower")}
       {section("Finals", "gf")}
+      {section("Toilet Bowl", "toilet")}
     </div>
   );
 }

@@ -1126,6 +1126,120 @@ export async function generateSchedule(
 }
 
 /**
+ * Saves an owner-supplied regular season schedule (owner only).
+ *
+ * Replaces any existing schedule for the season, exactly as the random generator does, so
+ * the two paths cannot leave the season in different shapes. Refused outright if the
+ * pairings are not a valid schedule; see the database function for the rules.
+ *
+ * @param leagueId - The league whose schedule to save.
+ * @param config - The schedule configuration to persist alongside the pairings.
+ * @param matchups - The pairings, one per game.
+ * @returns The number of regular season matches written.
+ */
+export async function saveManualSchedule(
+  leagueId: string,
+  config: Pick<
+    ScheduleSettings,
+    | "regular_season_weeks"
+    | "match_format"
+    | "playoff_team_count"
+    | "playoff_match_format"
+    | "playoff_format"
+  >,
+  matchups: ManualScheduleGame[],
+): Promise<number> {
+  const { data, error } = await supabase.rpc("save_manual_schedule", {
+    p_league_id: leagueId,
+    p_weeks: config.regular_season_weeks,
+    p_match_format: config.match_format,
+    p_playoff_team_count: config.playoff_team_count,
+    p_playoff_match_format: config.playoff_match_format,
+    p_playoff_format: config.playoff_format,
+    p_matchups: matchups,
+  });
+
+  if (error) {
+    throw new Error(error.message || "The schedule could not be saved.");
+  }
+
+  return Number(data ?? 0);
+}
+
+/** One game in an owner-supplied schedule. */
+export type ManualScheduleGame = {
+  week: number;
+  player_1_team_id: string;
+  player_2_team_id: string;
+};
+
+/**
+ * Checks an owner-supplied schedule before it is saved.
+ *
+ * The database refuses a bad schedule anyway, but it can only say that one row is wrong.
+ * Checking here lets the editor name every problem at once and, more usefully, lets it
+ * say which teams are resting in a week rather than leaving the owner to work that out
+ * from a list of pairings.
+ *
+ * @param games - The pairings as entered.
+ * @param weeks - How many weeks the season runs.
+ * @param teamIds - Every team eligible to be scheduled.
+ * @returns The problems found, and the teams resting each week.
+ */
+export function inspectManualSchedule(
+  games: ManualScheduleGame[],
+  weeks: number,
+  teamIds: string[],
+): {
+  problems: string[];
+  restingByWeek: Map<number, string[]>;
+  scheduledByWeek: Map<number, Set<string>>;
+} {
+  const problems: string[] = [];
+  const scheduledByWeek = new Map<number, Set<string>>();
+
+  for (const game of games) {
+    if (game.week < 1 || game.week > weeks) {
+      problems.push(`A matchup is in week ${game.week}, outside a ${weeks} week season.`);
+      continue;
+    }
+
+    if (!game.player_1_team_id || !game.player_2_team_id) {
+      problems.push(`Week ${game.week} has a matchup with a team missing.`);
+      continue;
+    }
+
+    if (game.player_1_team_id === game.player_2_team_id) {
+      problems.push(`Week ${game.week} pairs a team with itself.`);
+      continue;
+    }
+
+    const week = scheduledByWeek.get(game.week) ?? new Set<string>();
+    scheduledByWeek.set(game.week, week);
+
+    for (const teamId of [game.player_1_team_id, game.player_2_team_id]) {
+      if (week.has(teamId)) {
+        problems.push(`Week ${game.week} schedules the same team twice.`);
+      }
+      week.add(teamId);
+    }
+  }
+
+  // A team that is not in the week's set has the week off, which is allowed and worth
+  // showing rather than hiding behind the absence of a row.
+  const restingByWeek = new Map<number, string[]>();
+  for (let week = 1; week <= weeks; week += 1) {
+    const scheduled = scheduledByWeek.get(week) ?? new Set<string>();
+    restingByWeek.set(
+      week,
+      teamIds.filter((teamId) => !scheduled.has(teamId)),
+    );
+  }
+
+  return { problems: [...new Set(problems)], restingByWeek, scheduledByWeek };
+}
+
+/**
  * Advances the playoff bracket by one round (owner only). Each call creates the
  * next round whose participants are known, then stops until results come in.
  *

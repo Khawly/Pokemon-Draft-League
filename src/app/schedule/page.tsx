@@ -52,6 +52,7 @@ import { useConfirm } from "@/components/confirm-dialog";
 import { MemberName } from "@/components/member-name";
 import { MemberAvatar } from "@/components/member-avatar";
 import { PlayoffBracket } from "@/components/playoff-bracket";
+import { ManualScheduleEditor } from "@/components/manual-schedule-editor";
 import {
   loadWeekProgressState,
   runWeekDeadlineSweep,
@@ -111,11 +112,13 @@ import {
   proposalOutcomeTone,
   proposalWeekLabel,
   respondToMatchProposal,
+  saveManualSchedule,
   seasonPhaseLabel,
   submitGameResult,
   updateGameResult,
   type ProposalHistoryEntry,
   type ProposalHistoryGroup,
+  type ManualScheduleGame,
   type ScheduleMatch,
   type ScheduleMatchResult,
   type ScheduleRosterSprite,
@@ -912,6 +915,18 @@ function SchedulePageContent({
       | "single_elimination"
       | "double_elimination",
   });
+
+  /**
+   * How the owner wants the regular season built.
+   *
+   * Kept in page state rather than the settings row: it describes this editing session,
+   * not the season. Whatever is saved is the season's schedule either way, and the mode
+   * does not need to survive a reload.
+   */
+  const [scheduleMode, setScheduleMode] = useState<"automatic" | "manual">(
+    "automatic",
+  );
+  const [isSavingManual, setIsSavingManual] = useState(false);
 
   const [schedulingMatchId, setSchedulingMatchId] = useState<string | null>(
     null,
@@ -1906,8 +1921,7 @@ function SchedulePageContent({
     }
   };
 
-  async function handleGenerateSchedule() {
-    if (!goods) {
+  async function handleGenerateSchedule() {    if (!goods) {
       return;
     }
     const matchCount = form.weeks;
@@ -1937,6 +1951,57 @@ function SchedulePageContent({
       goods.league.id,
     );
     setNotice("Schedule generated.");
+  }
+
+  /**
+   * Saves the pairings the owner laid out by hand.
+   *
+   * Same destructive confirmation as the random path, because the database replaces the
+   * season's matches either way and an owner who forgot they had results would otherwise
+   * lose them without warning.
+   */
+  async function handleSaveManualSchedule(games: ManualScheduleGame[]) {
+    if (!goods) {
+      return;
+    }
+
+    const confirmed = await confirm({
+      title: "Save this schedule?",
+      detail: `${games.length} matchup${
+        games.length === 1 ? "" : "s"
+      } across ${form.weeks} week${
+        form.weeks === 1 ? "" : "s"
+      }. Every existing match and result this season is removed and replaced.`,
+      confirmLabel: "Save schedule",
+      tone: "danger",
+    });
+
+    if (!confirmed) {
+      return;
+    }
+
+    setIsSavingManual(true);
+
+    try {
+      await canRunMutation(
+        () =>
+          saveManualSchedule(
+            goods.league.id,
+            {
+              regular_season_weeks: form.weeks,
+              match_format: form.matchFormat,
+              playoff_team_count: form.playoffTeams,
+              playoff_match_format: form.playoffMatchFormat,
+              playoff_format: form.playoffFormat,
+            },
+            games,
+          ),
+        goods.league.id,
+      );
+      setNotice(`Schedule saved: ${games.length} matchup${games.length === 1 ? "" : "s"}.`);
+    } finally {
+      setIsSavingManual(false);
+    }
   }
 
   async function handleAdvancePlayoffs() {
@@ -2503,16 +2568,41 @@ function SchedulePageContent({
           <SectionCard
             title="Schedule setup"
             action={
-              <button
-                type="button"
-                disabled={generateDisabled}
-                onClick={handleGenerateSchedule}
-                className="rounded-xl bg-amber-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Generate schedule
-              </button>
+              scheduleMode === "automatic" ? (
+                <button
+                  type="button"
+                  disabled={generateDisabled}
+                  onClick={handleGenerateSchedule}
+                  className="rounded-xl bg-amber-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Generate schedule
+                </button>
+              ) : null
             }
           >
+            <div className="mb-5 flex flex-wrap items-center gap-2">
+              <span className="text-sm text-slate-400">Schedule method</span>
+              {(
+                [
+                  ["automatic", "Automatic"],
+                  ["manual", "Manual"],
+                ] as const
+              ).map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setScheduleMode(value)}
+                  className={`rounded-lg border px-3 py-1.5 text-sm transition ${
+                    scheduleMode === value
+                      ? "border-amber-500/60 bg-amber-500/15 text-amber-200"
+                      : "border-slate-700 text-slate-300 hover:border-slate-500 hover:text-white"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
             <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
               <Field label="Regular season weeks">
                 <input
@@ -2598,16 +2688,43 @@ function SchedulePageContent({
                 </div>
               </Field>
             </div>
-            <p className="mt-4 text-sm text-slate-400">
-              Generate button is enabled once regular season weeks is a valid
-              integer of at least 1. Generating replaces the current
-              season&apos;s schedule and draws every matchup and home/away side
-              at random, so regenerating produces a different schedule. Each
-              team meets each other team once per round-robin pass, so weeks
-              beyond a full pass re-draw the matchups instead of replaying them.
-              The playoff bracket is advanced from the Playoffs tab once the
-              draft is complete.
-            </p>
+            {scheduleMode === "automatic" ? (
+              <p className="mt-4 text-sm text-slate-400">
+                Generate button is enabled once regular season weeks is a valid
+                integer of at least 1. Generating replaces the current
+                season&apos;s schedule and draws every matchup and home/away side
+                at random, so regenerating produces a different schedule. Each
+                team meets each other team once per round-robin pass, so weeks
+                beyond a full pass re-draw the matchups instead of replaying them.
+                The playoff bracket is advanced from the Playoffs tab once the
+                draft is complete.
+              </p>
+            ) : (
+              <div className="mt-6 border-t border-slate-800 pt-5">
+                <ManualScheduleEditor
+                  teams={goods.teams.map((team) => ({
+                    id: team.id,
+                    name: team.owner_name?.trim() || team.team_name,
+                  }))}
+                  weeks={Math.max(1, form.weeks)}
+                  initialGames={goods.matches
+                    .filter((match) => !match.is_playoff && !isByeMatch(match))
+                    .map((match) => ({
+                      week: match.week_number,
+                      player_1_team_id: match.player_1_team_id,
+                      player_2_team_id: match.player_2_team_id ?? "",
+                    }))
+                    .filter(
+                      (game) =>
+                        // A scheduled bye has no second side, so it is not a pairing
+                        // to carry back into the editor.
+                        game.player_2_team_id !== "",
+                    )}
+                  saving={isSavingManual}
+                  onSave={handleSaveManualSchedule}
+                />
+              </div>
+            )}
           </SectionCard>
         )}
 

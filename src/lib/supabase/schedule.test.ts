@@ -18,6 +18,7 @@ import {
   isByeMatch,
   proposalWeekLabel,
   firstPlayoffWeekOf,
+  inspectManualSchedule,
   matchWeekLabel,
   movesStandings,
   seasonPhaseLabel,
@@ -171,6 +172,95 @@ describe("movesStandings", () => {
 
     expect(movesStandings([before], [{ ...before }])).toBe(false);
     expect(movesStandings([], [])).toBe(false);
+  });
+});
+
+describe("inspectManualSchedule", () => {
+  const teams = ["a", "b", "c", "d"];
+  const game = (week: number, x: string, y: string) => ({
+    week,
+    player_1_team_id: x,
+    player_2_team_id: y,
+  });
+
+  it("accepts a complete round robin and reports nobody resting", () => {
+    const { problems, restingByWeek } = inspectManualSchedule(
+      [game(1, "a", "b"), game(1, "c", "d"), game(2, "a", "c"), game(2, "b", "d")],
+      2,
+      teams,
+    );
+
+    expect(problems).toEqual([]);
+    expect(restingByWeek.get(1)).toEqual([]);
+    expect(restingByWeek.get(2)).toEqual([]);
+  });
+
+  it("names the teams resting in a week", () => {
+    // A bye is invisible in the rows, so it has to be reported explicitly or an owner
+    // cannot tell a deliberate rest from a team they forgot to schedule.
+    const { problems, restingByWeek } = inspectManualSchedule(
+      [game(1, "a", "b")],
+      3,
+      teams,
+    );
+
+    expect(problems).toEqual([]);
+    expect(restingByWeek.get(1)).toEqual(["c", "d"]);
+    expect(restingByWeek.get(2)).toEqual(teams);
+    expect(restingByWeek.get(3)).toEqual(teams);
+  });
+
+  it("rejects a team scheduled twice in the same week", () => {
+    const { problems } = inspectManualSchedule(
+      [game(1, "a", "b"), game(1, "a", "c")],
+      1,
+      teams,
+    );
+
+    expect(problems).toContain("Week 1 schedules the same team twice.");
+  });
+
+  it("allows the same pairing in different weeks", () => {
+    // A rematch is a scheduling decision, not an error.
+    const { problems } = inspectManualSchedule(
+      [game(1, "a", "b"), game(2, "a", "b")],
+      2,
+      teams,
+    );
+
+    expect(problems).toEqual([]);
+  });
+
+  it("rejects a team paired with itself", () => {
+    const { problems } = inspectManualSchedule([game(1, "a", "a")], 1, teams);
+
+    expect(problems).toContain("Week 1 pairs a team with itself.");
+  });
+
+  it("rejects a week outside the season", () => {
+    const { problems } = inspectManualSchedule([game(4, "a", "b")], 3, teams);
+
+    expect(problems[0]).toContain("outside a 3 week season");
+  });
+
+  it("rejects a matchup with a side missing", () => {
+    const { problems } = inspectManualSchedule([game(1, "a", "")], 1, teams);
+
+    expect(problems).toContain("Week 1 has a matchup with a team missing.");
+  });
+
+  it("reports each distinct problem once", () => {
+    // Three rows pairing the same team in week one should not produce the same sentence
+    // three times and bury everything else.
+    const { problems } = inspectManualSchedule(
+      [game(1, "a", "b"), game(1, "a", "c"), game(1, "a", "d")],
+      1,
+      teams,
+    );
+
+    expect(problems.filter((p) => p === "Week 1 schedules the same team twice.")).toHaveLength(
+      1,
+    );
   });
 });
 

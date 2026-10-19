@@ -1763,6 +1763,8 @@ export function isByeMatch(match: {
 export type WeekLabelledMatch = {
   week_number: number;
   is_playoff: boolean;
+  /** Which bracket the match belongs to, so a consolation game is not called a playoff. */
+  bracket_phase?: "upper" | "lower" | "gf" | "toilet" | null;
   /**
    * Which press of Advance Playoffs created this game, or null for a game written
    * before the column existed.
@@ -1830,15 +1832,23 @@ export function matchWeekLabel(
     return `Week ${match.week_number}`;
   }
 
-  if (match.playoff_round_no != null) {
-    return `Playoffs (Week ${match.playoff_round_no})`;
+  /*
+   * The consolation bracket is also a playoff match -- it is built by the same advance,
+   * carries is_playoff and lives in the same table -- so testing only that flag called a
+   * Toilet Bowl game a playoff. The phase is what separates them.
+   */
+  const isToilet = match.bracket_phase === "toilet";
+  const bracket = isToilet ? "Toilet Bowl" : "Playoffs";
+
+  if (!isToilet && match.playoff_round_no != null) {
+    return `${bracket} (Week ${match.playoff_round_no})`;
   }
 
   if (firstPlayoffWeek === null) {
-    return "Playoffs";
+    return bracket;
   }
 
-  return `Playoffs (Week ${match.week_number - firstPlayoffWeek + 1})`;
+  return `${bracket} (Week ${match.week_number - firstPlayoffWeek + 1})`;
 }
 
 /**

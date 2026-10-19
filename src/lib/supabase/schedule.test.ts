@@ -520,6 +520,37 @@ describe("proposalWeekLabel", () => {
     ).toBe("Playoffs (Week 3)");
   });
 
+  it("labels a toilet bowl game by its bracket, not as a playoff", () => {
+    // The consolation bracket is also is_playoff, so the flag alone is not enough to say
+    // which bracket a game is in. Every toilet game was reading as a playoff in the
+    // matchup picker because of it.
+    expect(
+      matchWeekLabel(
+        { week_number: 7, is_playoff: true, bracket_phase: "toilet" },
+        6,
+      ),
+    ).toBe("Toilet Bowl (Week 2)");
+  });
+
+  it("still counts a toilet game from the first playoff week", () => {
+    // A toilet game has no press number of its own, so the week is what dates it.
+    expect(
+      matchWeekLabel(
+        { week_number: 6, is_playoff: true, bracket_phase: "toilet" },
+        6,
+      ),
+    ).toBe("Toilet Bowl (Week 1)");
+  });
+
+  it("labels a playoff game by its bracket even when a press number exists", () => {
+    expect(
+      matchWeekLabel(
+        { week_number: 7, is_playoff: true, bracket_phase: "upper", playoff_round_no: 2 },
+        6,
+      ),
+    ).toBe("Playoffs (Week 2)");
+  });
+
   it("leaves a regular-season game on its own number even if it has a press", () => {
     expect(
       matchWeekLabel(

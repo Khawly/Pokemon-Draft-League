@@ -110,14 +110,14 @@ function ChampionCard({ entry }: { entry: HallOfFameEntry }) {
               {entry.pokemon.map((pokemon) => (
                 <li key={pokemon.id}>
                   {/*
-                    Half of the size this was drawn at before: large enough to read
-                    across a full-width entry, small enough that a six-Pokemon roster
-                    fits on one line.
+                    Half again the previous size, between the tight row and the oversized
+                    one: large enough to read the artwork, small enough that a six-Pokemon
+                    roster still fits.
                   */}
                   <PokeballSprite
                     spriteId={pokemon.spriteId}
                     name={pokemon.name}
-                    size={60}
+                    size={90}
                   />
                 </li>
               ))}

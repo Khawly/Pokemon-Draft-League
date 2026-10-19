@@ -1352,7 +1352,7 @@ export async function loadPlayoffTemplate(
 }
 
 /**
- * The order a member reads a week's games in: the playoff brackets, then the consolation.
+ * The order a member reads a round's games in: the playoff brackets, then the consolation.
  *
  * The winners bracket, the losers bracket and the finals are all "the playoffs", so they
  * come before the Toilet Bowl. Their relative order is the order the brackets are drawn in
@@ -1368,25 +1368,31 @@ const PICKER_PHASE_ORDER: Record<string, number> = {
 /** The fields the matchup picker orders by. */
 export type PickerOrderedMatch = {
   week_number: number;
+  is_playoff: boolean;
   bracket_phase?: "upper" | "lower" | "gf" | "toilet" | null;
   bracket_slot?: number | null;
+  playoff_round_no?: number | null;
 };
 
 /**
  * Orders the games for the Week / matchup picker.
  *
- * Newest week first, then every playoff game in the week, then that week's Toilet Bowl
- * games, then slot.
+ * By the round the game belongs to, newest first, then the playoff brackets, then that
+ * round's Toilet Bowl games, then slot.
  *
- * The phase is part of the ordering because both brackets run in the same week and number
- * their slots from one. Sorting on the week and slot alone interleaved them -- winners
- * slot 1, toilet slot 1, winners slot 2 -- so a toilet game appeared in the middle of the
- * playoff matchups for its week.
+ * Round rather than week, because the labels count rounds: heading these games by their
+ * week split a round across the list. One press writes the next winners round into one
+ * week and the next losers round into another, so a week-ordered list read "Week 3, Week
+ * 2, Week 3" -- a Playoffs (Week 2) block sitting between two Playoffs (Week 3) blocks.
+ * Grouping by round keeps every game of a round together and the labels in sequence.
  *
- * Grouping by the round that created the games was tried and rejected: one press writes
- * the next winners round and the next losers round into different weeks, so a round-first
- * order put a later week's losers leg above an earlier week's winners round and the labels
- * read out of sequence.
+ * Within a round the playoff brackets lead and the Toilet Bowl follows, so a consolation
+ * game never sits inside the playoff matchups. Ordering the phase the other way -- toilet
+ * second, before the losers leg -- put the Toilet Bowl in the middle of a round, which is
+ * the same complaint one level down.
+ *
+ * Regular-season games have no round number, so they keep their week ordering below the
+ * live bracket once the postseason has started.
  *
  * @param matches - The games to order.
  * @returns A new array in picker order.
@@ -1394,13 +1400,37 @@ export type PickerOrderedMatch = {
 export function orderMatchesForPicker<T extends PickerOrderedMatch>(
   matches: T[],
 ): T[] {
-  return [...matches].sort(
-    (a, b) =>
-      b.week_number - a.week_number ||
+  return [...matches].sort((a, b) => {
+    // A live bracket above a finished regular season.
+    if (a.is_playoff !== b.is_playoff) {
+      return a.is_playoff ? -1 : 1;
+    }
+
+    if (!a.is_playoff) {
+      return b.week_number - a.week_number;
+    }
+
+    const roundA = a.playoff_round_no ?? null;
+    const roundB = b.playoff_round_no ?? null;
+
+    if (roundA !== roundB) {
+      // A game written before the column existed has no round; it goes last rather than
+      // sorting as though it were round zero.
+      if (roundA === null) return 1;
+      if (roundB === null) return -1;
+      return roundB - roundA;
+    }
+
+    const byPhase =
       (PICKER_PHASE_ORDER[a.bracket_phase ?? ""] ?? 9) -
-        (PICKER_PHASE_ORDER[b.bracket_phase ?? ""] ?? 9) ||
-      (a.bracket_slot ?? 0) - (b.bracket_slot ?? 0),
-  );
+      (PICKER_PHASE_ORDER[b.bracket_phase ?? ""] ?? 9);
+
+    if (byPhase !== 0) {
+      return byPhase;
+    }
+
+    return (a.bracket_slot ?? 0) - (b.bracket_slot ?? 0);
+  });
 }
 
 /**

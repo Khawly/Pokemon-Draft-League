@@ -99,58 +99,72 @@ describe("orderMatchesForPicker", () => {
     phase: "upper" | "lower" | "gf" | "toilet" | null,
     slot: number | null,
     id: string,
+    round: number | null = null,
   ) => ({
     week_number: week,
+    is_playoff: phase !== null,
     bracket_phase: phase,
     bracket_slot: slot,
+    playoff_round_no: round,
     id,
   });
 
-  it("puts a week's playoff games above that week's toilet games", () => {
-    // The bug this guards. Both brackets run in the same week and number their slots from
-    // one, so week-then-slot alone interleaved them: winners slot 1, toilet slot 1,
-    // winners slot 2. A toilet game appeared in the middle of the playoff matchups.
+  it("keeps a round together even when it spans weeks", () => {
+    // The bug this guards. One press writes the next winners round and the next losers
+    // round into different weeks, so a week-ordered list read "Week 3, Week 2, Week 3" --
+    // a Playoffs (Week 2) block sitting between two Playoffs (Week 3) blocks.
     const ordered = orderMatchesForPicker([
-      game(8, "upper", 1, "u1"),
-      game(8, "toilet", 1, "t1"),
-      game(8, "upper", 2, "u2"),
-      game(8, "toilet", 2, "t2"),
+      game(11, "lower", 1, "round3-losers", 3),
+      game(10, "lower", 1, "round2-losers", 2),
+      game(8, "upper", 1, "round3-winners", 3),
     ]);
 
-    expect(ordered.map((m) => m.id)).toEqual(["u1", "u2", "t1", "t2"]);
+    expect(ordered.map((m) => m.id)).toEqual([
+      "round3-winners",
+      "round3-losers",
+      "round2-losers",
+    ]);
   });
 
-  it("keeps the losers bracket with the playoffs, above the toilet games", () => {
-    // The losers leg is a playoff game for the same week, so it belongs in the playoff
-    // block rather than after the consolation one.
+  it("puts a round's playoff games above its toilet games", () => {
+    // The losers leg is a playoff game for the same round, so the toilet games come after
+    // it rather than between it and the winners leg.
     const ordered = orderMatchesForPicker([
-      game(11, "toilet", 1, "toilet"),
-      game(11, "lower", 1, "lower"),
-      game(11, "upper", 1, "upper"),
+      game(8, "toilet", 1, "toilet", 3),
+      game(11, "lower", 1, "losers", 3),
+      game(8, "upper", 1, "winners", 3),
     ]);
 
-    expect(ordered.map((m) => m.id)).toEqual(["upper", "lower", "toilet"]);
+    expect(ordered.map((m) => m.id)).toEqual(["winners", "losers", "toilet"]);
   });
 
-  it("keeps the newest week first", () => {
+  it("orders the newest round first", () => {
     const ordered = orderMatchesForPicker([
-      game(6, "upper", 5, "w6"),
-      game(8, "toilet", 1, "w8"),
-      game(7, "upper", 1, "w7"),
+      game(6, "upper", 5, "round1", 1),
+      game(8, "upper", 1, "round3", 3),
+      game(7, "upper", 1, "round2", 2),
     ]);
 
-    expect(ordered.map((m) => m.id)).toEqual(["w8", "w7", "w6"]);
+    expect(ordered.map((m) => m.id)).toEqual(["round3", "round2", "round1"]);
   });
 
-  it("leaves a regular season week's games in the order given", () => {
-    // Regular-season games have no phase or slot, so they tie and keep their given order.
+  it("keeps the regular season below the live bracket, newest week first", () => {
     const ordered = orderMatchesForPicker([
-      game(2, null, null, "second"),
-      game(1, null, null, "first"),
-      game(2, null, null, "third"),
+      game(2, null, null, "week2"),
+      game(9, "upper", 1, "playoff", 3),
+      game(5, null, null, "week5"),
     ]);
 
-    expect(ordered.map((m) => m.id)).toEqual(["second", "third", "first"]);
+    expect(ordered.map((m) => m.id)).toEqual(["playoff", "week5", "week2"]);
+  });
+
+  it("sorts a playoff game with no round number after the numbered ones", () => {
+    const ordered = orderMatchesForPicker([
+      game(6, "upper", 1, "unnumbered", null),
+      game(7, "upper", 1, "numbered", 2),
+    ]);
+
+    expect(ordered.map((m) => m.id)).toEqual(["numbered", "unnumbered"]);
   });
 });
 

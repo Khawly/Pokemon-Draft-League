@@ -56,7 +56,7 @@ export function MemberName({
   userId,
 }: MemberNameProps) {
   const resolved = name?.trim();
-  const crowned = useCrowned(userId);
+  const crowned = useCrowned(userId, resolved);
 
   if (!resolved) {
     return <span className={className}>{fallback}</span>;

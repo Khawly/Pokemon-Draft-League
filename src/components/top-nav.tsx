@@ -11,6 +11,7 @@ import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import { confirmDiscardUnsavedChanges } from "@/lib/unsaved-changes";
+import { getSelectedLeague, setSelectedLeague } from "@/lib/league-selection";
 
 /** A single entry in the settings dropdown, with optional visibility flags. */
 type SettingsItem = {
@@ -39,20 +40,9 @@ const settingsItems: SettingsItem[] = [
   // frequency, so it did not earn a permanent spot in a menu every member opens.
 ];
 
-/** LocalStorage key used to persist the user's last-selected league across sessions. */
-const SELECTED_LEAGUE_STORAGE_KEY = "pokemon-draft-league:selected-league";
-
 /** Reads the selected league ID from localStorage, returning null if unavailable. */
 function getStoredSelectedLeagueId() {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
-  try {
-    return window.localStorage.getItem(SELECTED_LEAGUE_STORAGE_KEY);
-  } catch {
-    return null;
-  }
+  return getSelectedLeague();
 }
 
 /**
@@ -192,11 +182,7 @@ function TopNavContent() {
       return;
     }
 
-    try {
-      window.localStorage.setItem(SELECTED_LEAGUE_STORAGE_KEY, selectedLeague);
-    } catch {
-      // Ignore storage errors so the nav still works in restricted environments.
-    }
+    setSelectedLeague(selectedLeague);
   }, [selectedLeague]);
 
   // Only owners see settings that manage the current league.
@@ -276,11 +262,7 @@ function TopNavContent() {
       }
     }
 
-    try {
-      window.localStorage.setItem(SELECTED_LEAGUE_STORAGE_KEY, nextValue);
-    } catch {
-      // Ignore storage errors so the nav still works in restricted environments.
-    }
+    setSelectedLeague(nextValue);
 
     await navigate(target);
   }

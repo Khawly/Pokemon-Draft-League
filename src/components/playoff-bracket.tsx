@@ -25,6 +25,7 @@ import {
   bracketSideTeam,
   feederLabel,
   feederReference,
+  rowsForRound,
   rowsForUnlistedGames,
   roundsFor,
 } from "@/lib/playoff-bracket-shape";
@@ -309,7 +310,12 @@ export function PlayoffBracket({ rows, matches, resolveTeam }: PlayoffBracketPro
   };
 
   /**
-   * A column of cards for one round.
+   * A column of cards for one round of one phase.
+   *
+   * The phase is part of the filter, not just the round number. Rounds are numbered from
+   * one within each bracket, so the playoff winners round one and the toilet bowl round one
+   * are both round 1; filtering on the round alone drew every bracket's opening round into
+   * every other bracket's first column, which read as the whole league playing in both.
    *
    * `justify-center` rather than `justify-around`: later rounds have fewer games than
    * the round before them, and spreading them to the full height left single cards
@@ -319,12 +325,12 @@ export function PlayoffBracket({ rows, matches, resolveTeam }: PlayoffBracketPro
    * The key belongs on the returned element, not on the call site, because this is
    * rendered through `.map()` and React keys the array items rather than the mapper.
    */
-  const column = (round: number) => (
+  const column = (phase: string, round: number) => (
     <div
-      key={round}
+      key={`${phase}-${round}`}
       className="flex min-w-[190px] shrink-0 flex-col justify-center gap-3"
     >
-      {merged.filter((row) => row.round_no === round).map(card)}
+      {rowsForRound(merged, phase, round).map(card)}
     </div>
   );
 
@@ -341,7 +347,7 @@ export function PlayoffBracket({ rows, matches, resolveTeam }: PlayoffBracketPro
           {title}
         </p>
         <div className="flex gap-3 overflow-x-auto pb-2">
-          {rounds.map(column)}
+          {rounds.map((round) => column(phase, round))}
         </div>
       </section>
     );

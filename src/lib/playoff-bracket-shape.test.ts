@@ -6,6 +6,7 @@ import {
   feederLabel,
   feederReference,
   roundsFor,
+  rowsForRound,
   rowsForUnlistedGames,
   type BracketTemplateRow,
 } from "./playoff-bracket-shape";
@@ -184,6 +185,39 @@ describe("roundsFor", () => {
     expect(roundsFor(small, "gf")).toEqual([5]);
     expect(roundsFor(large, "upper")).toEqual([1, 2, 3, 4, 5]);
     expect(roundsFor(large, "lower")).toEqual([6, 7, 8, 9, 10]);
+  });
+});
+
+describe("rowsForRound", () => {
+  it("keeps each bracket's rounds to itself", () => {
+    // The bug this guards. Rounds are numbered from one inside every bracket, so the
+    // playoff winners round one and the toilet bowl round one are both round 1. Filtering
+    // on the round alone put every bracket's opening games in every bracket's first
+    // column, which read as the whole league playing in both brackets at once.
+    const rows = [
+      { phase: "upper", round_no: 1, id: "playoff-r1" },
+      { phase: "upper", round_no: 1, id: "playoff-r1b" },
+      { phase: "toilet", round_no: 1, id: "toilet-r1" },
+      { phase: "toilet", round_no: 1, id: "toilet-r1b" },
+    ];
+
+    expect(rowsForRound(rows, "toilet", 1).map((r) => r.id)).toEqual([
+      "toilet-r1",
+      "toilet-r1b",
+    ]);
+    expect(rowsForRound(rows, "upper", 1).map((r) => r.id)).toEqual([
+      "playoff-r1",
+      "playoff-r1b",
+    ]);
+  });
+
+  it("does not borrow a later round from another phase", () => {
+    const rows = [
+      { phase: "upper", round_no: 2, id: "playoff-r2" },
+      { phase: "toilet", round_no: 1, id: "toilet-r1" },
+    ];
+
+    expect(rowsForRound(rows, "toilet", 2)).toEqual([]);
   });
 });
 

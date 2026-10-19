@@ -217,6 +217,26 @@ export function bracketSideIsBye(
   return hasMatch && matchSide === null;
 }
 
+/**
+ * The rows belonging to one round of one phase.
+ *
+ * Rounds are numbered from one within each bracket, so the playoff winners round one and
+ * the toilet bowl round one are both round 1. Filtering on the round alone mixes every
+ * bracket together; the phase has to be part of the test.
+ *
+ * @param rows - Every row being drawn.
+ * @param phase - The bracket to take the round from.
+ * @param round - The round number within that bracket.
+ * @returns That round's rows, in the order given.
+ */
+export function rowsForRound<T extends BracketShapeRow>(
+  rows: T[],
+  phase: string,
+  round: number,
+): T[] {
+  return rows.filter((row) => row.phase === phase && row.round_no === round);
+}
+
 /** What a bracket slot is waiting on. */
 export interface FeederReference {
   kind: "winner" | "loser";

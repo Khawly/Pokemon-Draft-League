@@ -1352,44 +1352,41 @@ export async function loadPlayoffTemplate(
 }
 
 /**
- * The order a member reads a round's games in.
+ * The order a member reads a week's games in: the playoff brackets, then the consolation.
  *
- * The two brackets a member follows are the winners bracket and the Toilet Bowl, so the
- * winners games come first and the consolation games immediately after. The losers bracket
- * and the finals follow, being later legs of the same round rather than a separate one.
+ * The winners bracket, the losers bracket and the finals are all "the playoffs", so they
+ * come before the Toilet Bowl. Their relative order is the order the brackets are drawn in
+ * on the sheet.
  */
 const PICKER_PHASE_ORDER: Record<string, number> = {
   upper: 0,
-  toilet: 1,
-  lower: 2,
-  gf: 3,
+  lower: 1,
+  gf: 2,
+  toilet: 3,
 };
 
 /** The fields the matchup picker orders by. */
 export type PickerOrderedMatch = {
   week_number: number;
-  is_playoff: boolean;
   bracket_phase?: "upper" | "lower" | "gf" | "toilet" | null;
   bracket_slot?: number | null;
-  playoff_round_no?: number | null;
 };
 
 /**
  * Orders the games for the Week / matchup picker.
  *
- * By the round that created them, not by the week they sit in.
+ * Newest week first, then every playoff game in the week, then that week's Toilet Bowl
+ * games, then slot.
  *
- * One press of Advance Playoffs writes games into several weeks at once -- the next
- * winners round lands in one week and the next losers round in another -- so ordering by
- * week split a single round apart and put the losers leg, which is a later week, above the
- * winners leg. A member who had just advanced saw their new winners matchups scattered
- * below games from the round before. Grouping by round keeps a press together, and within
- * it the winners bracket leads and the Toilet Bowl follows, which is the order they are
- * read in.
+ * The phase is part of the ordering because both brackets run in the same week and number
+ * their slots from one. Sorting on the week and slot alone interleaved them -- winners
+ * slot 1, toilet slot 1, winners slot 2 -- so a toilet game appeared in the middle of the
+ * playoff matchups for its week.
  *
- * Within a round, slot order follows slot number, which is the order the sheet draws them.
- * Regular-season games have no round number and keep their week ordering, below the live
- * bracket once the postseason has started.
+ * Grouping by the round that created the games was tried and rejected: one press writes
+ * the next winners round and the next losers round into different weeks, so a round-first
+ * order put a later week's losers leg above an earlier week's winners round and the labels
+ * read out of sequence.
  *
  * @param matches - The games to order.
  * @returns A new array in picker order.
@@ -1397,37 +1394,13 @@ export type PickerOrderedMatch = {
 export function orderMatchesForPicker<T extends PickerOrderedMatch>(
   matches: T[],
 ): T[] {
-  return [...matches].sort((a, b) => {
-    // A live bracket above a finished regular season.
-    if (a.is_playoff !== b.is_playoff) {
-      return a.is_playoff ? -1 : 1;
-    }
-
-    if (!a.is_playoff) {
-      return b.week_number - a.week_number;
-    }
-
-    // The round this game belongs to. A playoff game written before the column existed
-    // falls back to its week, which orders it consistently with the numbered ones.
-    const roundA = a.playoff_round_no ?? null;
-    const roundB = b.playoff_round_no ?? null;
-
-    if (roundA !== roundB) {
-      if (roundA === null) return 1;
-      if (roundB === null) return -1;
-      return roundB - roundA;
-    }
-
-    const byPhase =
+  return [...matches].sort(
+    (a, b) =>
+      b.week_number - a.week_number ||
       (PICKER_PHASE_ORDER[a.bracket_phase ?? ""] ?? 9) -
-      (PICKER_PHASE_ORDER[b.bracket_phase ?? ""] ?? 9);
-
-    if (byPhase !== 0) {
-      return byPhase;
-    }
-
-    return (a.bracket_slot ?? 0) - (b.bracket_slot ?? 0);
-  });
+        (PICKER_PHASE_ORDER[b.bracket_phase ?? ""] ?? 9) ||
+      (a.bracket_slot ?? 0) - (b.bracket_slot ?? 0),
+  );
 }
 
 /**

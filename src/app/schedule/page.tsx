@@ -54,6 +54,7 @@ import { MemberAvatar } from "@/components/member-avatar";
 import { PlayoffBracket } from "@/components/playoff-bracket";
 import { ManualScheduleEditor } from "@/components/manual-schedule-editor";
 import { CrownProvider } from "@/components/crown-provider";
+import { MatchupPicker } from "@/components/matchup-picker";
 import {
   loadWeekProgressState,
   runWeekDeadlineSweep,
@@ -1733,6 +1734,17 @@ function SchedulePageContent({
     [goods?.matches],
   );
 
+  /** The same list, shaped for the picker: label, matchup, and id per option. */
+  const matchPickerOptions = useMemo(
+    () =>
+      matchPickerMatches.map((match) => ({
+        id: match.id,
+        label: matchWeekLabel(match, firstPlayoffWeek),
+        matchup: `${match.player_1_name} vs ${match.player_2_name}`,
+      })),
+    [matchPickerMatches, firstPlayoffWeek],
+  );
+
   /*
    * The week selector on the Upcoming matches panel. Options are only the weeks (and
    * postseason) that still have an open match, since a completed week has nothing left to
@@ -2817,29 +2829,17 @@ function SchedulePageContent({
                     />
                     <span>Spoiler Filter</span>
                   </label>
-                  <label className="flex items-center gap-2 text-sm text-slate-400">
-                    <span className="hidden sm:inline">Week / matchup</span>
-                    <select
-                      value={selectedMatchId ?? ""}
-                      onChange={(event) => {
-                        setSelectedMatchId(event.target.value || null);
-                        setSchedulingMatchId(null);
-                        setReportingMatchId(null);
-                        setEditingResultId(null);
-                      }}
-                      className="rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-500"
-                    >
-                      {!selectedMatch && (
-                        <option value="">Select a match</option>
-                      )}
-                      {matchPickerMatches.map((match) => (
-                        <option key={match.id} value={match.id}>
-                          {matchWeekLabel(match, firstPlayoffWeek)} •{" "}
-                          {match.player_1_name} vs {match.player_2_name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                  <MatchupPicker
+                    caption="Week / matchup"
+                    options={matchPickerOptions}
+                    selectedId={selectedMatchId}
+                    onSelect={(id) => {
+                      setSelectedMatchId(id || null);
+                      setSchedulingMatchId(null);
+                      setReportingMatchId(null);
+                      setEditingResultId(null);
+                    }}
+                  />
                 </div>
               }
             >

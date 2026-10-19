@@ -43,6 +43,7 @@ const tabs = [
   "Schedule",
   "Trades",
   "Rules",
+  "Hall of Fame",
 ];
 
 /** Maps the navigable header tabs to their route slugs (leagueId is appended). */
@@ -53,6 +54,7 @@ const TAB_ROUTES: Record<string, string> = {
   Schedule: "schedule",
   Trades: "trades",
   Rules: "rules",
+  "Hall of Fame": "hall-of-fame",
 };
 
 /** Builds the route for a tab slug using the selected league id. */

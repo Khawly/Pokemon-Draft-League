@@ -109,11 +109,15 @@ function ChampionCard({ entry }: { entry: HallOfFameEntry }) {
             <ul className="flex flex-wrap items-center gap-3">
               {entry.pokemon.map((pokemon) => (
                 <li key={pokemon.id}>
-                  {/* Three times the roster strip's sprite size. */}
+                  {/*
+                    Half of the size this was drawn at before: large enough to read
+                    across a full-width entry, small enough that a six-Pokemon roster
+                    fits on one line.
+                  */}
                   <PokeballSprite
                     spriteId={pokemon.spriteId}
                     name={pokemon.name}
-                    size={120}
+                    size={60}
                   />
                 </li>
               ))}

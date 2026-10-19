@@ -33,6 +33,7 @@ import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import { useRouter, useSearchParams } from "next/navigation";
 import { useConfirm } from "@/components/confirm-dialog";
 import { useRealtimeInvalidation } from "@/lib/use-realtime-invalidation";
+import { isDocumentHidden } from "@/lib/refetch-throttle";
 import { formatSeasonLabel } from "@/lib/supabase/seasons";
 import {
   DraftGoods,
@@ -2448,6 +2449,10 @@ function DraftArena({ leagueId }: { leagueId: string }) {
       { table: "draft_round_settings", onChange: () => void refreshGoods() },
     ],
     isPaused: () => pendingPickId !== null,
+    // A draft turns over in minutes and the whole point of the page is seeing a pick
+    // land, so the floor is lowered well below the default. It is still a floor: a
+    // fourteen-team draft picking in quick succession cannot turn into a request stream.
+    minIntervalMs: 500,
   });
 
   const slice = useMemo(
@@ -2479,6 +2484,16 @@ function DraftArena({ leagueId }: { leagueId: string }) {
 
     async function refresh() {
       if (cancelled) return;
+
+      /*
+       * A hidden tab is not showing the pool, so reloading it spends the request on
+       * nothing. This poll is a full twelve-request payload every twenty seconds, which
+       * is about a hundred megabytes of API logs a day for a tab left open and unlooked
+       * at; the draft heartbeat advances turns server-side regardless, so nothing is
+       * missed. Coming back to the tab refreshes immediately (below).
+       */
+      if (isDocumentHidden(document.visibilityState)) return;
+
       try {
         const next = await loadDraftData(leagueId);
         if (cancelled) return;
@@ -2498,10 +2513,19 @@ function DraftArena({ leagueId }: { leagueId: string }) {
     const pollTimer = setInterval(() => void refresh(), POLL_INTERVAL_MS);
     const tickTimer = setInterval(() => setNow(Date.now()), TICK_INTERVAL_MS);
 
+    // Catch up the moment the tab is looked at again, rather than waiting out the poll.
+    const onVisibilityChange = () => {
+      if (!isDocumentHidden(document.visibilityState)) {
+        void refresh();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
     return () => {
       cancelled = true;
       clearInterval(pollTimer);
       clearInterval(tickTimer);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
     };
   }, [leagueId, applyServerState]);
 

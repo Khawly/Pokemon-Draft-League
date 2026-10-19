@@ -70,6 +70,8 @@ const TABLES_WITHOUT_LEAGUE_FILTER: ReadonlySet<RealtimeTable> = new Set([
   "draft_round_settings",
 ]);
 
+import { refetchDelayMs, isDocumentHidden } from "@/lib/refetch-throttle";
+
 /** One table to watch and what to do when it changes. */
 export type RealtimeWatcher = {
   /** The table to subscribe to. */
@@ -99,10 +101,31 @@ export type RealtimeInvalidationOptions = {
    * a multi-row write, short enough that a single change still feels immediate.
    */
   debounceMs?: number;
+  /**
+   * Minimum spacing between one batch being flushed and the next, in milliseconds.
+   *
+   * Bounds the cost of a sustained stream of writes. See {@link refetchDelayMs}: a
+   * debounce alone refetches once per quiet window for as long as the writes keep coming,
+   * so a burst that lasts an hour costs an hour of refetching. A page whose payload is
+   * a dozen requests, open in a tab, is what filled the log drain.
+   *
+   * Raise it for a page where freshness is not urgent; the draft lowers it, because a
+   * pick landing is the point of the page and a draft lasts minutes rather than days.
+   */
+  minIntervalMs?: number;
 };
 
 /** Default quiet period before a coalesced batch is flushed. */
 const DEFAULT_DEBOUNCE_MS = 250;
+
+/**
+ * Default minimum spacing between flushes, in milliseconds.
+ *
+ * Chosen against the payload a change costs rather than against how the update feels:
+ * two seconds is five full refetches a minute from one tab even under a write stream that
+ * never lets up, against the four a second a bare debounce allowed.
+ */
+const DEFAULT_MIN_INTERVAL_MS = 2_000;
 
 /**
  * The handle a page gets back from {@link useRealtimeInvalidation}.
@@ -120,6 +143,9 @@ export type RealtimeInvalidation = {
  * Refetches when a watched table changes, coalescing bursts and deferring while
  * the caller is busy.
  *
+ * A batch is also held back while the document is hidden, and applied when the tab is
+ * shown again. The subscription stays open either way, so nothing is missed.
+ *
  * @param options - The league, the tables to watch, and the callbacks to drive.
  * @returns A handle with `flush`, for applying deferred updates.
  */
@@ -128,6 +154,7 @@ export function useRealtimeInvalidation({
   watchers,
   isPaused,
   debounceMs = DEFAULT_DEBOUNCE_MS,
+  minIntervalMs = DEFAULT_MIN_INTERVAL_MS,
 }: RealtimeInvalidationOptions): RealtimeInvalidation {
   /*
    * Watchers are read through a ref so a new array identity on every render does
@@ -158,11 +185,22 @@ export function useRealtimeInvalidation({
     let timer: ReturnType<typeof setTimeout> | null = null;
     let queued: Set<RealtimeTable> | null = null;
     let disposed = false;
+    let lastAppliedAt: number | null = null;
 
     const deliver = () => {
       timer = null;
 
       if (disposed || !queued) {
+        return;
+      }
+
+      /*
+       * A hidden tab would spend the refetch on pixels nobody is looking at, and the
+       * batch is still queued, so it is left to the visibility listener below. This is
+       * the cheapest of the guards and the one that matters most overnight: a tab left
+       * open on a desk was refetching the whole payload every two seconds indefinitely.
+       */
+      if (isDocumentHidden(document.visibilityState)) {
         return;
       }
 
@@ -173,6 +211,7 @@ export function useRealtimeInvalidation({
 
       const due = new Set(queued);
       queued = null;
+      lastAppliedAt = Date.now();
 
       for (const watcher of watchersRef.current) {
         if (due.has(watcher.table)) {
@@ -191,10 +230,27 @@ export function useRealtimeInvalidation({
       }
       queued.add(table);
 
-      if (!timer) {
-        timer = setTimeout(deliver, debounceMs);
+      // Already armed, or waiting on a tab that is not being looked at.
+      if (timer || isDocumentHidden(document.visibilityState)) {
+        return;
       }
+
+      timer = setTimeout(
+        deliver,
+        refetchDelayMs(Date.now(), lastAppliedAt, debounceMs, minIntervalMs),
+      );
     };
+
+    /** Applies whatever arrived while the tab was hidden. */
+    const onVisibilityChange = () => {
+      if (disposed || !queued || timer || isDocumentHidden(document.visibilityState)) {
+        return;
+      }
+
+      timer = setTimeout(deliver, debounceMs);
+    };
+
+    document.addEventListener("visibilitychange", onVisibilityChange);
 
     flushRef.current = () => {
       if (disposed) {
@@ -244,10 +300,11 @@ export function useRealtimeInvalidation({
       if (timer) {
         clearTimeout(timer);
       }
+      document.removeEventListener("visibilitychange", onVisibilityChange);
       void supabase.removeChannel(channel);
       flushRef.current = () => undefined;
     };
-  }, [leagueId, tableKey, debounceMs]);
+  }, [leagueId, tableKey, debounceMs, minIntervalMs]);
 
   return { flush: () => flushRef.current() };
 }

@@ -77,6 +77,36 @@ if (!supabaseUrl || !serviceKey || !ownerEmail || !ownerPassword) {
   process.exit(1);
 }
 
+/*
+ * This script writes to whatever database it is pointed at: it resets the bracket, plays
+ * every game, and leaves the season in a different state than it found it. Pointed at a
+ * live league it destroys that league's postseason.
+ *
+ * It is also loud. Each run replays a whole bracket, writing the match table dozens of
+ * times, and every one of those writes reaches each open subscriber through realtime --
+ * which, on a page that refetches its payload per change, is where a large share of the
+ * project's API log volume came from. A long sweep of runs against production is what
+ * spent half a month's log drain in an afternoon.
+ *
+ * So a remote target has to be named explicitly. The guard is on the host rather than on
+ * an environment name, because a local Supabase stack and the hosted one are told apart
+ * by where they are, not by what they are called.
+ */
+const isLocalTarget = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])/.test(supabaseUrl);
+
+if (!isLocalTarget && process.env.PLAYOFF_SIM_ALLOW_REMOTE !== "1") {
+  console.error(
+    `${supabaseUrl} is not a local database.\n\n` +
+      "This script resets and replays the playoff bracket, so it will overwrite the\n" +
+      "season it is pointed at. To run it against a remote project anyway:\n\n" +
+      "  $env:PLAYOFF_SIM_ALLOW_REMOTE='1'; node scripts/simulate-playoff-bracket.mjs ...\n\n" +
+      "Prefer a local or branch database. Every run writes the match table dozens of\n" +
+      "times, and those writes are what drive realtime refetching for anyone with the\n" +
+      "schedule page open.",
+  );
+  process.exit(1);
+}
+
 /**
  * Calls PostgREST with the service key and returns the parsed body.
  *

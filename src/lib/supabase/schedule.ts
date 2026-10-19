@@ -732,9 +732,10 @@ export async function loadScheduleStandings(
       p_season_id: seasonId,
     }),
     /*
-     * Members who wear the crown in this season's view: the playoff winner of this season,
-     * and the winner of the season before. Loaded here rather than on its own because a
-     * result that moves the standings is exactly what can decide a champion.
+     * Members who wear the crown in this season's view: the winner of the most recent
+     * decided season, which is this one once its final is played and the previous winner
+     * until then. Loaded here rather than on its own because a result that moves the
+     * standings is exactly what can decide a champion.
      */
     supabase.rpc("crowned_members", {
       p_league_id: leagueId,

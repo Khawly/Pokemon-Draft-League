@@ -1,10 +1,11 @@
 /*
  * Makes the champion crown available to every name the app renders.
  *
- * The crown belongs to a member, not a team, and it lasts the season they won and the whole
- * of the next one. Only the page that loads the season knows who that is, so the set is
- * published through a context rather than threaded down as a prop: names appear in dozens
- * of components that have no business knowing what a season is.
+ * The crown belongs to a member, not a team, and it is held until somebody else wins it:
+ * the reigning champion keeps it through every season in which nobody takes the title from
+ * them. Only the page that loads the season knows who that is, so the set is published
+ * through a context rather than threaded down as a prop: names appear in dozens of
+ * components that have no business knowing what a season is.
  *
  * A component that renders a name only has to say who the person is. Everything else about
  * the crown -- whether there is one, which season, whether it has expired -- is decided

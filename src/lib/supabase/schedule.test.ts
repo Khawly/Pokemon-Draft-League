@@ -21,6 +21,7 @@ import {
   inspectManualSchedule,
   matchWeekLabel,
   movesStandings,
+  orderMatchesForPicker,
   seasonPhaseLabel,
   type ProposalHistoryEntry,
   type ScheduleMatch,
@@ -91,6 +92,78 @@ player_1_name: "Player One",
     pending_proposal: null,
   };
 }
+
+describe("orderMatchesForPicker", () => {
+  const game = (
+    week: number,
+    phase: "upper" | "lower" | "gf" | "toilet" | null,
+    slot: number | null,
+    id: string,
+    round: number | null = null,
+  ) => ({
+    week_number: week,
+    is_playoff: phase !== null,
+    bracket_phase: phase,
+    bracket_slot: slot,
+    playoff_round_no: round,
+    id,
+  });
+
+  it("keeps one press of the bracket together even when it spans weeks", () => {
+    // The bug this guards. One press writes the next winners round and the next losers
+    // round at once, into different weeks. Ordering by week split that round in two and
+    // put the losers leg -- a later week -- above the winners leg the member just advanced.
+    const ordered = orderMatchesForPicker([
+      game(11, "lower", 1, "losers-r3", 3),
+      game(8, "upper", 1, "winners-r3", 3),
+    ]);
+
+    expect(ordered.map((m) => m.id)).toEqual(["winners-r3", "losers-r3"]);
+  });
+
+  it("puts the current round's winners above its toilet games", () => {
+    const ordered = orderMatchesForPicker([
+      game(8, "toilet", 1, "toilet-r3", 3),
+      game(8, "upper", 2, "winners-r3b", 3),
+      game(8, "upper", 1, "winners-r3a", 3),
+    ]);
+
+    expect(ordered.map((m) => m.id)).toEqual([
+      "winners-r3a",
+      "winners-r3b",
+      "toilet-r3",
+    ]);
+  });
+
+  it("orders the newest round first", () => {
+    const ordered = orderMatchesForPicker([
+      game(6, "upper", 5, "round1", 1),
+      game(8, "upper", 1, "round3", 3),
+      game(7, "upper", 1, "round2", 2),
+    ]);
+
+    expect(ordered.map((m) => m.id)).toEqual(["round3", "round2", "round1"]);
+  });
+
+  it("keeps the regular season below the live bracket and newest week first", () => {
+    const ordered = orderMatchesForPicker([
+      game(2, null, null, "week2"),
+      game(9, "upper", 1, "playoff", 3),
+      game(5, null, null, "week5"),
+    ]);
+
+    expect(ordered.map((m) => m.id)).toEqual(["playoff", "week5", "week2"]);
+  });
+
+  it("sorts a playoff game without a round number after the numbered ones", () => {
+    const ordered = orderMatchesForPicker([
+      game(6, "upper", 1, "unnumbered", null),
+      game(7, "upper", 1, "numbered", 2),
+    ]);
+
+    expect(ordered.map((m) => m.id)).toEqual(["numbered", "unnumbered"]);
+  });
+});
 
 describe("movesStandings", () => {
   /** A settled match, so the fixture has a winner and a status worth changing. */

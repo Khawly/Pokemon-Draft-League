@@ -109,6 +109,7 @@ import {
   matchWeekLabel,
   movesStandings,
   nextPowerOfTwo,
+  orderMatchesForPicker,
   proposeMatchTime,
   proposalOutcomeLabel,
   proposalOutcomeTone,
@@ -1727,10 +1728,9 @@ function SchedulePageContent({
    */
   const matchPickerMatches = useMemo(
     () =>
-      (goods?.matches ?? [])
-        .filter((match) => !isByeMatch(match))
-        .slice()
-        .sort((a, b) => b.week_number - a.week_number),
+      orderMatchesForPicker(
+        (goods?.matches ?? []).filter((match) => !isByeMatch(match)),
+      ),
     [goods?.matches],
   );
 

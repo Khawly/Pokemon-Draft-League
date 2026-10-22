@@ -8,7 +8,7 @@
  * pick deadline, per-team salary, and picked status.
  */
 import { supabase } from "@/lib/supabase/client";
-import { loadLatestSeason } from "@/lib/supabase/seasons";
+import { isCurrentSeason, loadSeason } from "@/lib/supabase/seasons";
 import { getPokemonEntryBySlug } from "@/lib/pokeapi";
 import { toZonedParts, zonedTimeToInstant } from "@/lib/datetime";
 
@@ -156,6 +156,11 @@ export type DraftPriorityEntry = {
 export type DraftGoods = {
   league: DraftLeague;
   season: DraftSeason | null;
+  /**
+   * Whether this is the league's newest season. A finished season's draft is a record:
+   * the arena shows it, but nothing in it can be changed.
+   */
+  isCurrentSeason: boolean;
   settings: DraftSettings | null;
   members: DraftMember[];
   teams: DraftTeam[];
@@ -232,10 +237,14 @@ teams?: { team_name?: string; owner_user_id?: string } | null;
  * draftable pool rows, and the user's priority list.
  *
  * @param leagueId - The id of the league whose draft to load.
+ * @param seasonId - The season to show, or null for the league's newest.
  * @returns A Promise resolving to the assembled {@link DraftGoods}.
  * @throws If the user is not signed in or any core query fails.
  */
-export async function loadDraftData(leagueId: string): Promise<DraftGoods> {
+export async function loadDraftData(
+  leagueId: string,
+  seasonId?: string | null,
+): Promise<DraftGoods> {
   const {
     data: { user },
     error: userError,
@@ -255,9 +264,10 @@ export async function loadDraftData(leagueId: string): Promise<DraftGoods> {
     throw new Error("This league could not be loaded.");
   }
 
-  const { data: seasonRow, error: seasonError } = await loadLatestSeason<DraftSeason>(
+  const { data: seasonRow, error: seasonError } = await loadSeason<DraftSeason>(
     leagueId,
     "id, season_number, status, name, draft_started_at, draft_completed_at, draft_pick_started_at, draft_paused_at",
+    seasonId,
   );
 
   if (seasonError) {
@@ -274,6 +284,7 @@ export async function loadDraftData(leagueId: string): Promise<DraftGoods> {
       number_of_players: league.number_of_players,
     },
     season,
+    isCurrentSeason: true,
     settings: null,
     members: [],
     teams: [],
@@ -290,6 +301,8 @@ priority: [],
   if (!season) {
     return base;
   }
+
+  const viewingCurrentSeason = await isCurrentSeason(leagueId, season.id);
 
 const [
     settingsResult,
@@ -323,6 +336,8 @@ const [
           "id, team_id, round_number, pick_in_round, overall_pick, pokemon_id, species_name, tier_value, cost_delta, is_pass, created_at, teams: team_id (team_name, owner_user_id), profiles: user_id (display_name, name_color)",
         )
         .eq("league_id", leagueId)
+        // Without this a league's second season would show the first season's picks.
+        .eq("season_id", season.id)
         .order("overall_pick", { ascending: true }),
 supabase
         .from("draft_pools")
@@ -576,6 +591,7 @@ picker_display_name: row.profiles?.display_name ?? null,
 
   return {
     ...base,
+    isCurrentSeason: viewingCurrentSeason,
     settings,
     members,
     teams,

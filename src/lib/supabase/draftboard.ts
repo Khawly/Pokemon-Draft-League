@@ -6,7 +6,7 @@
  * Draft order positions live on each league member, not on teams.
  */
 import { supabase } from "@/lib/supabase/client";
-import { loadLatestSeason } from "@/lib/supabase/seasons";
+import { isCurrentSeason, loadSeason } from "@/lib/supabase/seasons";
 
 /**
  * A league member with resolved profile display name, avatar, and their
@@ -45,6 +45,8 @@ export type DraftboardGoods = {
     number_of_players: number;
   };
   season: DraftboardSeason | null;
+  /** Whether this is the league's newest season; a past one is shown read-only. */
+  isCurrentSeason: boolean;
   members: DraftboardMember[];
   hasInPoolPokemon: boolean;
   inviteToken: string | null;
@@ -73,12 +75,14 @@ profiles?: {
  * so RPC/query shapes stay consistent.
  *
  * @param leagueId - The id of the league to load.
+ * @param seasonId - The season to show, or null for the league's newest.
  * @returns A Promise resolving to the assembled `DraftboardGoods`.
  * @throws If the user is not signed in, the league cannot be loaded, or a
  *   season lookup fails.
  */
 export async function loadDraftboardData(
   leagueId: string,
+  seasonId?: string | null,
 ): Promise<DraftboardGoods> {
   const {
     data: { user },
@@ -99,9 +103,10 @@ export async function loadDraftboardData(
     throw new Error("This league could not be loaded.");
   }
 
-  const { data: seasonRow, error: seasonError } = await loadLatestSeason<DraftboardSeason>(
+  const { data: seasonRow, error: seasonError } = await loadSeason<DraftboardSeason>(
     leagueId,
     "id, season_number, status, name",
+    seasonId,
   );
 
   if (seasonError) {
@@ -109,6 +114,10 @@ export async function loadDraftboardData(
   }
 
   const season = seasonRow;
+
+  const viewingCurrentSeason = season
+    ? await isCurrentSeason(leagueId, season.id)
+    : true;
 
   // Members only apply once a season exists; otherwise skip those queries
   // instead of erroring.
@@ -198,6 +207,7 @@ avatar_url: row.profiles?.avatar_url ?? null,
       number_of_players: league.number_of_players,
     },
     season,
+    isCurrentSeason: viewingCurrentSeason,
     members,
     hasInPoolPokemon,
     inviteToken,

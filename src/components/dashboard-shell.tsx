@@ -16,7 +16,7 @@
 
 import { useRouter } from "next/navigation";
 import { signOut } from "@/lib/supabase/auth";
-import { Fragment } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { getSpriteUrl } from "@/lib/pokeapi";
 import { MemberName } from "@/components/member-name";
 import { MemberAvatar } from "@/components/member-avatar";
@@ -368,6 +368,119 @@ function LineupSprites({ roster }: LineupSpritesProps) {
   );
 }
 
+/** Props for {@link SettingsMenu}. */
+interface SettingsMenuProps {
+  /** The league whose settings are opened. */
+  leagueId: string | null;
+  /** The season on screen, carried into every season-scoped settings page. */
+  seasonId: string | null;
+  /** League settings are owner-only; members settings are not. */
+  isOwner: boolean;
+}
+
+/**
+ * The league settings menu, sitting beside the season selector.
+ *
+ * User settings moved to the avatar in the top bar: it is the one entry that is not
+ * about a league or a season, so it belongs with the person rather than with the
+ * season it would otherwise appear to describe.
+ *
+ * The links carry the league and season ids, so the settings pages open on the season
+ * the member is looking at instead of resolving the newest one for themselves.
+ *
+ * @param props - {@link SettingsMenuProps}
+ * @returns The gear button and its menu.
+ */
+function SettingsMenu({ leagueId, seasonId, isOwner }: SettingsMenuProps) {
+  const router = useRouter();
+  const [isOpen, setIsOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    function handleClickOutside(event: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+
+    document.addEventListener("click", handleClickOutside);
+    return () => document.removeEventListener("click", handleClickOutside);
+  }, [isOpen]);
+
+  const items = [
+    ...(isOwner
+      ? [
+          { label: "Draft Settings", slug: "draft-settings" },
+          { label: "League Settings", slug: "league-settings" },
+        ]
+      : []),
+    { label: "Members Settings", slug: "members-settings" },
+  ];
+
+  /**
+   * Builds a settings route for the season on screen.
+   *
+   * @param slug - The settings route, e.g. "draft-settings".
+   * @returns The route with the league and season attached.
+   */
+  function hrefFor(slug: string): string {
+    const params = new URLSearchParams();
+
+    if (leagueId) {
+      params.set("leagueId", leagueId);
+    }
+    if (seasonId) {
+      params.set("seasonId", seasonId);
+    }
+
+    const query = params.toString();
+    return query ? `/${slug}?${query}` : `/${slug}`;
+  }
+
+  return (
+    <div className="relative" ref={menuRef}>
+      <button
+        type="button"
+        onClick={() => setIsOpen((current) => !current)}
+        className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-700 bg-slate-950 text-slate-300 transition hover:border-slate-500 hover:text-slate-100"
+        aria-label="Open settings menu"
+        aria-expanded={isOpen}
+        title="Settings"
+      >
+        <svg
+          viewBox="0 0 24 24"
+          aria-hidden="true"
+          className="h-5 w-5 fill-current"
+        >
+          <path d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.61-.18l-2.39.96a7.03 7.03 0 0 0-1.63-.94L14.48 2.5a.5.5 0 0 0-.5-.5h-3.96a.5.5 0 0 0-.5.5l-.27 2.56c-.57.23-1.11.55-1.63.94l-2.39-.96a.5.5 0 0 0-.61.18L2.71 9.84a.5.5 0 0 0 .12.64l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94L2.83 13.52a.5.5 0 0 0-.12.64l1.92 3.32a.5.5 0 0 0 .61.18l2.39-.96c.52.39 1.06.71 1.63.94l.27 2.56a.5.5 0 0 0 .5.5h3.96a.5.5 0 0 0 .5-.5l.27-2.56c.57-.23 1.11-.55 1.63-.94l2.39.96a.5.5 0 0 0 .61-.18l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58ZM12 15.5A3.5 3.5 0 1 1 12 8a3.5 3.5 0 0 1 0 7.5Z" />
+        </svg>
+      </button>
+
+      {isOpen && (
+        <div className="absolute right-0 z-20 mt-2 w-56 overflow-hidden rounded-xl border border-slate-700 bg-slate-900 shadow-2xl shadow-slate-950/60">
+          {items.map((item) => (
+            <button
+              key={item.slug}
+              type="button"
+              onClick={() => {
+                setIsOpen(false);
+                router.push(hrefFor(item.slug));
+              }}
+              className="block w-full border-b border-slate-800 bg-slate-900 px-4 py-3 text-left text-sm text-slate-100 transition last:border-b-0 hover:bg-slate-800"
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /**
  * Full dashboard layout for a selected league.
  *
@@ -593,25 +706,35 @@ export function DashboardShell({
           ))}
 
           {/*
-            The season choice. Only shown once there is more than one, so a league in its
-            first season is not offered a list of one.
+            The season choice and the settings for it. The settings menu sits here rather
+            than in the top bar because its entries are about the season on screen: the
+            links carry this season's id, so opening League or Draft Settings lands on the
+            season the member is looking at rather than on the newest one.
           */}
-          {goods.seasons.length > 1 && onSelectSeason && (
-            <label className="ml-auto flex items-center gap-2 text-sm text-slate-400">
-              <span className="hidden sm:inline">Season</span>
-              <select
-                value={goods.season?.id ?? ""}
-                onChange={(event) => onSelectSeason(event.target.value)}
-                className="rounded-full border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-500"
-              >
-                {goods.seasons.map((season) => (
-                  <option key={season.id} value={season.id}>
-                    {season.name?.trim() || `Season ${season.season_number}`}
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
+          <div className="ml-auto flex items-center gap-2">
+            {goods.seasons.length > 1 && onSelectSeason && (
+              <label className="flex items-center gap-2 text-sm text-slate-400">
+                <span className="hidden sm:inline">Season</span>
+                <select
+                  value={goods.season?.id ?? ""}
+                  onChange={(event) => onSelectSeason(event.target.value)}
+                  className="rounded-full border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-500"
+                >
+                  {goods.seasons.map((season) => (
+                    <option key={season.id} value={season.id}>
+                      {season.name?.trim() || `Season ${season.season_number}`}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+
+            <SettingsMenu
+              leagueId={goods.leagueId}
+              seasonId={goods.season?.id ?? null}
+              isOwner={goods.isOwner}
+            />
+          </div>
         </div>
       </header>
 

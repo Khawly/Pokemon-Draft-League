@@ -12,6 +12,11 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import { loadUserTimeZone } from "@/lib/user-timezone";
 import { LoadingGif } from "@/components/loading-gif";
+import { getSelectedSeason } from "@/lib/season-selection";
+import {
+  isCurrentSeason as checkIsCurrentSeason,
+  loadSeason,
+} from "@/lib/supabase/seasons";
 
 /**
  * Draft settings page that suspends rendering until the client-only
@@ -60,6 +65,8 @@ function DraftSettingsPageContent() {
   const [quietHoursTimeZone, setQuietHoursTimeZone] = useState<string | null>(null);
   const [leagueId, setLeagueId] = useState<string | null>(null);
   const [seasonId, setSeasonId] = useState<string | null>(null);
+  /** False when the page is showing a finished season, which cannot be saved. */
+  const [isCurrentSeason, setIsCurrentSeason] = useState(true);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -114,15 +121,26 @@ function DraftSettingsPageContent() {
           selectedLeagueId = memberships[0].league_id;
         }
 
-        setLeagueId(selectedLeagueId);
+        if (!selectedLeagueId) {
+          setLeagueId(null);
+          setSeasonId(null);
+          return;
+        }
 
-        const { data: seasonData, error: seasonError } = await supabase
-          .from("seasons")
-          .select("id")
-          .eq("league_id", selectedLeagueId)
-          .order("season_number", { ascending: false })
-          .limit(1)
-          .maybeSingle();
+        const resolvedLeagueId: string = selectedLeagueId;
+
+        setLeagueId(resolvedLeagueId);
+
+        const { data: seasonData, error: seasonError } = await loadSeason<{
+          id: string;
+        }>(
+          resolvedLeagueId,
+          "id",
+          // The settings menu links carry the season on screen; direct visits fall back
+          // to the last season the member chose, and then to the newest.
+          searchParams.get("seasonId") ??
+            getSelectedSeason(resolvedLeagueId),
+        );
 
         if (seasonError || !seasonData) {
           setSeasonId(null);
@@ -130,11 +148,14 @@ function DraftSettingsPageContent() {
         }
 
         setSeasonId(seasonData.id);
+        setIsCurrentSeason(
+          await checkIsCurrentSeason(resolvedLeagueId, seasonData.id),
+        );
 
         const { data: settingsData, error: settingsError } = await supabase
           .from("league_settings")
           .select("*")
-          .eq("league_id", selectedLeagueId)
+          .eq("league_id", resolvedLeagueId)
           .eq("season_id", seasonData.id)
           .maybeSingle();
 
@@ -191,6 +212,11 @@ function DraftSettingsPageContent() {
    * or nulls out cost- and quiet-hour-related fields when those features are disabled.
    */
   async function handleSaveChanges() {
+    if (!isCurrentSeason) {
+      setError("This is a past season, so its draft settings cannot be changed.");
+      return;
+    }
+
     if (!leagueId || !seasonId) {
       setError("Select a league before saving draft settings.");
       return;
@@ -301,7 +327,7 @@ function DraftSettingsPageContent() {
 
               <button
                 type="button"
-                disabled={!hasUnsavedChanges || isSaving}
+                disabled={!isCurrentSeason || !hasUnsavedChanges || isSaving}
                 onClick={handleSaveChanges}
                 className="rounded-xl bg-amber-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-50"
               >
@@ -310,6 +336,19 @@ function DraftSettingsPageContent() {
             </div>
           </div>
         </header>
+
+        {!isCurrentSeason && (
+          <div className="rounded-2xl border border-sky-800/60 bg-sky-950/40 px-5 py-4 text-sm text-sky-200">
+            <p className="font-semibold uppercase tracking-[0.15em] text-sky-300">
+              Viewing history
+            </p>
+            <p className="mt-1">
+              This is not the league&apos;s current season, so its draft settings
+              are read-only. Switch to the current season from the dashboard to
+              edit them.
+            </p>
+          </div>
+        )}
 
         {hasUnsavedChanges && (
           <div className="rounded-xl border border-amber-700 bg-amber-950/40 px-4 py-3 text-sm text-amber-200">
@@ -329,7 +368,11 @@ function DraftSettingsPageContent() {
           </div>
         )}
 
-        <section className="grid gap-6 lg:grid-cols-2">
+        <fieldset
+          disabled={!isCurrentSeason}
+          className="min-w-0 border-0 p-0"
+        >
+          <section className="grid gap-6 lg:grid-cols-2">
           <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-lg shadow-slate-950/30">
             <div className="space-y-5">
               <div>
@@ -524,6 +567,7 @@ function DraftSettingsPageContent() {
             </div>
           </div>
         </section>
+        </fieldset>
       </div>
     </main>
   );

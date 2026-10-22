@@ -45,6 +45,11 @@ import {
 } from "@/lib/supabase/week-deadline";
 import { loadLatestSeason, saveSeasonName } from "@/lib/supabase/seasons";
 import { LoadingGif } from "@/components/loading-gif";
+import { getSelectedSeason } from "@/lib/season-selection";
+import {
+  isCurrentSeason as checkIsCurrentSeason,
+  loadSeason,
+} from "@/lib/supabase/seasons";
 
 /**
  * Picks a sensible first weekly deadline date: today when the chosen time is
@@ -141,6 +146,8 @@ function LeagueSettingsPageContent() {
   const searchParams = useSearchParams();
   const [leagueId, setLeagueId] = useState<string | null>(null);
   const [seasonId, setSeasonId] = useState<string | null>(null);
+  /** False when the page is showing a finished season, which cannot be changed. */
+  const [isCurrentSeason, setIsCurrentSeason] = useState(true);
   const [seasonNumber, setSeasonNumber] = useState<number | null>(null);
   const [accessAllowed, setAccessAllowed] = useState<boolean | null>(null);
   const [leagueName, setLeagueName] = useState("");
@@ -325,11 +332,18 @@ function LeagueSettingsPageContent() {
         setLeagueName(leagueData.name || "");
         setNumberOfPlayers(resolvedNumberOfPlayers);
 
-        const { data: seasonData, error: seasonError } = await loadLatestSeason<{
+        const { data: seasonData, error: seasonError } = await loadSeason<{
           id: string;
           season_number: number;
           name?: string | null;
-        }>(activeLeagueId, "id, season_number, name");
+        }>(
+          activeLeagueId,
+          "id, season_number, name",
+          // The settings menu links carry the season on screen; direct visits fall back
+          // to the last season the member chose, and then to the newest.
+          searchParams.get("seasonId") ??
+            getSelectedSeason(activeLeagueId),
+        );
 
         if (seasonError || !seasonData) {
           setSeasonId(null);
@@ -337,6 +351,11 @@ function LeagueSettingsPageContent() {
         }
 
         setSeasonId(seasonData.id);
+        const seasonIsCurrent = await checkIsCurrentSeason(
+          activeLeagueId,
+          seasonData.id,
+        );
+        setIsCurrentSeason(seasonIsCurrent);
         setSeasonNumber(seasonData.season_number);
         // An undefined name means the database predates the season name column,
         // so the field stays hidden rather than failing the save.
@@ -355,7 +374,11 @@ function LeagueSettingsPageContent() {
         setDeadlineEnabled(loadedDeadline?.week_deadline_enabled ?? false);
         setDeadlineTime(loadedDeadline?.week_deadline_time ?? "20:00");
         setProgressState(
-          await loadWeekProgressState(activeLeagueId).catch(() => null),
+          // The week pointer belongs to the current season; showing it while a past
+          // season is on screen would label history with the live calendar.
+          seasonIsCurrent
+            ? await loadWeekProgressState(activeLeagueId).catch(() => null)
+            : null,
         );
 
         const initialTimeZone =
@@ -536,6 +559,11 @@ function LeagueSettingsPageContent() {
    * @throws If the league format or deadline RPC rejects the change.
    */
   async function handleSaveDeadline() {
+    if (!isCurrentSeason) {
+      setDeadlineError("This is a past season, so its deadline cannot be changed.");
+      return;
+    }
+
     if (!leagueId) {
       setDeadlineError("Select a league before saving the deadline.");
       return;
@@ -584,6 +612,10 @@ function LeagueSettingsPageContent() {
    * @param paused - True to pause, false to resume.
    */
   async function handleToggleDeadlinePause(paused: boolean) {
+    if (!isCurrentSeason) {
+      return;
+    }
+
     if (!leagueId) {
       return;
     }
@@ -618,6 +650,10 @@ function LeagueSettingsPageContent() {
    * @throws If the owner-only progression RPC rejects the request.
    */
   async function handleProgressWeek() {
+    if (!isCurrentSeason) {
+      return;
+    }
+
     if (!leagueId || !progressState) {
       return;
     }
@@ -697,6 +733,10 @@ function LeagueSettingsPageContent() {
    * @throws If the owner-only undo RPC rejects the request.
    */
   async function handleUndoProgressWeek() {
+    if (!isCurrentSeason) {
+      return;
+    }
+
     if (!leagueId || !progressState?.latest_progress) {
       return;
     }
@@ -808,6 +848,11 @@ function LeagueSettingsPageContent() {
    * Re-probes schema support before saving and throws if required columns are missing.
    */
   async function handleSaveChanges() {
+    if (!isCurrentSeason) {
+      setError("This is a past season, so its settings cannot be changed.");
+      return;
+    }
+
     if (!leagueId || !seasonId) {
       setError("Select a league before saving settings.");
       return;
@@ -1031,6 +1076,11 @@ function LeagueSettingsPageContent() {
    * be sure nothing is left holding the old season.
    */
   async function handleStartNewSeason() {
+    if (!isCurrentSeason) {
+      setError("A new season can only be started from the current season.");
+      return;
+    }
+
     if (!leagueId) {
       setError("Select a league before starting a season.");
       return;
@@ -1098,7 +1148,7 @@ function LeagueSettingsPageContent() {
 
               <button
                 type="button"
-                disabled={!hasUnsavedChanges || isSaving}
+                disabled={!isCurrentSeason || !hasUnsavedChanges || isSaving}
                 onClick={handleSaveChanges}
                 className="rounded-xl bg-amber-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-50"
               >
@@ -1107,6 +1157,19 @@ function LeagueSettingsPageContent() {
             </div>
           </div>
         </header>
+
+        {!isCurrentSeason && (
+          <div className="rounded-2xl border border-sky-800/60 bg-sky-950/40 px-5 py-4 text-sm text-sky-200">
+            <p className="font-semibold uppercase tracking-[0.15em] text-sky-300">
+              Viewing history
+            </p>
+            <p className="mt-1">
+              This is not the league&apos;s current season, so its settings are
+              read-only. Switch to the current season from the dashboard to edit
+              them.
+            </p>
+          </div>
+        )}
 
         {hasUnsavedChanges && (
           <div className="rounded-xl border border-amber-700 bg-amber-950/40 px-4 py-3 text-sm text-amber-200">
@@ -1126,6 +1189,10 @@ function LeagueSettingsPageContent() {
           </div>
         )}
 
+        <fieldset
+          disabled={!isCurrentSeason}
+          className="min-w-0 border-0 p-0"
+        >
         <section className="grid gap-6 lg:grid-cols-2">
           <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-lg shadow-slate-950/30">
             <div className="space-y-5">
@@ -1629,6 +1696,7 @@ function LeagueSettingsPageContent() {
             {isStartingSeason ? "Starting season..." : "Start new season"}
           </button>
         </section>
+        </fieldset>
       </div>
 
       {confirmDialog}

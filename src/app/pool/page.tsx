@@ -34,6 +34,7 @@ import {
   FORMS_DATA,
   getPokemonDetailsBySlug,
   getPokemonEntryBySlug,
+  getPokemonRarity,
   getSpriteUrl,
   matchPokemonName,
   POKEMON_DATA,
@@ -41,6 +42,8 @@ import {
 import { AbilityTooltip } from "@/components/ability-tooltip";
 import { useConfirm } from "@/components/confirm-dialog";
 import { LoadingGif } from "@/components/loading-gif";
+import { getSelectedSeason } from "@/lib/season-selection";
+import { isCurrentSeason as checkIsCurrentSeason, loadSeason } from "@/lib/supabase/seasons";
 
 /** A named, saved draft pool for a league season. */
 type PoolSummary = {
@@ -694,6 +697,7 @@ function PoolPageContent({
   const [poolName, setPoolName] = useState("");
   const [savedPoolName, setSavedPoolName] = useState("");
   const [isOwner, setIsOwner] = useState(false);
+  const [isCurrentSeason, setIsCurrentSeason] = useState(true);
   const [rows, setRows] = useState<PoolPokemonRow[]>([]);
   const [savedRows, setSavedRows] = useState<PoolPokemonRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -713,6 +717,12 @@ function PoolPageContent({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const nextClientKeyRef = useRef(1);
+
+  /**
+   * Whether the pool can be changed. A past season's pool is a record: the owner can
+   * read it, but saving would rewrite a season that is already closed.
+   */
+  const canEdit = isOwner && isCurrentSeason;
 
   const isDirty = useMemo(() => {
     if (poolName.trim() !== savedPoolName) {
@@ -798,21 +808,25 @@ function PoolPageContent({
         setLeagueName(league.name || "");
         setIsOwner(league.owner_id === user.id);
 
-        const { data: seasonRow, error: seasonError } = await supabase
-          .from("seasons")
-          .select("id")
-          .eq("league_id", resolvedLeagueId)
-          .order("season_number", { ascending: false })
-          .limit(1)
-          .maybeSingle();
+        const { data: seasonRow, error: seasonError } =
+          await loadSeason<{ id: string }>(
+            resolvedLeagueId,
+            "id",
+            getSelectedSeason(resolvedLeagueId),
+          );
 
         if (seasonError || !seasonRow) {
           setError("This league has no active season.");
           return;
         }
 
-        const resolvedSeasonId = (seasonRow as { id: string }).id;
+        const resolvedSeasonId = seasonRow.id;
         setSeasonId(resolvedSeasonId);
+        const seasonIsCurrent = await checkIsCurrentSeason(
+          resolvedLeagueId,
+          resolvedSeasonId,
+        );
+        setIsCurrentSeason(seasonIsCurrent);
 
         // Load the saved pools for this season. The dropdown stays empty (and
         // no pool is auto-created) until the owner actually saves one.
@@ -831,7 +845,7 @@ function PoolPageContent({
         setPools(poolList);
 
         if (poolList.length === 0) {
-          if (league.owner_id === user.id) {
+          if (league.owner_id === user.id && seasonIsCurrent) {
             // One default pool per league, created on first load so the owner
             // always has somewhere to save to. Contents start as the unconfigured
             // working set (full dex, all off pool) until the first Save.
@@ -873,7 +887,7 @@ function PoolPageContent({
     /** Loads the Pokémon rows for {@link activePoolId}. */
     async function loadPoolPokemon() {
       if (!activePoolId) {
-        setRows(isOwner ? buildDefaultRows() : []);
+        setRows(isOwner && isCurrentSeason ? buildDefaultRows() : []);
         setSavedRows([]);
         setSelectedIds(new Set());
         return;
@@ -889,7 +903,9 @@ function PoolPageContent({
         // working set (full national dex, off pool) rather than a blank table,
         // and treat it as the saved base so nothing looks dirty on first load.
         const baseRows =
-          refreshed.length === 0 && isOwner ? buildDefaultRows() : refreshed;
+          refreshed.length === 0 && isOwner && isCurrentSeason
+            ? buildDefaultRows()
+            : refreshed;
         setRows(baseRows);
         setSavedRows(baseRows);
         setSelectedIds(new Set());
@@ -905,7 +921,7 @@ function PoolPageContent({
     }
 
     loadPoolPokemon();
-  }, [activePoolId, pools, isOwner]);
+  }, [activePoolId, pools, isOwner, isCurrentSeason]);
 
   /** Resets the working state to a brand-new, unsaved pool. */
   async function startNewPool() {
@@ -956,7 +972,7 @@ function PoolPageContent({
 
   /** Saves staged edits, creating the pool on first save if needed. */
   async function handleSave() {
-    if (!isOwner || isBusy) {
+    if (!canEdit || isBusy) {
       return;
     }
 
@@ -1133,7 +1149,7 @@ function PoolPageContent({
 
   /** Marks the selected saved pool as the season's active draft pool. */
   async function handleSetActivePool() {
-    if (!isOwner || isBusy || !activePoolId) {
+    if (!canEdit || isBusy || !activePoolId) {
       return;
     }
     if (isDirty) {
@@ -1184,7 +1200,7 @@ function PoolPageContent({
    * @returns A promise resolving once the pool is removed.
    */
   async function handleDeletePool() {
-    if (!isOwner || isBusy || !activePoolId) {
+    if (!canEdit || isBusy || !activePoolId) {
       return;
     }
 
@@ -1259,7 +1275,7 @@ function PoolPageContent({
    * @returns A promise resolving once the write completes.
    */
   async function handleConfirmTier(rowId: string) {
-    if (!isOwner || isBusy) {
+    if (!canEdit || isBusy) {
       return;
     }
 
@@ -1388,6 +1404,42 @@ function PoolPageContent({
     setSelectedIds(new Set());
   }
 
+  /**
+   * Removes one rare-species category from the current selection.
+   *
+   * Only the checkboxes change. The rows keep their in-pool status and tiers, so
+   * this is a way to carve legendaries, mythicals or Gigantamax forms out of a
+   * bulk edit without disturbing anything else.
+   *
+   * @param category - Which classification to uncheck.
+   */
+  function handleDeselectRarity(
+    category: "legendary" | "mythical" | "mega" | "gmax",
+  ) {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+
+      for (const row of rows) {
+        if (!next.has(row.key)) {
+          continue;
+        }
+
+        const rarity = getPokemonRarity(row.pokemon_id);
+        const matches =
+          (category === "legendary" && rarity.isLegendary) ||
+          (category === "mythical" && rarity.isMythical) ||
+          (category === "mega" && rarity.isMega) ||
+          (category === "gmax" && rarity.isGigantamax);
+
+        if (matches) {
+          next.delete(row.key);
+        }
+      }
+
+      return next;
+    });
+  }
+
   /** Builds and downloads a CSV export of the current staged pool. */
   function handleExportCsv() {
     const header = ["pokemon_name", "tier", "status", "notes"];
@@ -1419,7 +1471,7 @@ function PoolPageContent({
 
   /** Imports a CSV file, resolving names against the catalog and staging rows. */
   async function handleImportCsvFile(file: File) {
-    if (!file || isBusy || !isOwner) {
+    if (!file || isBusy || !canEdit) {
       return;
     }
 
@@ -1557,6 +1609,39 @@ function PoolPageContent({
   // to disable the Set Pool button once this pool already holds that role.
   const selectedPool = pools.find((pool) => pool.id === activePoolId) ?? null;
   const selectedPoolIsActive = selectedPool?.is_active ?? false;
+
+  /**
+   * How many selected rows fall into each rare-species category.
+   *
+   * Derived from the selection rather than stored per row, so a button can say
+   * exactly how many checkboxes it would remove and stay disabled when its
+   * category has none.
+   */
+  const selectedRarityCounts = useMemo(() => {
+    const counts = { legendary: 0, mythical: 0, mega: 0, gmax: 0 };
+
+    for (const row of rows) {
+      if (!selectedIds.has(row.key)) {
+        continue;
+      }
+
+      const rarity = getPokemonRarity(row.pokemon_id);
+      if (rarity.isLegendary) {
+        counts.legendary += 1;
+      }
+      if (rarity.isMythical) {
+        counts.mythical += 1;
+      }
+      if (rarity.isMega) {
+        counts.mega += 1;
+      }
+      if (rarity.isGigantamax) {
+        counts.gmax += 1;
+      }
+    }
+
+    return counts;
+  }, [rows, selectedIds]);
 
   const availableTypes = useMemo(() => {
     const types = new Set<string>();
@@ -1737,9 +1822,11 @@ function PoolPageContent({
           </div>
         )}
 
-        {!isOwner && (
+        {!canEdit && (
           <p className="rounded-xl border border-amber-800 bg-amber-950/60 px-4 py-3 text-sm text-amber-200">
-            Read-only view: only the league owner can edit the draft pool.
+            {isCurrentSeason
+              ? "Read-only view: only the league owner can edit the draft pool."
+              : "Read-only history: this is not the league's current season, so its pool cannot be changed. Switch to the current season from the dashboard to edit it."}
           </p>
         )}
 
@@ -1772,7 +1859,7 @@ function PoolPageContent({
                   </select>
                 </label>
 
-                {isOwner && (
+                {canEdit && (
                   <label className="flex items-center gap-2 text-sm text-slate-300">
                     <span className="whitespace-nowrap">Name</span>
                     <input
@@ -1791,7 +1878,7 @@ function PoolPageContent({
                 )}
               </div>
 
-              {isOwner && (
+              {canEdit && (
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
@@ -1836,7 +1923,7 @@ function PoolPageContent({
                   Export CSV
                 </button>
 
-                {isOwner && (
+                {canEdit && (
                   <>
                     <input
                       ref={fileInputRef}
@@ -1863,7 +1950,7 @@ function PoolPageContent({
               </div>
 
               <div className="flex flex-wrap items-center gap-3">
-                {isOwner && (
+                {canEdit && (
                   <button
                     type="button"
                     onClick={() => void handleSetActivePool()}
@@ -1881,7 +1968,7 @@ function PoolPageContent({
                   </button>
                 )}
 
-                {isOwner && (
+                {canEdit && (
                   <button
                     type="button"
                     onClick={() => void handleSave()}
@@ -2005,7 +2092,7 @@ function PoolPageContent({
               </select>
             </div>
 
-            {isOwner && selectedIds.size > 0 && (
+            {canEdit && selectedIds.size > 0 && (
               <div className="flex flex-wrap items-center gap-3 rounded-xl border border-amber-800 bg-amber-950/40 px-4 py-3 text-sm text-amber-200">
                 <span>
                   {selectedIds.size} selected
@@ -2031,6 +2118,53 @@ function PoolPageContent({
                 >
                   Remove
                 </button>
+
+                <span
+                  className="mx-1 hidden h-5 w-px bg-amber-800/60 sm:block"
+                  aria-hidden
+                />
+
+                {/*
+                 * Category checkboxes, not pool state: these uncheck the selected
+                 * Legendaries / Mythicals / Gigantamax forms so they are left out of
+                 * the next bulk action. Nothing is written until Save.
+                 */}
+                <button
+                  type="button"
+                  onClick={() => handleDeselectRarity("legendary")}
+                  disabled={selectedRarityCounts.legendary === 0}
+                  title="Uncheck the selected Legendary Pokemon"
+                  className="rounded-lg border border-amber-700 bg-amber-950/60 px-3 py-1.5 text-xs font-semibold text-amber-200 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  Unselect Legendaries ({selectedRarityCounts.legendary})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDeselectRarity("mythical")}
+                  disabled={selectedRarityCounts.mythical === 0}
+                  title="Uncheck the selected Mythical Pokemon"
+                  className="rounded-lg border border-amber-700 bg-amber-950/60 px-3 py-1.5 text-xs font-semibold text-amber-200 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  Unselect Mythicals ({selectedRarityCounts.mythical})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDeselectRarity("mega")}
+                  disabled={selectedRarityCounts.mega === 0}
+                  title="Uncheck the selected Mega Evolutions"
+                  className="rounded-lg border border-amber-700 bg-amber-950/60 px-3 py-1.5 text-xs font-semibold text-amber-200 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  Unselect Megas ({selectedRarityCounts.mega})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDeselectRarity("gmax")}
+                  disabled={selectedRarityCounts.gmax === 0}
+                  title="Uncheck the selected Gigantamax Pokemon"
+                  className="rounded-lg border border-amber-700 bg-amber-950/60 px-3 py-1.5 text-xs font-semibold text-amber-200 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  Unselect Gigantamax ({selectedRarityCounts.gmax})
+                </button>
               </div>
             )}
 
@@ -2038,7 +2172,7 @@ function PoolPageContent({
               {filteredRows.length === 0 ? (
                 <div className="p-8 text-center text-sm text-slate-400">
                   {rows.length === 0
-                    ? isOwner
+                    ? canEdit
                       ? "No Pokémon yet. Save the pool to persist its contents."
                       : "The league owner has not set up the draft pool yet."
                     : "No Pokémon match the current filters."}
@@ -2048,7 +2182,7 @@ function PoolPageContent({
                   <table className="w-full text-center text-sm">
                     <thead className="border-b border-slate-800 bg-slate-950/60 text-xs uppercase tracking-wider text-slate-500">
                       <tr>
-                        {isOwner && (
+                        {canEdit && (
                           <th className="px-4 py-3" scope="col">
                             <input
                               type="checkbox"
@@ -2104,7 +2238,7 @@ function PoolPageContent({
                         <PoolTableRow
                           key={row.key}
                           row={row}
-                          isOwner={isOwner}
+                          isOwner={canEdit}
                           selected={selectedIds.has(row.key)}
                           onToggleSelection={toggleSelection}
                           onTierChange={handleTierChange}
@@ -2161,7 +2295,7 @@ function PoolPageContent({
                               : "No data"}
                           </p>
                         </div>
-                        {isOwner && (
+                        {canEdit && (
                           <div className="flex shrink-0 items-center gap-1.5">
                             <input
                               type="number"

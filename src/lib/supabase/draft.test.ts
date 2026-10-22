@@ -28,6 +28,7 @@ function makeGoods(
   return {
     league: { id: "league-1", name: "Test", owner_id: "owner-1", number_of_players: 8 },
     season: null,
+    isCurrentSeason: true,
     settings: {
       draft_format: "snake",
       total_rounds: 20,

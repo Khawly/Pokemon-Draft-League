@@ -21,6 +21,7 @@ import { useConfirm } from "@/components/confirm-dialog";
 import { MemberName } from "@/components/member-name";
 import { MemberAvatar } from "@/components/member-avatar";
 import { LoadingGif } from "@/components/loading-gif";
+import { getSelectedSeason } from "@/lib/season-selection";
 
 /**
  * Entry point for the draft board route.
@@ -115,7 +116,10 @@ function DraftBoardPageContent() {
           return;
         }
 
-        const loaded = await loadDraftboardData(selectedLeagueId);
+        const loaded = await loadDraftboardData(
+          selectedLeagueId,
+          getSelectedSeason(selectedLeagueId),
+        );
         setGoods(loaded);
         setStagedPositions({});
 
@@ -200,6 +204,7 @@ function DraftBoardPageContent() {
 
   const canStartDraft =
     !!goods?.season &&
+    goods.isCurrentSeason &&
     goods.season.status === "draft_pending" &&
     checklistComplete;
 
@@ -614,7 +619,8 @@ function DraftBoardPageContent() {
               goods={goods}
               members={effectiveMembers}
               isBusy={isBusy}
-              isOwner={goods.isOwner}
+              // A past season's draft order is a record, not something to re-stage.
+              isOwner={goods.isOwner && goods.isCurrentSeason}
               hasPositionChanges={hasPositionChanges}
               onStagePosition={handleStagePosition}
               onRandomize={handleRandomizePositions}

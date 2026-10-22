@@ -1,44 +1,20 @@
 /*
  * Sticky top navigation bar for the Pokemon Draft League app.
  *
- * Renders the league selector dropdown, settings menu, and home link.
+ * Renders the league selector, the user avatar that opens user settings, and
+ * the home link. League/season settings live beside the season selector on the
+ * dashboard, where the season they apply to is visible.
  * Fetches the user's active league memberships from Supabase and
  * persists the last-selected league in localStorage.
  */
 "use client";
 
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import { confirmDiscardUnsavedChanges } from "@/lib/unsaved-changes";
 import { getSelectedLeague, setSelectedLeague } from "@/lib/league-selection";
-
-/** A single entry in the settings dropdown, with optional visibility flags. */
-type SettingsItem = {
-  /** Display label shown in the dropdown. */
-  label: string;
-  /** Navigation path the entry points to. */
-  path: string;
-  /** When true, the entry only appears for league owners. */
-  ownerOnly?: boolean;
-  /** When true, the entry only appears while a league is selected. */
-  requiresLeague?: boolean;
-};
-
-/** Menu entries for the settings dropdown. `ownerOnly` items are hidden from non-owners; `requiresLeague` items only show when a league is selected. */
-const settingsItems: SettingsItem[] = [
-  { label: "User Settings", path: "/settings" },
-  { label: "Draft Settings", path: "/draft-settings", ownerOnly: true },
-  { label: "League Settings", path: "/league-settings", ownerOnly: true },
-  {
-    label: "Members Settings",
-    path: "/members-settings",
-    requiresLeague: true,
-  },
-  // The draft pool has no entry here. /pool is still reachable from the dashboard
-  // checklist, the draft board, and the direct route; it is owner-only and low
-  // frequency, so it did not earn a permanent spot in a menu every member opens.
-];
+import { MemberAvatar } from "@/components/member-avatar";
 
 /** Reads the selected league ID from localStorage, returning null if unavailable. */
 function getStoredSelectedLeagueId() {
@@ -79,28 +55,71 @@ function TopNavContent() {
   const [leagueOptions, setLeagueOptions] = useState<
     Array<{ id: string; label: string; role: string }>
   >([]);
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isReady, setIsReady] = useState(false);
-  const settingsMenuRef = useRef<HTMLDivElement>(null);
+  /**
+   * The signed-in member's identity, used for the avatar button that opens user
+   * settings. Read here rather than from the page because the bar is global.
+   */
+  const [profile, setProfile] = useState<{
+    displayName: string | null;
+    avatarUrl: string | null;
+    avatarInitials: string | null;
+    nameColor: string | null;
+  }>({
+    displayName: null,
+    avatarUrl: null,
+    avatarInitials: null,
+    nameColor: null,
+  });
 
-  // Close the settings menu when a click lands outside of it.
-  useEffect(() => {
-    if (!isMenuOpen) {
+  /**
+   * Reloads the signed-in member's identity for the avatar button.
+   *
+   * Kept separate from the league list so a profile edit can refresh the picture
+   * without re-reading every membership.
+   */
+  const loadProfile = useCallback(async () => {
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
       return;
     }
 
-    function handleClickOutside(event: MouseEvent) {
-      if (
-        settingsMenuRef.current &&
-        !settingsMenuRef.current.contains(event.target as Node)
-      ) {
-        setIsMenuOpen(false);
-      }
+    const { data: profileRow } = await supabase
+      .from("profiles")
+      .select("display_name, avatar_url, avatar_initials, name_color")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    const identity = profileRow as {
+      display_name: string | null;
+      avatar_url: string | null;
+      avatar_initials: string | null;
+      name_color: string | null;
+    } | null;
+
+    setProfile({
+      displayName: identity?.display_name ?? null,
+      avatarUrl: identity?.avatar_url ?? null,
+      avatarInitials: identity?.avatar_initials ?? null,
+      nameColor: identity?.name_color ?? null,
+    });
+  }, []);
+
+  // The bar lives in the root layout and survives a navigation, so a profile saved
+  // on the settings page tells it to re-read rather than leaving a stale picture.
+  useEffect(() => {
+    function handleProfileUpdated() {
+      void loadProfile();
     }
 
-    document.addEventListener("click", handleClickOutside);
-    return () => document.removeEventListener("click", handleClickOutside);
-  }, [isMenuOpen]);
+    window.addEventListener("profile-updated", handleProfileUpdated);
+    return () =>
+      window.removeEventListener("profile-updated", handleProfileUpdated);
+  }, [loadProfile]);
 
   useEffect(() => {
     async function loadLeagueOptions() {
@@ -113,6 +132,9 @@ function TopNavContent() {
         setLeagueOptions([]);
         return;
       }
+
+      // The avatar is read alongside the memberships that fill the league select.
+      await loadProfile();
 
       const { data, error } = await supabase
         .from("league_members")
@@ -142,7 +164,7 @@ function TopNavContent() {
     }
 
     loadLeagueOptions();
-  }, [searchParams]);
+  }, [loadProfile, searchParams]);
 
   const selectedLeague = useMemo(() => {
     // "create-league" is a sentinel value indicating no league is selected yet.
@@ -184,15 +206,6 @@ function TopNavContent() {
 
     setSelectedLeague(selectedLeague);
   }, [selectedLeague]);
-
-  // Only owners see settings that manage the current league.
-  const isOwner =
-    selectedLeague !== "create-league" &&
-    leagueOptions.find((option) => option.id === selectedLeague)?.role ===
-      "owner";
-
-  const hasSelectedLeague =
-    selectedLeague !== "create-league" && selectedLeague !== undefined;
 
   if (pathname === "/") {
     return null;
@@ -267,17 +280,6 @@ function TopNavContent() {
     await navigate(target);
   }
 
-  async function handleSettingsSelect(path: string) {
-    setIsMenuOpen(false);
-
-    if (!selectedLeague || selectedLeague === "create-league") {
-      await navigate(path);
-      return;
-    }
-
-    await navigate(`${path}?leagueId=${selectedLeague}`);
-  }
-
   return (
     <header className="sticky top-0 z-50 border-b border-slate-800 bg-slate-950/90 backdrop-blur-sm">
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
@@ -328,44 +330,29 @@ function TopNavContent() {
           </label>
         </div>
 
-        <div className="relative" ref={settingsMenuRef}>
-          <button
-            type="button"
-            onClick={() => setIsMenuOpen((current) => !current)}
-            className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-700 bg-slate-900 text-slate-100 transition hover:border-slate-500 hover:bg-slate-800"
-            aria-label="Open settings menu"
-            title="Settings"
-          >
-            <svg
-              viewBox="0 0 24 24"
-              aria-hidden="true"
-              className="h-5 w-5 fill-current"
-            >
-              <path d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.61-.18l-2.39.96a7.03 7.03 0 0 0-1.63-.94L14.48 2.5a.5.5 0 0 0-.5-.5h-3.96a.5.5 0 0 0-.5.5l-.27 2.56c-.57.23-1.11.55-1.63.94l-2.39-.96a.5.5 0 0 0-.61.18L2.71 9.84a.5.5 0 0 0 .12.64l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94L2.83 13.52a.5.5 0 0 0-.12.64l1.92 3.32a.5.5 0 0 0 .61.18l2.39-.96c.52.39 1.06.71 1.63.94l.27 2.56a.5.5 0 0 0 .5.5h3.96a.5.5 0 0 0 .5-.5l.27-2.56c.57-.23 1.11-.55 1.63-.94l2.39.96a.5.5 0 0 0 .61-.18l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58ZM12 15.5A3.5 3.5 0 1 1 12 8a3.5 3.5 0 0 1 0 7.5Z" />
-            </svg>
-          </button>
+        <button
+          type="button"
+          onClick={() => {
+            if (!selectedLeague || selectedLeague === "create-league") {
+              void navigate("/settings");
+              return;
+            }
 
-          {isMenuOpen && (
-            <div className="absolute right-0 mt-2 w-56 overflow-hidden rounded-xl border border-slate-700 bg-slate-900 shadow-2xl shadow-slate-950/60">
-              {settingsItems
-                .filter(
-                  (item) =>
-                    (!item.ownerOnly || isOwner) &&
-                    (!item.requiresLeague || hasSelectedLeague),
-                )
-                .map((item) => (
-                  <button
-                    key={item.label}
-                    type="button"
-                    onClick={() => handleSettingsSelect(item.path)}
-                    className="block w-full border-b border-slate-800 bg-slate-900 px-4 py-3 text-left text-sm text-slate-100 transition last:border-b-0 hover:bg-slate-800"
-                  >
-                    {item.label}
-                  </button>
-                ))}
-            </div>
-          )}
-        </div>
+            void navigate(`/settings?leagueId=${selectedLeague}`);
+          }}
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-700 bg-slate-900 transition hover:border-slate-500 hover:bg-slate-800"
+          aria-label="User settings"
+          title="User settings"
+        >
+          <MemberAvatar
+            name={profile.displayName ?? "You"}
+            avatarUrl={profile.avatarUrl}
+            initials={profile.avatarInitials}
+            color={profile.nameColor}
+            size={32}
+            textClassName="text-xs"
+          />
+        </button>
       </div>
     </header>
   );

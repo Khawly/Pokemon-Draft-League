@@ -59,12 +59,13 @@ import { AbilityTooltip } from "@/components/ability-tooltip";
 import { MemberName } from "@/components/member-name";
 import { MemberAvatar } from "@/components/member-avatar";
 import {
-  getDexNumber,
   getPokemonDetailsBySlug,
+  getPokemonEntryBySlug,
   getSpriteUrl,
 } from "@/lib/pokeapi";
 import { useUserTimeZone } from "@/lib/user-timezone";
 import { LoadingGif } from "@/components/loading-gif";
+import { getSelectedSeason } from "@/lib/season-selection";
 
 /*
  * Small shared building blocks, mirroring the pool page's sprite/type/tier
@@ -600,10 +601,22 @@ function storePickBoardLayout(layout: PickBoardLayout) {
 }
 
 /**
- * Resolves the dex id for a pick's pokemon id slug.
+ * Resolves the sprite id for a pick's Pokemon slug.
+ *
+ * Alternate forms carry a 10001+ sprite id of their own, so a pick like "raichu-alola"
+ * must not fall back to the species dex number: that draws the base form, and for a form
+ * whose dex number the old lookup did not know it drew nothing at all. This resolves
+ * either kind through the catalog, which is the same path the pool rows use.
+ *
+ * @param pokemonId - The stored Pokemon slug, or null for a pass.
+ * @returns The sprite id, or 0 when the slug is unknown.
  */
-function dexOf(pokemonId: string | null): number {
-  return getDexNumber(pokemonId ?? "");
+function spriteIdOf(pokemonId: string | null): number {
+  if (!pokemonId) {
+    return 0;
+  }
+
+  return getPokemonEntryBySlug(pokemonId)?.spriteId ?? 0;
 }
 
 /** One player, resolved for whichever board view is showing. */
@@ -1046,7 +1059,7 @@ function PickBoardCards({
                               spriteId={
                                 pick.pokemon_id
                                   ? (poolRowByPokemon.get(pick.pokemon_id)
-                                      ?.spriteId ?? dexOf(pick.pokemon_id))
+                                      ?.spriteId ?? spriteIdOf(pick.pokemon_id))
                                   : 0
                               }
                               name={pick.species_name ?? "Picked"}
@@ -2418,7 +2431,7 @@ function DraftArena({ leagueId }: { leagueId: string }) {
   // Reloads the full draft state after a pick, timer resolution, or save, using
   // the same server-state adoption path as the poll.
   const refreshGoods = useCallback(async () => {
-    const next = await loadDraftData(leagueId);
+    const next = await loadDraftData(leagueId, getSelectedSeason(leagueId));
     setGoods(next);
     applyServerState({
       priority: next.priority,
@@ -2496,7 +2509,7 @@ function DraftArena({ leagueId }: { leagueId: string }) {
       if (isDocumentHidden(document.visibilityState)) return;
 
       try {
-        const next = await loadDraftData(leagueId);
+        const next = await loadDraftData(leagueId, getSelectedSeason(leagueId));
         if (cancelled) return;
         setGoods(next);
         applyServerState({
@@ -2635,7 +2648,7 @@ function DraftArena({ leagueId }: { leagueId: string }) {
   // Opens the confirmation dialog for a pending pick, guarded to only when the
   // Pokemon is a valid, unpicked, affordable choice on the user's turn.
   function requestPick(pokemonId: string | null) {
-    if (!goods || busyPick || !pokemonId) return;
+    if (!goods || busyPick || !pokemonId || !goods.isCurrentSeason) return;
     const row = goods.poolRows.find(
       (candidate) => candidate.pokemon_id === pokemonId,
     );
@@ -2661,7 +2674,7 @@ function DraftArena({ leagueId }: { leagueId: string }) {
   }
 
   async function handlePick(pokemonId: string | null) {
-    if (!goods || busyPick) return;
+    if (!goods || busyPick || !goods.isCurrentSeason) return;
     setBusyPick(true);
     setPendingPickId(null);
     try {
@@ -2804,6 +2817,9 @@ function DraftArena({ leagueId }: { leagueId: string }) {
     autoPick: boolean,
     skipPick: boolean,
   ) {
+    // A finished season's priority list is a record, like its picks.
+    if (!goods?.isCurrentSeason) return;
+
     try {
       await setPriorityRoundFlags(leagueId, roundNumber, autoPick, skipPick);
       setRoundFlags((current) => {
@@ -2820,7 +2836,7 @@ function DraftArena({ leagueId }: { leagueId: string }) {
   }
 
   async function handleSave(entries?: DraftPriorityEntry[]) {
-    if (!goods) return;
+    if (!goods || !goods.isCurrentSeason) return;
     const toSave = entries ?? priorityEntriesRef.current;
     const payload = toSave.map((entry) => ({
       round_number: entry.round_number,
@@ -2905,12 +2921,28 @@ function DraftArena({ leagueId }: { leagueId: string }) {
         <DraftHeader
           goods={goods}
           now={now}
-          isOwner={goods.league.owner_id === goods.currentUserId}
+          isOwner={
+            goods.league.owner_id === goods.currentUserId &&
+            goods.isCurrentSeason
+          }
           onReset={() => void handleResetDraft()}
           resetting={busyReset}
           onTogglePause={() => void handleTogglePause()}
           pausing={busyPause}
         />
+
+        {!goods.isCurrentSeason && (
+          <div className="rounded-2xl border border-sky-800/60 bg-sky-950/40 px-5 py-4 text-sm text-sky-200">
+            <p className="font-semibold uppercase tracking-[0.15em] text-sky-300">
+              Viewing history
+            </p>
+            <p className="mt-1">
+              This is not the league&apos;s current season, so its draft is
+              read-only. The picks and pool are shown as they finished. Switch to
+              the current season from the dashboard to draft.
+            </p>
+          </div>
+        )}
 
         {error && (
           <div className="rounded-xl border border-red-800 bg-red-950/50 px-4 py-3 text-sm font-medium text-red-300">
@@ -2918,7 +2950,7 @@ function DraftArena({ leagueId }: { leagueId: string }) {
           </div>
         )}
 
-        {slice?.isMyTurn && !slice.isOver && (
+        {goods.isCurrentSeason && slice?.isMyTurn && !slice.isOver && (
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-500/40 bg-amber-500/10 px-5 py-4">
             <div>
               <p className="font-semibold text-amber-200">
@@ -2951,26 +2983,38 @@ function DraftArena({ leagueId }: { leagueId: string }) {
             }}
           />
           <div className="lg:sticky lg:top-0 lg:max-h-screen">
-            <PriorityPanel
-              goods={goods}
-              now={now}
-              entries={priorityEntries}
-              error={priorityError}
-              isSaving={isSaving}
-              roundFlags={roundFlags}
-              actions={{
-                onAddToRound: (pokemonId, roundNumber) =>
-                  handleAddToPriority(pokemonId, roundNumber),
-                onMoveEntry: (key, targetRound, targetIndex) =>
-                  handleMoveEntry(key, targetRound, targetIndex),
-                onPick: (pokemonId) => requestPick(pokemonId),
-                onSetRoundFlags: (roundNumber, autoPick, skipPick) =>
-                  void handleSetRoundFlags(roundNumber, autoPick, skipPick),
-                onRemove: (key) => handleRemove(key),
-                onClear: () => handleClear(),
-                onClearError: () => setPriorityError(null),
-              }}
-            />
+            {goods.isCurrentSeason ? (
+              <PriorityPanel
+                goods={goods}
+                now={now}
+                entries={priorityEntries}
+                error={priorityError}
+                isSaving={isSaving}
+                roundFlags={roundFlags}
+                actions={{
+                  onAddToRound: (pokemonId, roundNumber) =>
+                    handleAddToPriority(pokemonId, roundNumber),
+                  onMoveEntry: (key, targetRound, targetIndex) =>
+                    handleMoveEntry(key, targetRound, targetIndex),
+                  onPick: (pokemonId) => requestPick(pokemonId),
+                  onSetRoundFlags: (roundNumber, autoPick, skipPick) =>
+                    void handleSetRoundFlags(roundNumber, autoPick, skipPick),
+                  onRemove: (key) => handleRemove(key),
+                  onClear: () => handleClear(),
+                  onClearError: () => setPriorityError(null),
+                }}
+              />
+            ) : (
+              /*
+               * The priority list plans a draft that has not happened. For a finished
+               * season it is history, and every control in it would try to write to a
+               * season that can no longer change.
+               */
+              <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 text-sm text-slate-400">
+                This draft is finished, so its priority list is a record rather
+                than something to edit.
+              </div>
+            )}
           </div>
         </div>
 

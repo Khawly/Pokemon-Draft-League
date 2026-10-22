@@ -50,6 +50,10 @@ export type PokemonDataEntry = {
   bst: number;
   /** Generation label, e.g. "Gen 1". */
   generation: string;
+  /** True when PokeAPI classifies the species as legendary. */
+  isLegendary: boolean;
+  /** True when PokeAPI classifies the species as mythical. */
+  isMythical: boolean;
 };
 
 /** A distinct alternate form from the bundled forms dataset. */
@@ -70,6 +74,12 @@ export type PokemonFormEntry = {
   bst: number;
   /** Generation label, e.g. "Gen 3". */
   generation: string;
+  /** Inherited from the base species, so a legendary's forms stay legendary. */
+  isLegendary: boolean;
+  /** Inherited from the base species, so a mythical's forms stay mythical. */
+  isMythical: boolean;
+  /** True for Gigantamax forms, whose slug ends in "-gmax". */
+  isGigantamax: boolean;
 };
 
 /** Per-stat base stat values for a species/form, keyed by stat kind. */
@@ -545,4 +555,63 @@ export function getPokemonEntryBySlug(slug: string): PokemonMatch | null {
     return formToMatch(formEntry);
   }
   return null;
+}
+
+/** The rare-species classifications the draft pool can act on. */
+export type PokemonRarity = {
+  /** A legendary species or one of its forms. */
+  isLegendary: boolean;
+  /** A mythical species or one of its forms. */
+  isMythical: boolean;
+  /** A Mega Evolution form, which PokeAPI names with a `-mega` suffix. */
+  isMega: boolean;
+  /** A Gigantamax form. Base species have no Gigantamax flag of their own. */
+  isGigantamax: boolean;
+};
+
+/**
+ * Classifies a stored slug as legendary, mythical, Mega and/or Gigantamax.
+ *
+ * Alternate forms inherit the base species' legendary and mythical status, so
+ * "zacian-crowned" and "mewtwo-mega-x" are caught alongside the base species.
+ * Mega and Gigantamax are properties of the form itself, not of its species.
+ *
+ * Mega is derived from the slug rather than stored: PokeAPI has no Mega flag on a
+ * form, and every Mega Evolution it exposes is named `<species>-mega`,
+ * `<species>-mega-x` or `<species>-mega-y`. Primal Reversions are a separate
+ * mechanic and are deliberately not included.
+ *
+ * An unknown slug is unclassified rather than an error: the pool can contain a
+ * slug written by an older dataset, and that should not break the table.
+ *
+ * @param slug - The PokeAPI slug, e.g. "pikachu" or "charizard-mega-x".
+ * @returns The four flags, all false when the slug is unknown.
+ */
+export function getPokemonRarity(slug: string): PokemonRarity {
+  const speciesEntry = BY_SLUG.get(slug);
+  if (speciesEntry) {
+    return {
+      isLegendary: speciesEntry.isLegendary,
+      isMythical: speciesEntry.isMythical,
+      isMega: false,
+      isGigantamax: false,
+    };
+  }
+
+  const formEntry = FORM_BY_SLUG.get(slug);
+  if (formEntry) {
+    return {
+      isLegendary: formEntry.isLegendary,
+      isMythical: formEntry.isMythical,
+      isMega: formEntry.slug.includes("-mega"),
+      isGigantamax: formEntry.isGigantamax,
+    };
+  }
+
+  return {
+    isLegendary: false,
+    isMythical: false,
+    isMega: false,
+    isGigantamax: false,
+  };
 }

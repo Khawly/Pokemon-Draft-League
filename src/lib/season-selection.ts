@@ -57,3 +57,22 @@ export function setSelectedSeason(leagueId: string, seasonId: string): void {
 
   window.dispatchEvent(new Event(SELECTED_SEASON_CHANGED_EVENT));
 }
+
+/**
+ * Forgets the stored season for a league, e.g. after the league is deleted.
+ *
+ * @param leagueId - The league whose season choice should be removed.
+ */
+export function clearSelectedSeason(leagueId: string): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    window.localStorage.removeItem(SELECTED_SEASON_KEY_PREFIX + leagueId);
+  } catch {
+    // Storage can be unavailable; there is nothing else to do.
+  }
+
+  window.dispatchEvent(new Event(SELECTED_SEASON_CHANGED_EVENT));
+}

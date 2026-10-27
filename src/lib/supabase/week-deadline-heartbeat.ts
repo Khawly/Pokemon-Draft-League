@@ -12,11 +12,21 @@
  * long-lived hosts (the dev server or a self-hosted Node build), not for
  * per-request serverless instances — the Schedule page also nudges the sweep so
  * a serverless deployment still progresses while someone is looking at it.
+ *
+ * The server heartbeat uses the service role, like the draft sweep. The
+ * authenticated Schedule-page nudge keeps its own grant.
+ *
+ * The same daily tick also calls prune_internal_history, which trims old
+ * notifications and heartbeat audit rows. It is intentionally separate from the
+ * league records (matches, transactions, rosters, pools).
  */
 import { createClient } from "@supabase/supabase-js";
 
 /** Deadlines are days apart, so a minute of latency is imperceptible. */
 const HEARTBEAT_INTERVAL_MS = 60_000;
+
+/** Internal-history cleanup cadence; once per process per day. */
+const PRUNE_INTERVAL_MS = 24 * 60 * 60 * 1000;
 
 // Reads the first defined environment variable from the given candidate keys.
 const getEnvValue = (...keys: string[]) => {
@@ -37,7 +47,7 @@ type HeartbeatState = {
 };
 
 /**
- * Runs a single weekly deadline sweep with the public anon client.
+ * Runs a single weekly deadline sweep with the service-role client.
  *
  * Guarantees one sweep-at-a-time: a promise that never settles holds the single
  * guard and later ticks skip instead of stacking requests. Any thrown error or
@@ -56,6 +66,35 @@ async function runSweep(
   }
   console.log(
     `[week-deadline-heartbeat] sweep ok (leagues advanced=${String(result.data)})`,
+  );
+}
+
+/**
+ * Trims old notifications and heartbeat audit rows.
+ *
+ * The SQL function takes its own advisory lock, so multiple app-server
+ * instances can call it without duplicating the deletes. A missing migration or
+ * transient error only produces a log line; the league sweep itself still runs.
+ *
+ * @param client - Service-role client used by the heartbeat.
+ */
+async function runPrune(
+  client: import("@supabase/supabase-js").SupabaseClient,
+) {
+  const result = await client.rpc("prune_internal_history");
+
+  if (result.error) {
+    console.error(
+      "[week-deadline-heartbeat] retention RPC error:",
+      result.error.message,
+    );
+    return;
+  }
+
+  const row = Array.isArray(result.data) ? result.data[0] : result.data;
+  console.log(
+    "[week-deadline-heartbeat] retention pruned",
+    row ?? "0 rows",
   );
 }
 
@@ -86,23 +125,25 @@ export function startWeekDeadlineHeartbeat(
     "NEXT_PUBLIC_SUPABASE_URL",
     "SUPABASE_URL",
   );
-  const supabaseAnonKey = getEnvValue(
-    "NEXT_PUBLIC_SUPABASE_ANON_KEY",
-    "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
-    "SUPABASE_ANON_KEY",
+  const serviceKey = getEnvValue(
+    "SUPABASE_SECRET_KEY",
+    "SUPABASE_SERVICE_ROLE_KEY",
   );
 
-  if (!supabaseUrl || !supabaseAnonKey) {
+  if (!supabaseUrl || !serviceKey) {
     console.warn(
-      "[week-deadline-heartbeat] supabase env vars missing; sweep idle",
+      "[week-deadline-heartbeat] service-role key missing; sweep idle",
     );
     return;
   }
 
   // One shared client (per-call clients leak connections), reused by every tick.
-  const client = createClient(supabaseUrl, supabaseAnonKey);
+  const client = createClient(supabaseUrl, serviceKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
 
   let inFlight = false;
+  let lastPruneAt = 0;
   const sweep = async () => {
     if (inFlight) {
       console.warn(
@@ -113,6 +154,14 @@ export function startWeekDeadlineHeartbeat(
     inFlight = true;
     try {
       await runSweep(client);
+
+      const now = Date.now();
+      if (now - lastPruneAt >= PRUNE_INTERVAL_MS) {
+        // Mark before the call so a persistent failure retries on the next day
+        // rather than on every 60-second tick.
+        lastPruneAt = now;
+        await runPrune(client);
+      }
     } catch (err) {
       console.error(
         "[week-deadline-heartbeat] sweep failed:",

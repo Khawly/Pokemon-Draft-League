@@ -1,8 +1,9 @@
 /*
- * League creation helpers for the Pokemon Draft League.
+ * League lifecycle helpers for the Pokemon Draft League.
  *
- * Wraps the `create_league_for_user` RPC to create a league along with its
- * season for the currently signed-in user.
+ * Wraps the `create_league_for_user` and `delete_league` RPCs: create a league
+ * along with its first season, or permanently remove a league and every row
+ * that cascades from it.
  */
 import { supabase } from "@/lib/supabase/client";
 
@@ -70,4 +71,27 @@ export async function createLeagueForUser({
     name: result.league_name,
     numberOfPlayers: result.number_of_players,
   };
+}
+
+/**
+ * Permanently deletes a league and every row that belongs to it.
+ *
+ * Delegates to the `delete_league` SECURITY DEFINER RPC, which checks that the
+ * caller is the league owner. All league-scoped tables reference `leagues` with
+ * `ON DELETE CASCADE`, so seasons, settings, teams, rosters, drafts, trades,
+ * matches, transactions, rules, notifications, and invites are removed in the
+ * same transaction.
+ *
+ * @param leagueId - The league to delete.
+ * @throws If the caller is not the owner, the league no longer exists, or the
+ *   RPC fails.
+ */
+export async function deleteLeague(leagueId: string): Promise<void> {
+  const { error } = await supabase.rpc("delete_league", {
+    p_league_id: leagueId,
+  });
+
+  if (error) {
+    throw new Error(error.message || "Unable to delete the league.");
+  }
 }

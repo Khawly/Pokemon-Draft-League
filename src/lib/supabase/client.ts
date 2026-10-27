@@ -5,6 +5,7 @@
  * persistence and auto-refresh so it can be shared across client components.
  */
 import { createBrowserClient } from "@supabase/ssr";
+import { fetchWithRetry } from "@/lib/supabase/fetch-retry";
 
 const supabaseUrl =
   process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL;
@@ -30,5 +31,8 @@ export const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey, {
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: true,
+  },
+  global: {
+    fetch: fetchWithRetry,
   },
 });

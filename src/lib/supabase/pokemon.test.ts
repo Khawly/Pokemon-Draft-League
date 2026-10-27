@@ -11,8 +11,13 @@ import { describe, expect, it } from "vitest";
 import {
   ALL_POKEMON_TYPES,
   TRANSACTION_SOURCES,
+  canAffordPickup,
+  getPickupCost,
+  getTeamSalary,
   poolTypeCounts,
   sortPoolByType,
+  transactionNamesTeam,
+  type PokemonGoods,
   type PokemonPoolRow,
 } from "@/lib/supabase/pokemon";
 
@@ -284,6 +289,280 @@ describe("sortPoolByType", () => {
 
   it("handles an empty pool", () => {
     expect(sortPoolByType([], "fire")).toEqual([]);
+  });
+});
+
+/**
+ * Builds a minimal Pokémon page payload for the cost/salary helpers.
+ *
+ * @param overrides - Fields to replace on the default member-owned-team state.
+ * @returns A payload that satisfies {@link PokemonGoods}.
+ */
+function goods(overrides: Partial<PokemonGoods> = {}): PokemonGoods {
+  return {
+    league: { id: "league-1", name: "Test League", owner_id: "owner-1" },
+    season: {
+      id: "season-1",
+      season_number: 1,
+      status: "draft_complete",
+      name: null,
+    },
+    isCurrentSeason: true,
+    settings: {
+      enable_pokemon_costs: true,
+      total_token_salary: 100,
+      allow_per_team_salary: false,
+      enable_transaction_costs: true,
+      transaction_cost: 5,
+    },
+    pool: [],
+    myTeam: {
+      id: "team-a",
+      team_name: "Team A",
+      owner_name: "Alice",
+      owner_name_color: null,
+      total_salary_override: null,
+    },
+    teams: [
+      {
+        id: "team-a",
+        team_name: "Team A",
+        owner_name: "Alice",
+        owner_name_color: null,
+        total_salary_override: null,
+      },
+      {
+        id: "team-b",
+        team_name: "Team B",
+        owner_name: "Bob",
+        owner_name_color: null,
+        total_salary_override: null,
+      },
+    ],
+    rosterCount: 0,
+    spent: 10,
+    spentByTeam: new Map([
+      ["team-a", 10],
+      ["team-b", 95],
+    ]),
+    transactions: [],
+    leagueActivity: [],
+    currentUserId: "member-1",
+    userRole: "member",
+    ...overrides,
+  };
+}
+
+describe("getPickupCost", () => {
+  it("charges the tier plus the enabled transaction cost", () => {
+    const cost = getPickupCost(goods(), row("Pikachu", 3));
+
+    expect(cost).toEqual({ tierCost: 3, transactionCost: 5, total: 8 });
+  });
+
+  it("waives only the transaction cost", () => {
+    // The waiver is a fee override, not a discount on the Pokémon's tier.
+    const cost = getPickupCost(goods(), row("Pikachu", 3), {
+      waiveTransactionCost: true,
+    });
+
+    expect(cost).toEqual({ tierCost: 3, transactionCost: 0, total: 3 });
+  });
+
+  it("leaves the cost unchanged when transaction costs are disabled", () => {
+    const cost = getPickupCost(
+      goods({
+        settings: {
+          enable_pokemon_costs: true,
+          total_token_salary: 100,
+          allow_per_team_salary: false,
+          enable_transaction_costs: false,
+          transaction_cost: 5,
+        },
+      }),
+      row("Pikachu", 3),
+      { waiveTransactionCost: true },
+    );
+
+    expect(cost.total).toBe(3);
+    expect(cost.transactionCost).toBe(0);
+  });
+
+  it("charges nothing when Pokemon costs are disabled", () => {
+    const cost = getPickupCost(
+      goods({
+        settings: {
+          enable_pokemon_costs: false,
+          total_token_salary: null,
+          allow_per_team_salary: false,
+          enable_transaction_costs: true,
+          transaction_cost: 5,
+        },
+      }),
+      row("Pikachu", 3),
+    );
+
+    // The fee still applies even without tier costs, which is the existing rule.
+    expect(cost.total).toBe(5);
+  });
+});
+
+describe("getTeamSalary", () => {
+  it("uses the league salary and the target team's ledger spend", () => {
+    expect(getTeamSalary(goods(), "team-b")).toEqual({
+      budget: 100,
+      spent: 95,
+      remaining: 5,
+    });
+  });
+
+  it("prefers a per-team override when the league allows one", () => {
+    const state = goods({
+      settings: {
+        enable_pokemon_costs: true,
+        total_token_salary: 100,
+        allow_per_team_salary: true,
+        enable_transaction_costs: true,
+        transaction_cost: 5,
+      },
+      teams: [
+        {
+          id: "team-a",
+          team_name: "Team A",
+          owner_name: "Alice",
+          owner_name_color: null,
+          total_salary_override: null,
+        },
+        {
+          id: "team-b",
+          team_name: "Team B",
+          owner_name: "Bob",
+          owner_name_color: null,
+          total_salary_override: 40,
+        },
+      ],
+    });
+
+    expect(getTeamSalary(state, "team-b")).toEqual({
+      budget: 40,
+      spent: 95,
+      remaining: -55,
+    });
+  });
+
+  it("treats the salary as unlimited when costs are disabled", () => {
+    const state = goods({
+      settings: {
+        enable_pokemon_costs: false,
+        total_token_salary: null,
+        allow_per_team_salary: false,
+        enable_transaction_costs: false,
+        transaction_cost: null,
+      },
+    });
+
+    expect(getTeamSalary(state, "team-b").remaining).toBe(
+      Number.POSITIVE_INFINITY,
+    );
+  });
+});
+
+describe("canAffordPickup", () => {
+  it("checks the member's own team by default", () => {
+    // Team A has 90 tokens left, so an 8-token pickup fits.
+    expect(canAffordPickup(goods(), row("Pikachu", 3))).toBe(true);
+  });
+
+  it("checks the explicitly selected team instead of the member's own", () => {
+    // Team B has 5 tokens left and the pickup would cost 8.
+    expect(
+      canAffordPickup(goods(), row("Pikachu", 3), { teamId: "team-b" }),
+    ).toBe(false);
+  });
+
+  it("lets an owner make a pickup fit by waiving the fee", () => {
+    expect(
+      canAffordPickup(goods(), row("Pikachu", 3), {
+        teamId: "team-b",
+        waiveTransactionCost: true,
+      }),
+    ).toBe(true);
+  });
+
+  it("always fits when Pokemon costs are disabled", () => {
+    const state = goods({
+      settings: {
+        enable_pokemon_costs: false,
+        total_token_salary: null,
+        allow_per_team_salary: false,
+        enable_transaction_costs: false,
+        transaction_cost: null,
+      },
+    });
+
+    expect(
+      canAffordPickup(state, row("Pikachu", 3), { teamId: "team-b" }),
+    ).toBe(true);
+  });
+});
+
+describe("transactionNamesTeam", () => {
+  it("names the team when an owner adds to somebody else's roster", () => {
+    expect(
+      transactionNamesTeam({
+        action: "added",
+        userId: "owner-1",
+        teamOwnerId: "member-1",
+      }),
+    ).toBe(true);
+  });
+
+  it("names the team when an owner releases from somebody else's roster", () => {
+    expect(
+      transactionNamesTeam({
+        action: "dropped",
+        userId: "owner-1",
+        teamOwnerId: "member-1",
+      }),
+    ).toBe(true);
+  });
+
+  it("stays terse for a member acting on their own team", () => {
+    // The feed already names the mover; repeating the same team adds noise.
+    expect(
+      transactionNamesTeam({
+        action: "added",
+        userId: "member-1",
+        teamOwnerId: "member-1",
+      }),
+    ).toBe(false);
+  });
+
+  it("does not name a team for trades or token movements", () => {
+    expect(
+      transactionNamesTeam({
+        action: "trade_in",
+        userId: "member-1",
+        teamOwnerId: "member-2",
+      }),
+    ).toBe(false);
+    expect(
+      transactionNamesTeam({
+        action: "token_transfer",
+        userId: "member-1",
+        teamOwnerId: "member-2",
+      }),
+    ).toBe(false);
+  });
+
+  it("stays terse when the ledger row has no resolved team", () => {
+    expect(
+      transactionNamesTeam({
+        action: "added",
+        userId: "owner-1",
+        teamOwnerId: null,
+      }),
+    ).toBe(false);
   });
 });
 

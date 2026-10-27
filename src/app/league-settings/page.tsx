@@ -44,8 +44,10 @@ import {
   type WeekProgressStatus,
 } from "@/lib/supabase/week-deadline";
 import { loadLatestSeason, saveSeasonName } from "@/lib/supabase/seasons";
+import { deleteLeague } from "@/lib/supabase/leagues";
 import { LoadingGif } from "@/components/loading-gif";
-import { getSelectedSeason } from "@/lib/season-selection";
+import { clearSelectedSeason, getSelectedSeason } from "@/lib/season-selection";
+import { clearSelectedLeague } from "@/lib/league-selection";
 import {
   isCurrentSeason as checkIsCurrentSeason,
   loadSeason,
@@ -124,7 +126,7 @@ export default function LeagueSettingsPage() {
     <Suspense
       fallback={
         <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
-          <div className="mx-auto max-w-5xl rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
+          <div className="mx-auto max-w-6xl rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
             <LoadingGif label="Loading league settings" />
           </div>
         </main>
@@ -186,6 +188,7 @@ function LeagueSettingsPageContent() {
   const [deadlineTimeZone, setDeadlineTimeZone] = useState("UTC");
   const [isDeadlineSaving, setIsDeadlineSaving] = useState(false);
   const [isStartingSeason, setIsStartingSeason] = useState(false);
+  const [isDeletingLeague, setIsDeletingLeague] = useState(false);
   const [isProgressing, setIsProgressing] = useState(false);
   const [progressState, setProgressState] = useState<WeekProgressState | null>(
     null,
@@ -1043,7 +1046,7 @@ function LeagueSettingsPageContent() {
   if (isLoading) {
     return (
       <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
-        <div className="mx-auto max-w-5xl rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
+        <div className="mx-auto max-w-6xl rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
           <LoadingGif label="Loading league settings" />
         </div>
       </main>
@@ -1053,7 +1056,7 @@ function LeagueSettingsPageContent() {
   if (accessAllowed === false) {
     return (
       <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
-        <div className="mx-auto max-w-5xl rounded-2xl border border-red-800 bg-red-950/30 p-8 text-sm text-red-200 shadow-xl shadow-slate-950/40">
+        <div className="mx-auto max-w-6xl rounded-2xl border border-red-800 bg-red-950/30 p-8 text-sm text-red-200 shadow-xl shadow-slate-950/40">
           <h1 className="mb-2 text-2xl font-bold text-white">Access Denied</h1>
           <p>
             Only the league owner can manage league settings. Returning to your
@@ -1120,9 +1123,54 @@ function LeagueSettingsPageContent() {
     }
   }
 
+  /**
+   * Permanently deletes the league after a typed confirmation.
+   *
+   * The RPC verifies ownership again; the browser-side typed prompt protects
+   * against a stray click, not against an unauthorized caller. Local league and
+   * season choices are cleared before returning to the dashboard so the shell
+   * does not keep pointing at a league that no longer exists.
+   */
+  async function handleDeleteLeague() {
+    if (!leagueId || isDeletingLeague) {
+      return;
+    }
+
+    const confirmed = await confirm({
+      title: `Delete ${leagueName || "this league"}?`,
+      detail:
+        "This permanently deletes every season, team, roster, draft pick, trade, match, transaction, rule, notification, and invite for this league. This cannot be undone. Type DELETE to confirm.",
+      confirmLabel: "Delete league",
+      tone: "danger",
+      requireText: "DELETE",
+    });
+
+    if (!confirmed) {
+      return;
+    }
+
+    setIsDeletingLeague(true);
+    setError(null);
+    setSuccessMessage(null);
+
+    try {
+      await deleteLeague(leagueId);
+      clearSelectedSeason(leagueId);
+      clearSelectedLeague(leagueId);
+      router.replace("/dashboard");
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : "The league could not be deleted.",
+      );
+      setIsDeletingLeague(false);
+    }
+  }
+
   return (
     <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
-      <div className="mx-auto max-w-5xl space-y-6">
+      <div className="mx-auto max-w-6xl space-y-6">
         <header className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-2xl shadow-slate-950/40">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
@@ -1697,6 +1745,31 @@ function LeagueSettingsPageContent() {
           </button>
         </section>
         </fieldset>
+
+        <section className="rounded-2xl border border-red-900/70 bg-red-950/20 p-6 shadow-lg shadow-slate-950/30">
+          <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-red-300">
+            Danger zone
+          </h2>
+          <p className="mt-2 max-w-3xl text-sm text-slate-400">
+            Deleting this league permanently removes every season, team,
+            roster, draft pick, trade, match, transaction, rule, notification,
+            and invite associated with it. This cannot be undone.
+          </p>
+          <button
+            type="button"
+            disabled={
+              isDeletingLeague ||
+              isSaving ||
+              isDeadlineSaving ||
+              isStartingSeason ||
+              !leagueId
+            }
+            onClick={() => void handleDeleteLeague()}
+            className="mt-4 rounded-xl border border-red-700 bg-red-950/60 px-4 py-2 text-sm font-semibold text-red-200 transition hover:border-red-500 hover:bg-red-900/60 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {isDeletingLeague ? "Deleting league..." : "Delete League"}
+          </button>
+        </section>
       </div>
 
       {confirmDialog}

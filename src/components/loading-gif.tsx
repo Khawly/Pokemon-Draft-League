@@ -18,6 +18,10 @@ import Image from "next/image";
  * `unoptimized` is deliberate: the image optimizer re-encodes still frames and can flatten
  * an animated GIF, and this is a 9 KB decoration rather than a photograph worth optimising.
  *
+ * `loading="eager"` is deliberate too: this placeholder is the first thing on screen while a
+ * page resolves, so it is frequently the Largest Contentful Paint and should not wait on lazy
+ * loading.
+ *
  * @param props - {@link LoadingGifProps}
  * @returns The loading placeholder.
  */
@@ -34,6 +38,7 @@ export function LoadingGif({ label }: LoadingGifProps) {
         width={200}
         height={146}
         unoptimized
+        loading="eager"
         className="h-20 w-auto"
       />
       <span className="sr-only">{label}</span>

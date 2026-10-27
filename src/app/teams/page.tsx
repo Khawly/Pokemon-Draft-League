@@ -9,14 +9,15 @@
  * type across the 18 columns, the damage multiplier it deals against each
  * Pokémon's defensive typing with the spec's color legend; and match history for
  * the selected player lists Matchup, Winner, Date/Time, Replay, and an
- * owner/admin-only Delete. Dropping a Pokémon confirms with its name, refunds
- * its tier into the team's token salary, removes it from the roster, re-lists
- * it on the free agents, and records a transaction (all enforced by the
- * `drop_roster_pokemon` RPC). Match history timestamps are shown in the time
- * zone the member picked in user settings. Every member display name is rendered
- * through `MemberName`, so the page shows each name in the colour its owner
- * picked; the team `<select>` options are the exception, since an option cannot
- * hold a styled span.
+ * owner/admin-only Delete. A member may drop a Pokémon from their own roster;
+ * the league owner may drop from any team. Dropping confirms with the Pokémon's
+ * name, refunds its tier into the target team's token salary, removes it from
+ * the roster, re-lists it on the free agents, and records a transaction (all
+ * enforced by the `drop_roster_pokemon` RPC). Match history timestamps are shown
+ * in the time zone the member picked in user settings. Every member display name
+ * is rendered through `MemberName`, so the page shows each name in the colour
+ * its owner picked; the team `<select>` options are the exception, since an
+ * option cannot hold a styled span.
  */
 "use client";
 
@@ -27,7 +28,7 @@ import { AbilityTooltip } from "@/components/ability-tooltip";
 import { supabase } from "@/lib/supabase/client";
 import { getSelectedSeason } from "@/lib/season-selection";
 import { getSpriteUrl } from "@/lib/pokeapi";
-import { formatSeasonLabel } from "@/lib/supabase/seasons";
+import { formatSeasonLabel, rosterChangesOpen } from "@/lib/supabase/seasons";
 import { formatDateTimeInZone } from "@/lib/datetime";
 import { useUserTimeZone } from "@/lib/user-timezone";
 import { TYPE_LIST, getDefensiveMatchup, getEmphasisGlow, getMatchupColor, type PokemonType } from "@/lib/typechart";
@@ -113,7 +114,7 @@ export default function TeamsPage() {
     <Suspense
       fallback={
         <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
-          <div className="mx-auto max-w-5xl rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
+          <div className="mx-auto max-w-6xl rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
             <LoadingGif label="Loading teams" />
           </div>
         </main>
@@ -242,7 +243,10 @@ function TeamStatsTable({
   roster: TeamRosterPokemon[];
   /** True when this table belongs to the signed-in user's own team. */
   isMine: boolean;
-  /** True when drops are allowed (season draft complete + own team). */
+  /**
+   * True when drops are allowed for this table: the signed-in member's own team,
+   * or any team when the caller owns the league and the season window is open.
+   */
   canDrop: boolean;
   /** Called with a roster Pokémon when the user confirms a drop. */
   onDrop: (pokemon: TeamRosterPokemon) => void;
@@ -464,9 +468,13 @@ function TeamStatsTable({
                       <button
                         type="button"
                         onClick={() => onDrop(pokemon)}
-                        disabled={!isMine}
+                        disabled={!canDrop}
                         className="rounded-lg border border-red-700 bg-red-950/60 px-2.5 py-1 text-xs font-semibold text-red-300 transition hover:border-red-500 hover:bg-red-900/60 disabled:cursor-not-allowed disabled:opacity-40"
-                        title={isMine ? "Drop this Pokémon" : "You can only drop Pokémon from your own team"}
+                        title={
+                          isMine
+                            ? "Drop this Pokémon"
+                            : "League owner: remove this Pokémon from this team"
+                        }
                       >
                         Drop
                       </button>
@@ -1015,6 +1023,10 @@ function TeamsPageContent({
     [goods, selectedTeamId],
   );
 
+  const isOwner = Boolean(
+    goods && goods.league.owner_id === goods.currentUserId,
+  );
+
   const selectedMatches = useMemo(() => {
     if (!goods || !selectedTeamId) {
       return [];
@@ -1029,20 +1041,29 @@ function TeamsPageContent({
   const canDrop = Boolean(
     goods &&
       goods.isCurrentSeason &&
-      goods.season?.status === "draft_complete" &&
-      goods.myTeamId &&
-      selectedTeamId === goods.myTeamId,
+      rosterChangesOpen(goods.season?.status, isOwner) &&
+      selectedTeamId != null &&
+      (selectedTeamId === goods.myTeamId || isOwner),
   );
 
   async function handleDrop(pokemon: TeamRosterPokemon) {
-    if (!goods || !goods.myTeamId || selectedTeamId !== goods.myTeamId) {
+    if (!goods || !selectedTeamId || !canDrop) {
       return;
     }
 
+    const droppingOtherTeam = selectedTeamId !== goods.myTeamId;
+    const refundText = goods.settings?.enable_pokemon_costs
+      ? `Tier ${pokemon.tier_value} is refunded into ${
+          droppingOtherTeam ? `${selectedTeamLabel}'s` : "your"
+        } token salary`
+      : "Token costs are disabled, so there is no token refund";
+
     const confirmed = await confirm({
-      title: `Drop ${pokemon.name} from your roster?`,
-      detail: `Its Tier ${pokemon.tier_value} cost is refunded into your token salary and it goes back to the free agents`,
-      confirmLabel: "Drop",
+      title: droppingOtherTeam
+        ? `Remove ${pokemon.name} from ${selectedTeamLabel}'s team?`
+        : `Drop ${pokemon.name} from your roster?`,
+      detail: `${refundText} and ${pokemon.name} goes back to the free agents`,
+      confirmLabel: droppingOtherTeam ? "Remove" : "Drop",
       tone: "danger",
     });
     if (!confirmed) {
@@ -1051,7 +1072,13 @@ function TeamsPageContent({
 
     setIsBusy(true);
     try {
-      await dropRosterPokemon(goods.league.id, pokemon.pokemon_id);
+      /*
+       * A member's own drop omits the target so the RPC keeps resolving their
+       * team; only an owner acting on somebody else's roster names a team.
+       */
+      await dropRosterPokemon(goods.league.id, pokemon.pokemon_id, {
+        teamId: droppingOtherTeam ? selectedTeamId : undefined,
+      });
       await refresh(goods.league.id);
     } catch (caughtError) {
       setError(
@@ -1095,7 +1122,7 @@ function TeamsPageContent({
   if (isLoading && !goods) {
     return (
       <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
-        <div className="mx-auto max-w-5xl rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
+        <div className="mx-auto max-w-6xl rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
           <LoadingGif label="Loading teams" />
         </div>
       </main>
@@ -1105,7 +1132,7 @@ function TeamsPageContent({
   if (error) {
     return (
       <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
-        <div className="mx-auto max-w-5xl rounded-2xl border border-red-800 bg-red-950/40 p-8 text-sm text-red-200 shadow-xl shadow-slate-950/40">
+        <div className="mx-auto max-w-6xl rounded-2xl border border-red-800 bg-red-950/40 p-8 text-sm text-red-200 shadow-xl shadow-slate-950/40">
           {error}
         </div>
       </main>
@@ -1159,7 +1186,7 @@ function TeamsPageContent({
 
   return (
     <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
-      <div className="mx-auto max-w-7xl space-y-6">
+      <div className="mx-auto max-w-6xl space-y-6">
         <header className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-2xl shadow-slate-950/40">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>

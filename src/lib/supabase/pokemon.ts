@@ -4,9 +4,10 @@
  * Implements spec section 11: loads the league, latest season, season settings
  * (including transaction-cost config), the free-agent pool (every in-pool
  * Pokémon not currently on any team's roster), the signed-in user's team and
- * salary, and that team's transaction history in stack order. Also exposes the
- * RPC-backed pickup mutation and the pure cost/salary derivations the page
- * renders.
+ * salary, that team's transaction history in stack order, and — for the
+ * owner-only flow — every team with its token spend so a free agent can be
+ * placed on any roster. Also exposes the RPC-backed pickup mutation and the pure
+ * cost/salary derivations the page renders.
  */
 import { supabase } from "@/lib/supabase/client";
 import { isCurrentSeason, loadSeason } from "@/lib/supabase/seasons";
@@ -50,6 +51,24 @@ export type PokemonTeam = {
    */
   team_name: string;
   /** The owner's live display name, which is how the member is addressed. */
+  owner_name: string | null;
+  /** The owner's stored name colour, passed through raw for render-time normalization. */
+  owner_name_color: string | null;
+  total_salary_override: number | null;
+};
+
+/**
+ * A team in the season that a league owner can add a free agent to.
+ *
+ * Carries the fields the target `<select>` and the per-team salary projection
+ * need; the roster itself is not loaded here because the pickup RPC validates
+ * availability against the database anyway.
+ */
+export type PokemonTeamOption = {
+  id: string;
+  /** The draft-time team name, used as the label when the owner has no display name. */
+  team_name: string;
+  /** The owner's live display name. */
   owner_name: string | null;
   /** The owner's stored name colour, passed through raw for render-time normalization. */
   owner_name_color: string | null;
@@ -122,6 +141,22 @@ export type PokemonTransaction = {
   playerName: string | null;
   /** The mover's stored name colour, raw, or null when they have none set. */
   playerNameColor: string | null;
+  /**
+   * The team this move applied to.
+   *
+   * Carried so the feed can name the roster the move landed on or left. When the
+   * mover differs from `teamOwnerId`, a league owner is acting on somebody
+   * else's team and the panel says which one.
+   */
+  teamId: string | null;
+  /** The owner user id of the team the move applied to. */
+  teamOwnerId: string | null;
+  /** The team owner's live display name, when their profile has one set. */
+  teamOwnerName: string | null;
+  /** The team owner's stored name colour, raw, or null when they have none set. */
+  teamOwnerColor: string | null;
+  /** The draft-time team name, used when the owner has no display name. */
+  teamName: string | null;
   action: "added" | "dropped" | "trade_in" | "trade_out" | "token_transfer";
   /**
    * What caused the move. Null only for a row written before the column existed
@@ -153,10 +188,20 @@ export type PokemonGoods = {
   pool: PokemonPoolRow[];
   /** The signed-in user's team in the current season, or null. */
   myTeam: PokemonTeam | null;
+  /** Every team in the season, for the owner-only target picker. */
+  teams: PokemonTeamOption[];
   /** Number of Pokémon currently on my team's roster. */
   rosterCount: number;
   /** My team's token spend, including sunk transaction costs. */
   spent: number;
+  /**
+   * Token spend for every team, keyed by team id.
+   *
+   * The owner flow projects the selected target team's remaining salary, which
+   * requires more than the caller's own `spent`. Teams whose history predates the
+   * ledger fall back to their roster tier sum, matching the team page.
+   */
+  spentByTeam: Map<string, number>;
   /** My team's transaction history, newest first. Drives the salary ledger. */
   transactions: PokemonTransaction[];
   /**
@@ -185,10 +230,6 @@ type PoolRowRecord = {
   pokemon_id: string;
   species_name: string;
   tier_value: number;
-  type_primary: string | null;
-  type_secondary: string | null;
-  bst: number | null;
-  generation: string | null;
 };
 
 type RosterClaimRow = {
@@ -205,6 +246,16 @@ type TransactionRow = {
   profiles?: {
     display_name?: string | null;
     name_color?: string | null;
+  } | null;
+  /** The team the move applied to, with its owner's profile for display. */
+  team?: {
+    id?: string;
+    owner_user_id?: string;
+    team_name?: string;
+    owner?: {
+      display_name?: string | null;
+      name_color?: string | null;
+    } | null;
   } | null;
   action: "added" | "dropped" | "trade_in" | "trade_out" | "token_transfer";
   source?: TransactionSource | null;
@@ -272,8 +323,10 @@ export async function loadPokemonPageData(
     settings: null,
     pool: [],
     myTeam: null,
+    teams: [],
     rosterCount: 0,
     spent: 0,
+    spentByTeam: new Map<string, number>(),
     transactions: [],
     leagueActivity: [],
     currentUserId: user.id,
@@ -346,6 +399,14 @@ export async function loadPokemonPageData(
   const myTeam =
     teams.find((team) => team.owner_user_id === user.id) ?? null;
 
+  const teamOptions: PokemonTeamOption[] = teams.map((team) => ({
+    id: team.id,
+    team_name: team.team_name,
+    owner_name: team.profiles?.display_name ?? null,
+    owner_name_color: team.profiles?.name_color ?? null,
+    total_salary_override: team.total_salary_override,
+  }));
+
   const teamIds = teams.map((team) => team.id);
   const claimedByPokemon = new Map<string, string>();
   const rosterTiersByTeam = new Map<string, number>();
@@ -374,6 +435,41 @@ export async function loadPokemonPageData(
     }
   }
 
+  /*
+   * Every team's ledger sum, so the owner can preview the selected target team's
+   * balance before confirming a pickup. Teams whose history predates the ledger
+   * fall back to their roster tiers, which is how the team page reconciles them.
+   */
+  const spentByTeam = new Map<string, number>();
+  if (teamIds.length > 0) {
+    const { data: spendRows, error: spendError } = await supabase
+      .from("transactions")
+      .select("team_id, cost_delta")
+      .in("team_id", teamIds);
+
+    if (spendError) {
+      throw new Error("Team token balances could not be loaded.");
+    }
+
+    const ledgerSpentByTeam = new Map<string, number>();
+    for (const row of (spendRows ?? []) as {
+      team_id: string;
+      cost_delta: number;
+    }[]) {
+      ledgerSpentByTeam.set(
+        row.team_id,
+        (ledgerSpentByTeam.get(row.team_id) ?? 0) + row.cost_delta,
+      );
+    }
+
+    for (const team of teams) {
+      spentByTeam.set(
+        team.id,
+        ledgerSpentByTeam.get(team.id) ?? rosterTiersByTeam.get(team.id) ?? 0,
+      );
+    }
+  }
+
   // Resolve pool ids (active pool when set, otherwise every pool), then page
   // through the in-pool species rows past the response cap like the pool page.
   const { data: poolResult, error: poolError } = await supabase
@@ -397,9 +493,7 @@ export async function loadPokemonPageData(
     for (let from = 0; ; from += POKEMON_PAGE_SIZE) {
       const { data, error: rowsError } = await supabase
         .from("draft_pool_pokemon")
-        .select(
-          "pokemon_id, species_name, tier_value, type_primary, type_secondary, bst, generation",
-        )
+        .select("pokemon_id, species_name, tier_value")
         .in("draft_pool_id", poolIds)
         .eq("is_in_pool", true)
         .order("id", { ascending: true })
@@ -426,14 +520,19 @@ export async function loadPokemonPageData(
       const details = getPokemonDetailsBySlug(row.pokemon_id);
       return {
         pokemon_id: row.pokemon_id,
-        species_name: row.species_name,
+        species_name: row.species_name || match?.name || row.pokemon_id,
         tier_value: row.tier_value,
         name: match?.name ?? row.species_name,
         types: match?.types ?? [],
         dex: match?.dexNumber ?? 0,
         spriteId: match?.spriteId ?? 0,
-        bst: row.bst ?? match?.bst ?? null,
-        generation: row.generation ?? match?.generation ?? null,
+        /*
+         * The pool payload stays narrow: type/BST/generation are static catalog
+         * fields, so they come from the bundled snapshot instead of being sent
+         * again for every free agent row.
+         */
+        bst: match?.bst ?? null,
+        generation: match?.generation ?? null,
         stats: details?.stats ?? null,
         abilities: details?.abilities ?? null,
       };
@@ -449,7 +548,7 @@ export async function loadPokemonPageData(
     const { data: transactionRows, error: transactionsError } = await supabase
       .from("transactions")
       .select(
-        "id, pokemon_id, user_id, action, source, cost_delta, note, created_at, profiles: user_id (display_name, name_color)",
+        "id, pokemon_id, user_id, action, source, cost_delta, note, created_at, profiles: user_id (display_name, name_color), team: team_id (id, owner_user_id, team_name, owner: owner_user_id (display_name, name_color))",
       )
       .eq("team_id", myTeam.id)
       .order("created_at", { ascending: false });
@@ -473,7 +572,7 @@ export async function loadPokemonPageData(
   const { data: activityRows, error: activityError } = await supabase
     .from("transactions")
     .select(
-      "id, pokemon_id, user_id, action, source, cost_delta, note, created_at, profiles: user_id (display_name, name_color)",
+      "id, pokemon_id, user_id, action, source, cost_delta, note, created_at, profiles: user_id (display_name, name_color), team: team_id (id, owner_user_id, team_name, owner: owner_user_id (display_name, name_color))",
     )
     .eq("league_id", leagueId)
     .eq("season_id", season.id)
@@ -511,8 +610,10 @@ export async function loadPokemonPageData(
           total_salary_override: myTeam.total_salary_override,
         }
       : null,
+    teams: teamOptions,
     rosterCount,
     spent,
+    spentByTeam,
     transactions,
     leagueActivity,
     userRole:
@@ -552,24 +653,68 @@ export function getPokemonSalary(goods: PokemonGoods): {
 }
 
 /**
+ * Computes any team's salary budget, spent, and remaining for the owner flow.
+ *
+ * Mirrors {@link getPokemonSalary} but keys off the team passed in, with spend
+ * coming from the payload's per-team ledger sums. A team with no ledger history
+ * falls back to its roster tier total when the payload is built.
+ *
+ * @param goods - The loaded Pokémon page state.
+ * @param teamId - The team to evaluate.
+ * @returns Budget, spent, and remaining salary amounts.
+ */
+export function getTeamSalary(
+  goods: PokemonGoods,
+  teamId: string,
+): { budget: number; spent: number; remaining: number } {
+  if (!goods.settings?.enable_pokemon_costs) {
+    return { budget: 0, spent: 0, remaining: Number.POSITIVE_INFINITY };
+  }
+
+  const team = goods.teams.find((candidate) => candidate.id === teamId);
+  const usesOverride =
+    goods.settings.allow_per_team_salary && team?.total_salary_override != null;
+  const budget = usesOverride
+    ? (team?.total_salary_override ?? 0)
+    : (goods.settings.total_token_salary ?? 0);
+  const spent = goods.spentByTeam.get(teamId) ?? 0;
+
+  return { budget, spent, remaining: budget - spent };
+}
+
+/** Options that change what a pickup charges. */
+export type PickupCostOptions = {
+  /**
+   * Owner-only: skip the league's enabled transaction fee for this pickup.
+   *
+   * Ignored by the database for non-owners, and a no-op when transaction costs
+   * are disabled in league settings.
+   */
+  waiveTransactionCost?: boolean;
+};
+
+/**
  * Computes the token cost of picking up a free agent.
  *
  * The base cost is the Pokémon's tier (only when costs are enabled) plus the
- * league's transaction cost (when enabled). Returns the breakdown and total the
- * confirmation dialog shows.
+ * league's transaction cost (when enabled and not waived). Returns the breakdown
+ * and total the confirmation dialog shows.
  *
  * @param goods - The loaded Pokémon page state.
  * @param row - The free-agent Pokémon being considered.
+ * @param options - Optional owner-only fee waiver.
  * @returns The tier, transaction, and total token cost.
  */
 export function getPickupCost(
   goods: PokemonGoods,
   row: PokemonPoolRow,
+  options: PickupCostOptions = {},
 ): { tierCost: number; transactionCost: number; total: number } {
   const tierCost = goods.settings?.enable_pokemon_costs ? row.tier_value : 0;
-  const transactionCost = goods.settings?.enable_transaction_costs
-    ? (goods.settings.transaction_cost ?? 0)
-    : 0;
+  const transactionCost =
+    goods.settings?.enable_transaction_costs && !options.waiveTransactionCost
+      ? (goods.settings.transaction_cost ?? 0)
+      : 0;
   return { tierCost, transactionCost, total: tierCost + transactionCost };
 }
 
@@ -608,6 +753,11 @@ function mapTransactionRows(rows: unknown[]): PokemonTransaction[] {
       userId: row.user_id,
       playerName: row.profiles?.display_name ?? null,
       playerNameColor: row.profiles?.name_color ?? null,
+      teamId: row.team?.id ?? null,
+      teamOwnerId: row.team?.owner_user_id ?? null,
+      teamOwnerName: row.team?.owner?.display_name ?? null,
+      teamOwnerColor: row.team?.owner?.name_color ?? null,
+      teamName: row.team?.team_name ?? null,
       action: row.action,
       source: row.source ?? null,
       cost_delta: row.cost_delta,
@@ -615,6 +765,26 @@ function mapTransactionRows(rows: unknown[]): PokemonTransaction[] {
       created_at: row.created_at,
     };
   });
+}
+
+/**
+ * Reports whether a feed entry should name the team it affected.
+ *
+ * Only an `added` or `dropped` move has a roster destination worth naming, and
+ * only when the mover is not that team's owner — which is exactly the league
+ * owner acting on somebody else's roster. Member moves and trades stay terse.
+ *
+ * @param entry - The ledger row being rendered.
+ * @returns True when the feed should append "to/from <team>".
+ */
+export function transactionNamesTeam(
+  entry: Pick<PokemonTransaction, "action" | "teamOwnerId" | "userId">,
+): boolean {
+  return (
+    (entry.action === "added" || entry.action === "dropped") &&
+    entry.teamOwnerId != null &&
+    entry.teamOwnerId !== entry.userId
+  );
 }
 
 /**
@@ -708,46 +878,70 @@ export function sortPoolByType(
 }
 
 /**
- * Reports whether the signed-in user's team can pay the full cost of a pickup.
+ * Reports whether a team can pay the full cost of a pickup.
  *
- * The tier plus any transaction cost must leave the team's remaining token
- * balance at zero or above. When Pokemon costs are disabled the balance is
- * effectively unlimited (the app treats the salary as infinite), so every
- * pickup is affordable.
+ * The tier plus any transaction cost (unless waived) must leave the team's
+ * remaining token balance at zero or above. Without a target team the member's
+ * own team is checked, which is the original free-agent flow. When Pokemon costs
+ * are disabled the balance is effectively unlimited, so every pickup is
+ * affordable.
  *
  * @param goods - The loaded Pokémon page state.
  * @param row - The free-agent Pokémon being considered.
+ * @param options - Optional target team and owner-only fee waiver.
  * @returns True when the pickup is within the team's remaining balance.
  */
 export function canAffordPickup(
   goods: PokemonGoods,
   row: PokemonPoolRow,
+  options: PickupCostOptions & { teamId?: string | null } = {},
 ): boolean {
-  const salary = getPokemonSalary(goods);
+  const salary = options.teamId
+    ? getTeamSalary(goods, options.teamId)
+    : getPokemonSalary(goods);
   if (salary.remaining === Number.POSITIVE_INFINITY) {
     return true;
   }
-  return salary.remaining >= getPickupCost(goods, row).total;
+  return salary.remaining >= getPickupCost(goods, row, options).total;
 }
 
+/** Options for {@link pickupRosterPokemon}. */
+export type PickupRosterOptions = {
+  /**
+   * Target team. Omitted for the original member flow (the caller's own team);
+   * a non-owner naming a team they do not own is rejected by the database.
+   */
+  teamId?: string | null;
+  /** Owner-only: skip the enabled transaction fee for this pickup. */
+  waiveTransactionCost?: boolean;
+};
+
 /**
- * Picks up a free-agent Pokémon from the league's active pool for the calling
- * user's team in the current season.
+ * Picks up a free-agent Pokémon from the league's active pool for a team in the
+ * current season.
  *
  * Delegates to the `pickup_roster_pokemon` SECURITY DEFINER RPC, which
- * validates membership, team ownership, pool availability, and salary
- * affordability, charges the tier (plus any transaction cost) as an 'added'
- * ledger row, and adds the roster row with source 'pickup'.
+ * validates membership, team ownership (league owners may target any team in
+ * the season), pool availability, and salary affordability, charges the tier
+ * (plus any transaction cost unless the owner waived it) as an 'added' ledger
+ * row, and adds the roster row with source 'pickup'.
+ *
+ * Free agent pickups normally unlock once the draft is complete. League owners
+ * may also pick up while the season is still `draft_pending`, but not during the
+ * draft itself.
  *
  * @param leagueId - The league whose season roster is being changed.
  * @param pokemonId - The free-agent Pokémon slug to pick up.
+ * @param options - Optional target team and owner-only fee waiver.
  * @returns The roster id, team id, tier, and total tokens charged.
- * @throws If the database rejects the pickup (not your team, draft not
- *   complete, not in the free agent pool, or salary would go below 0).
+ * @throws If the database rejects the pickup (not your team, fee waiver by a
+ *   non-owner, draft in progress, not in the free agent pool, or salary would
+ *   go below 0).
  */
 export async function pickupRosterPokemon(
   leagueId: string,
   pokemonId: string,
+  options: PickupRosterOptions = {},
 ): Promise<{
   roster_id: string;
   team_id: string;
@@ -757,6 +951,10 @@ export async function pickupRosterPokemon(
   const { data, error } = await supabase.rpc("pickup_roster_pokemon", {
     p_league_id: leagueId,
     p_pokemon_id: pokemonId,
+    ...(options.teamId ? { p_team_id: options.teamId } : {}),
+    ...(options.waiveTransactionCost
+      ? { p_waive_transaction_cost: true }
+      : {}),
   });
 
   if (error) {

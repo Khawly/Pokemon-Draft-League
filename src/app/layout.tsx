@@ -1,13 +1,13 @@
 /*
  * Root layout for the Pokemon Draft League app.
  *
- * Sets up the global fonts, dark themed background, and shared top navigation
- * shell that every route renders inside.
+ * Sets up the global fonts, dark themed background, and shared navigation shell
+ * (top bar plus the league sub-navigation) that every route renders inside.
  */
 
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import { TopNav } from "@/components/top-nav";
+import { AppChrome } from "@/components/app-chrome";
 import { CrownScope } from "@/components/crown-provider";
 import "./globals.css";
 
@@ -32,7 +32,7 @@ export const metadata: Metadata = {
 
 /**
  * Wraps every route in the HTML/body scaffold with the themed background and
- * shared top navigation.
+ * shared navigation: the top bar and the league sub-navigation below it.
  *
  * @param props - Next.js layout props.
  * @param props.children - The rendered page content for the current route.
@@ -54,7 +54,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           color: "#e2e8f0",
         }}
       >
-        <TopNav />
+        <AppChrome />
         <CrownScope>{children}</CrownScope>
       </body>
     </html>

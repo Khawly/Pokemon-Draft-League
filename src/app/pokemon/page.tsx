@@ -6,11 +6,14 @@
  * tab, a "Find Pokemon" search box, and a per-row pickup control: `+` starts a
  * pending add that confirms the Pokémon's cost (tier plus transaction cost when
  * enabled) and the projected balance after the purchase before the
- * `pickup_roster_pokemon` RPC claims it; `-` cancels the pending add. The right
- * column shows the user's team transaction history in stack order (newest
- * first). Pickup is only available once the draft is complete and the user owns
- * a team. Transaction timestamps are shown in the time zone the member picked in
- * user settings.
+ * `pickup_roster_pokemon` RPC claims it; `-` cancels the pending add. A league
+ * owner can send the pickup to any team in the season and waive the enabled
+ * transaction fee for that one transaction. Members unlock pickups once the
+ * draft is complete; the league owner may also use them while the season is
+ * still draft_pending, but not during the draft. The right column shows the
+ * league's recent transaction history in stack order (newest first). A member
+ * needs a team to pick up; an owner does not. Transaction timestamps are shown
+ * in the time zone the member picked in user settings.
  *
  * Member display names are rendered through `MemberName`, so the member's chosen
  * colour follows them into the transaction ledger and into the header's team line.
@@ -26,24 +29,28 @@ import { getSelectedSeason } from "@/lib/season-selection";
 import { AbilityTooltip } from "@/components/ability-tooltip";
 import { MemberName } from "@/components/member-name";
 import { getSpriteUrl } from "@/lib/pokeapi";
-import { formatSeasonLabel } from "@/lib/supabase/seasons";
+import { formatSeasonLabel, rosterChangesOpen } from "@/lib/supabase/seasons";
 import { formatDateTimeInZone } from "@/lib/datetime";
 import { useUserTimeZone } from "@/lib/user-timezone";
 import {
   ALL_POKEMON_TYPES,
   getPickupCost,
-  canAffordPickup,
   getPokemonSalary,
+  getTeamSalary,
+  canAffordPickup,
   loadPokemonPageData,
   pickupRosterPokemon,
   poolTypeCounts,
   sortPoolByType,
+  transactionNamesTeam,
   type PokemonGoods,
   type PokemonPoolRow,
   type PokemonTeam,
+  type PokemonTeamOption,
 } from "@/lib/supabase/pokemon";
 import { TYPE_LIST } from "@/lib/typechart";
 import { LoadingGif } from "@/components/loading-gif";
+import { TablePagination } from "@/components/table-pagination";
 
 /** LocalStorage key used by the top nav to persist the selected league. */
 const SELECTED_LEAGUE_STORAGE_KEY = "pokemon-draft-league:selected-league";
@@ -81,7 +88,7 @@ export default function PokemonPage() {
     <Suspense
       fallback={
         <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
-          <div className="mx-auto max-w-5xl rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
+          <div className="mx-auto max-w-6xl rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
             <LoadingGif label="Loading free agents" />
           </div>
         </main>
@@ -538,7 +545,7 @@ function FreeAgentTable({
                       onClick={() => onAdd(row)}
                       disabled={disabled || busy || pendingPokemonId !== null || !affordable}
                       className="rounded-lg border border-emerald-700 bg-emerald-950/60 px-2.5 py-1 text-sm font-bold text-emerald-300 transition hover:border-emerald-500 hover:bg-emerald-900/60 disabled:cursor-not-allowed disabled:opacity-40"
-                      title={affordable || disabled ? "Add to your roster" : "Not enough tokens for this pickup"}
+                      title={affordable || disabled ? "Add to a team" : "Not enough tokens for this pickup"}
                       aria-label={`Add ${row.name}`}
                     >
                       +
@@ -665,7 +672,7 @@ function TierListView({
                       onClick={() => onAdd(row)}
                       disabled={disabled || busy || pendingPokemonId !== null || !affordable}
                       className="rounded-lg border border-emerald-700 bg-emerald-950/60 px-2.5 py-1 text-sm font-bold text-emerald-300 transition hover:border-emerald-500 hover:bg-emerald-900/60 disabled:cursor-not-allowed disabled:opacity-40"
-                      title={affordable || disabled ? "Add to your roster" : "Not enough tokens for this pickup"}
+                      title={affordable || disabled ? "Add to a team" : "Not enough tokens for this pickup"}
                       aria-label={`Add ${row.name}`}
                     >
                       +
@@ -684,14 +691,23 @@ function TierListView({
 /**
  * Renders the pending-add confirmation dialog.
  *
- * Shows the Pokémon's cost (tier plus transaction cost when enabled) and the
- * projected salary balance after the purchase, alongside the current balance.
- * Confirm runs the pickup RPC; Cancel or the overlay drops the pending add.
+ * Shows the Pokémon's cost (tier plus transaction cost when enabled and not
+ * waived) and the projected salary balance of the target team after the
+ * purchase, alongside that team's current balance. A league owner gets a team
+ * selector so the free agent can be placed on any roster, plus a per-pickup
+ * waiver for the enabled transaction fee; a member gets neither and always adds
+ * to their own team. Confirm runs the pickup RPC; Cancel or the overlay drops
+ * the pending add.
  */
 function PickupConfirmDialog({
   row,
   goods,
+  isOwner,
+  teamId,
+  waiveTransactionCost,
   busy,
+  onTeamChange,
+  onWaiveChange,
   onConfirm,
   onCancel,
 }: {
@@ -699,18 +715,32 @@ function PickupConfirmDialog({
   row: PokemonPoolRow;
   /** Loaded page state used to derive current balance and costs. */
   goods: PokemonGoods;
-  /** When true, the pickup RPC is running; buttons are disabled. */
+  /** Whether the caller may target any team and waive the transaction fee. */
+  isOwner: boolean;
+  /** The team the Pokémon will be added to. */
+  teamId: string | null;
+  /** Whether the enabled transaction fee is skipped for this pickup. */
+  waiveTransactionCost: boolean;
+  /** When true, the pickup RPC is running; controls are disabled. */
   busy: boolean;
+  /** Called with the newly selected target team id. */
+  onTeamChange: (teamId: string) => void;
+  /** Called when the owner toggles the transaction-fee waiver. */
+  onWaiveChange: (waive: boolean) => void;
   /** Called when the user confirms the pickup. */
   onConfirm: () => void;
   /** Called when the user cancels the pickup. */
   onCancel: () => void;
 }) {
-  const salary = getPokemonSalary(goods);
-  const cost = getPickupCost(goods, row);
+  const salary = teamId ? getTeamSalary(goods, teamId) : getPokemonSalary(goods);
+  const cost = getPickupCost(goods, row, { waiveTransactionCost });
   const costsEnabled = Boolean(goods.settings?.enable_pokemon_costs);
-  const hasCosts =
-    costsEnabled || Boolean(goods.settings?.enable_transaction_costs);
+  const transactionCostsEnabled = Boolean(
+    goods.settings?.enable_transaction_costs,
+  );
+  const transactionCost = goods.settings?.transaction_cost ?? 0;
+  const canWaive = isOwner && transactionCostsEnabled && transactionCost > 0;
+  const hasCosts = costsEnabled || transactionCostsEnabled;
 
   const projectedBalance =
     salary.remaining === Number.POSITIVE_INFINITY
@@ -738,6 +768,36 @@ function PickupConfirmDialog({
           Add {row.name}?
         </h3>
 
+        {isOwner && (
+          <label className="mt-4 block">
+            <span className="text-xs font-semibold uppercase tracking-[0.15em] text-slate-400">
+              Add to team
+            </span>
+            <select
+              value={teamId ?? ""}
+              onChange={(event) => onTeamChange(event.target.value)}
+              disabled={busy || goods.teams.length === 0}
+              className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none transition focus:border-amber-400 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {goods.teams.length === 0 && (
+                <option value="">No teams in this season</option>
+              )}
+              {goods.teams.map((team) => {
+                const teamSalary = getTeamSalary(goods, team.id);
+                const balance =
+                  teamSalary.remaining === Number.POSITIVE_INFINITY
+                    ? "no salary cap"
+                    : `${teamSalary.remaining} tokens left`;
+                return (
+                  <option key={team.id} value={team.id}>
+                    {teamOptionLabel(team)} — {balance}
+                  </option>
+                );
+              })}
+            </select>
+          </label>
+        )}
+
         <div className="mt-4 space-y-2 text-sm text-slate-300">
           {!hasCosts ? (
             <p>No token costs are enabled for this pickup.</p>
@@ -751,11 +811,17 @@ function PickupConfirmDialog({
                   </span>
                 </p>
               )}
-              {goods.settings?.enable_transaction_costs && (
+              {transactionCostsEnabled && (
                 <p className="flex justify-between">
                   <span>Transaction cost</span>
-                  <span className="font-medium text-slate-100">
-                    {cost.transactionCost} tokens
+                  <span
+                    className={
+                      waiveTransactionCost
+                        ? "font-medium text-slate-400 line-through"
+                        : "font-medium text-slate-100"
+                    }
+                  >
+                    {waiveTransactionCost ? "Waived" : `${cost.transactionCost} tokens`}
                   </span>
                 </p>
               )}
@@ -768,6 +834,25 @@ function PickupConfirmDialog({
             </>
           )}
         </div>
+
+        {canWaive && (
+          <label className="mt-4 flex cursor-pointer items-start gap-2 rounded-xl border border-slate-700 bg-slate-950/60 p-3 text-sm text-slate-300">
+            <input
+              type="checkbox"
+              checked={waiveTransactionCost}
+              onChange={(event) => onWaiveChange(event.target.checked)}
+              disabled={busy}
+              className="mt-0.5 accent-amber-500"
+            />
+            <span>
+              Waive the {transactionCost} token transaction cost for this pickup
+              <span className="mt-0.5 block text-xs text-slate-500">
+                League owner only. This skips the fee for this transaction; the
+                league setting is unchanged.
+              </span>
+            </span>
+          </label>
+        )}
 
         <div className="mt-4 rounded-xl border border-slate-700 bg-slate-950/60 p-3 text-sm text-slate-300">
           {salary.remaining === Number.POSITIVE_INFINITY ? (
@@ -798,7 +883,9 @@ function PickupConfirmDialog({
 
         {insufficient && (
           <p className="mt-3 rounded-xl border border-red-800 bg-red-950/40 px-3 py-2 text-sm text-red-200">
-            You do not have enough tokens for this pickup.
+            {isOwner
+              ? "The selected team does not have enough tokens for this pickup."
+              : "You do not have enough tokens for this pickup."}
           </p>
         )}
 
@@ -814,7 +901,7 @@ function PickupConfirmDialog({
           <button
             type="button"
             onClick={onConfirm}
-            disabled={busy || insufficient}
+            disabled={busy || insufficient || teamId == null}
             className="flex-1 rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-40"
           >
             {busy ? "Adding..." : "Confirm"}
@@ -845,12 +932,25 @@ function teamLabel(team: PokemonTeam | null, fallback = "your team"): string {
 }
 
 /**
+ * Labels a team option by its owner, the same way {@link teamLabel} addresses a
+ * member, falling back to the draft-time team name when the profile is unnamed.
+ *
+ * @param team - The team option shown in the owner's target picker.
+ * @returns The name to show.
+ */
+function teamOptionLabel(team: PokemonTeamOption): string {
+  return team.owner_name || team.team_name;
+}
+
+/**
  * Renders the right-column transaction history panel.
  *
- * Lists the user's team ledger in stack order (newest first): Pokémon name,
- * action label, the signed token delta, and when it happened. The note, when
- * present, appears beneath the action. Times render in the zone the member picked
- * in user settings.
+ * Lists the league's post-draft roster moves in stack order (newest first):
+ * Pokémon name, action label, who made the move, the signed token delta, and
+ * when it happened. Moves a league owner made on another member's team also name
+ * that team, so a pickup or release is never ambiguous about whose roster it
+ * touched. Draft picks are excluded by the loader. Times render in the zone the
+ * member picked in user settings.
  */
 function TransactionHistory({
   goods,
@@ -877,67 +977,95 @@ function TransactionHistory({
         <>
           <p className="mt-2 text-xs text-slate-500">
             Every team&apos;s free agent pickups, releases, and token trades, newest
-            first. Draft picks are left out.
+            first. A move the league owner made on another team names that team.
+            Draft picks are left out.
           </p>
           <ul className="mt-4 space-y-3">
-            {transactions.map((entry) => (
-              <li
-                key={entry.id}
-                className="rounded-xl border border-slate-700 bg-slate-950/60 p-3"
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <span className="flex min-w-0 items-center gap-2">
-                    {entry.isTokenMovement ? (
-                      <TokenIcon size={28} />
-                    ) : (
-                      <Sprite spriteId={entry.spriteId} name={entry.name} size={28} />
-                    )}
-                    <span className="truncate font-medium text-slate-100">
-                      {entry.name}
+            {transactions.map((entry) => {
+              /*
+               * Only added/dropped moves carry a meaningful destination roster.
+               * The context is shown when the mover is not that team's owner, so
+               * ordinary member moves stay as terse as before.
+               */
+              const movedByOwner = transactionNamesTeam(entry);
+
+              return (
+                <li
+                  key={entry.id}
+                  className="rounded-xl border border-slate-700 bg-slate-950/60 p-3"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="flex min-w-0 items-center gap-2">
+                      {entry.isTokenMovement ? (
+                        <TokenIcon size={28} />
+                      ) : (
+                        <Sprite spriteId={entry.spriteId} name={entry.name} size={28} />
+                      )}
+                      <span className="truncate font-medium text-slate-100">
+                        {entry.name}
+                      </span>
                     </span>
-                  </span>
-                  <span
-                    className={`whitespace-nowrap text-sm font-semibold ${
-                      entry.cost_delta < 0
-                        ? "text-emerald-300"
-                        : entry.cost_delta > 0
-                          ? "text-amber-300"
-                          : "text-slate-400"
-                    }`}
-                  >
-                    {entry.cost_delta === 0
-                      ? "—"
-                      : entry.cost_delta < 0
-                        ? `+${-entry.cost_delta}`
-                        : `-${entry.cost_delta}`}
-                  </span>
-                </div>
-                <div className="mt-1 flex items-center justify-between gap-3 text-xs text-slate-400">
-                  <span className="min-w-0 truncate">
-                    {actionLabel(entry.action)}
-                    {/*
-                      Split into siblings rather than interpolated, so the member who
-                      made the move can wear their chosen colour while "by" and the
-                      action label stay in the ledger's slate.
-                    */}
-                    {entry.playerName ? (
-                      <>
-                        {" "}
-                        by{" "}
-                        <MemberName
-                          name={entry.playerName}
-                          color={entry.playerNameColor}
-                          fallback="Unnamed"
-                        />
-                      </>
-                    ) : null}
-                  </span>
-                  <span className="whitespace-nowrap">
-                    {formatDateTimeInZone(entry.created_at, timeZone)}
-                  </span>
-                </div>
-              </li>
-            ))}
+                    <span
+                      className={`whitespace-nowrap text-sm font-semibold ${
+                        entry.cost_delta < 0
+                          ? "text-emerald-300"
+                          : entry.cost_delta > 0
+                            ? "text-amber-300"
+                            : "text-slate-400"
+                      }`}
+                    >
+                      {entry.cost_delta === 0
+                        ? "—"
+                        : entry.cost_delta < 0
+                          ? `+${-entry.cost_delta}`
+                          : `-${entry.cost_delta}`}
+                    </span>
+                  </div>
+                  <div className="mt-1 flex items-center justify-between gap-3 text-xs text-slate-400">
+                    <span className="min-w-0 truncate">
+                      {actionLabel(entry.action)}
+                      {/*
+                        Split into siblings rather than interpolated, so the member who
+                        made the move can wear their chosen colour while "by" and the
+                        action label stay in the ledger's slate.
+                      */}
+                      {entry.playerName ? (
+                        <>
+                          {" "}
+                          by{" "}
+                          <MemberName
+                            name={entry.playerName}
+                            color={entry.playerNameColor}
+                            fallback="Unnamed"
+                          />
+                        </>
+                      ) : null}
+                      {movedByOwner ? (
+                        <>
+                          {" "}
+                          {entry.action === "added" ? "to" : "from"}{" "}
+                          {entry.teamOwnerName ? (
+                            <>
+                              <MemberName
+                                name={entry.teamOwnerName}
+                                color={entry.teamOwnerColor}
+                                fallback="another member"
+                              />
+                              {"'s team"}
+                            </>
+                          ) : (
+                            <>{entry.teamName ?? "another team"}</>
+                          )}
+                        </>
+                      ) : null}
+                    </span>
+                    <span className="whitespace-nowrap">
+                      {formatDateTimeInZone(entry.created_at, timeZone)}
+                    </span>
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         </>
       )}
@@ -977,7 +1105,22 @@ function PokemonPageContent({
   const [typeSort, setTypeSort] = useState<string>(ALL_POKEMON_TYPES);
   const [pendingPokemonId, setPendingPokemonId] = useState<string | null>(null);
   const [confirmTarget, setConfirmTarget] = useState<PokemonPoolRow | null>(null);
+  /*
+   * The team the pending add will land on and whether the owner skipped the
+   * transaction fee for it. Held with the pending target so the confirmation
+   * dialog and the RPC call agree, and reset whenever the add is cancelled.
+   */
+  const [pickupTeamId, setPickupTeamId] = useState<string | null>(null);
+  const [waiveTransactionCost, setWaiveTransactionCost] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
+  /*
+   * Table-view paging only. The tier list groups every free agent by tier, so
+   * splitting it across pages would break the grouping the view exists for.
+   * The full pool stays loaded: search, sorting and CSV-style stat comparison
+   * all read `filtered`, and paging only limits what is rendered.
+   */
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
 
   const refresh = useCallback(
     async (leagueId: string): Promise<PokemonGoods> => {
@@ -1104,29 +1247,66 @@ function PokemonPageContent({
       );
   }, [goods, search, sortKey, sortDir, typeSort]);
 
+  /*
+   * Clamp rather than store the page: a pickup removes a free agent, which can
+   * leave the member pointing at a page that no longer exists. Deriving the
+   * visible page from the current row count keeps the slice valid without
+   * another render pass.
+   */
+  const tablePageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const tablePage = Math.min(page, tablePageCount);
+  const tableRows = useMemo(
+    () => filtered.slice((tablePage - 1) * pageSize, tablePage * pageSize),
+    [filtered, tablePage, pageSize],
+  );
+
+  /**
+   * Switches the rows-per-page setting and returns to the first page, so the
+   * member is never left on a page number that the larger/smaller size removed.
+   *
+   * @param nextPageSize - The newly selected page size.
+   */
+  function handlePageSizeChange(nextPageSize: number) {
+    setPageSize(nextPageSize);
+    setPage(1);
+  }
+
   const salary = useMemo(
     () => (goods ? getPokemonSalary(goods) : null),
     [goods],
   );
 
+  /*
+   * League ownership unlocks the owner-only half of this page: placing a free
+   * agent on any team and waiving the transaction fee for that pickup. The
+   * league row's `owner_id` is the same authority the pickup RPC checks, so the
+   * two agree on who counts as the owner.
+   */
+  const isOwner = Boolean(
+    goods && goods.league.owner_id === goods.currentUserId,
+  );
+
   const canPickup = Boolean(
     goods &&
       goods.isCurrentSeason &&
-      goods.season?.status === "draft_complete" &&
-      goods.myTeam != null,
+      rosterChangesOpen(goods.season?.status, isOwner) &&
+      (goods.myTeam != null || isOwner),
   );
 
   const pickupHint = !goods
     ? ""
     : !goods.isCurrentSeason
       ? "This is a past season, so its rosters are read-only. Switch to the current season from the dashboard to make changes."
-      : !goods.myTeam
+      : !goods.myTeam && !isOwner
         ? "You do not own a team in this season, so you cannot pick up free agents."
-        : goods.season?.status !== "draft_complete"
-          ? "Free agent pickups unlock once the draft is complete."
+        : !rosterChangesOpen(goods.season?.status, isOwner)
+          ? goods.season?.status === "draft_active"
+            ? "Free agent pickups are unavailable while the draft is in progress. They unlock again once the draft is complete."
+            : "Free agent pickups unlock once the draft is complete."
           : "";
 
   function handleSort(column: PokemonSortKey) {
+    setPage(1);
     if (sortKey === column) {
       setSortDir((current) => (current === "asc" ? "desc" : "asc"));
     } else {
@@ -1136,10 +1316,25 @@ function PokemonPageContent({
   }
 
   function handleStartAdd(row: PokemonPoolRow) {
-    if (!canPickup || isBusy) {
+    if (!goods || !canPickup || isBusy) {
       return;
     }
-    if (goods && !canAffordPickup(goods, row)) {
+
+    /*
+     * Owners default to their own team when they have one and otherwise to the
+     * first team in the season; the dialog lets them change this before
+     * confirming. A member is always pinned to their own team.
+     */
+    const defaultTeamId = goods.myTeam?.id ?? goods.teams[0]?.id ?? null;
+
+    if (!defaultTeamId) {
+      setError(
+        "No teams exist for this season yet. Teams are created when the draft starts.",
+      );
+      return;
+    }
+
+    if (!isOwner && !canAffordPickup(goods, row)) {
       const cost = getPickupCost(goods, row);
       setError(
         `Not enough tokens to pick up ${row.name}: ${cost.total} needed, ` +
@@ -1147,6 +1342,9 @@ function PokemonPageContent({
       );
       return;
     }
+
+    setPickupTeamId(defaultTeamId);
+    setWaiveTransactionCost(false);
     setPendingPokemonId(row.pokemon_id);
     setConfirmTarget(row);
   }
@@ -1154,15 +1352,43 @@ function PokemonPageContent({
   function handleCancelAdd() {
     setPendingPokemonId(null);
     setConfirmTarget(null);
+    setPickupTeamId(null);
+    setWaiveTransactionCost(false);
   }
 
-  const canAffordRow = (row: PokemonPoolRow): boolean =>
-    goods != null && canAffordPickup(goods, row);
+  /*
+   * A member's row is gated by their own balance. An owner can pick the target
+   * team and waive the fee in the dialog, so the row stays open as long as some
+   * team can absorb the cheapest possible charge.
+   */
+  const canAffordRow = (row: PokemonPoolRow): boolean => {
+    if (!goods) {
+      return false;
+    }
+    if (!isOwner) {
+      return canAffordPickup(goods, row);
+    }
+    return goods.teams.some((team) =>
+      canAffordPickup(goods, row, {
+        teamId: team.id,
+        waiveTransactionCost: true,
+      }),
+    );
+  };
 
   async function handleConfirmPickup() {
-    if (!goods || !confirmTarget) {
+    if (!goods || !confirmTarget || !pickupTeamId) {
       return;
     }
+
+    const targetTeam =
+      goods.teams.find((team) => team.id === pickupTeamId) ?? null;
+    const targetLabel = targetTeam ? teamOptionLabel(targetTeam) : "the team";
+    const waiving =
+      isOwner &&
+      waiveTransactionCost &&
+      Boolean(goods.settings?.enable_transaction_costs) &&
+      (goods.settings?.transaction_cost ?? 0) > 0;
 
     setIsBusy(true);
     setError(null);
@@ -1170,6 +1396,15 @@ function PokemonPageContent({
       const result = await pickupRosterPokemon(
         goods.league.id,
         confirmTarget.pokemon_id,
+        {
+          /*
+           * A member is always pinned to their own team, so leave the target out
+           * and let the RPC resolve it. Only an owner sends an explicit team,
+           * which keeps the member call identical to the pre-owner signature.
+           */
+          teamId: isOwner ? pickupTeamId : undefined,
+          waiveTransactionCost: waiving,
+        },
       );
       await refresh(goods.league.id);
       /*
@@ -1178,14 +1413,16 @@ function PokemonPageContent({
        * the same name in its chosen colour.
        */
       setFeedback(
-        `Added ${confirmTarget.name} to ${teamLabel(goods.myTeam)}${
+        `Added ${confirmTarget.name} to ${targetLabel}${
           result.charged_tokens > 0
             ? ` for ${result.charged_tokens} tokens`
             : ""
-        }.`,
+        }${waiving ? " (transaction cost waived)" : ""}.`,
       );
       setPendingPokemonId(null);
       setConfirmTarget(null);
+      setPickupTeamId(null);
+      setWaiveTransactionCost(false);
     } catch (caughtError) {
       setError(
         caughtError instanceof Error
@@ -1200,7 +1437,7 @@ function PokemonPageContent({
   if (isLoading && !goods) {
     return (
       <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
-        <div className="mx-auto max-w-5xl rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
+        <div className="mx-auto max-w-6xl rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
           <LoadingGif label="Loading free agents" />
         </div>
       </main>
@@ -1210,7 +1447,7 @@ function PokemonPageContent({
   if (error && !goods) {
     return (
       <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
-        <div className="mx-auto max-w-5xl rounded-2xl border border-red-800 bg-red-950/40 p-8 text-sm text-red-200 shadow-xl shadow-slate-950/40">
+        <div className="mx-auto max-w-6xl rounded-2xl border border-red-800 bg-red-950/40 p-8 text-sm text-red-200 shadow-xl shadow-slate-950/40">
           {error}
         </div>
       </main>
@@ -1223,7 +1460,7 @@ function PokemonPageContent({
 
   return (
     <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
-      <div className="mx-auto max-w-7xl space-y-6">
+      <div className="mx-auto max-w-6xl space-y-6">
         <header className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-2xl shadow-slate-950/40">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
@@ -1267,6 +1504,11 @@ function PokemonPageContent({
                       • Roster: {goods.rosterCount} Pokémon
                     </span>
                   )
+                ) : isOwner ? (
+                  <span>
+                    You are not on a team this season, but as league owner you
+                    can still add free agents to any team.
+                  </span>
                 ) : (
                   <span>You are not on a team this season.</span>
                 )}
@@ -1277,6 +1519,13 @@ function PokemonPageContent({
                     Transaction Cost: -{goods.settings.transaction_cost}
                   </p>
                 )}
+              {isOwner && (
+                <p className="mt-1 text-xs text-slate-500">
+                  League owner: pickups can go to any team, can be made before
+                  the draft begins, and the transaction cost can be waived for
+                  each pickup.
+                </p>
+              )}
             </div>
           </div>
 
@@ -1310,7 +1559,10 @@ function PokemonPageContent({
               <input
                 type="text"
                 value={search}
-                onChange={(event) => setSearch(event.target.value)}
+                onChange={(event) => {
+                  setSearch(event.target.value);
+                  setPage(1);
+                }}
                 placeholder="Find Pokemon"
                 aria-label="Find Pokemon"
                 className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none transition focus:border-amber-400"
@@ -1328,7 +1580,10 @@ function PokemonPageContent({
                 </span>
                 <select
                   value={typeSort}
-                  onChange={(event) => setTypeSort(event.target.value)}
+                  onChange={(event) => {
+                    setTypeSort(event.target.value);
+                    setPage(1);
+                  }}
                   aria-label="Sort the free agent table by type"
                   className="rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm capitalize text-slate-100 outline-none transition focus:border-amber-400"
                 >
@@ -1382,18 +1637,29 @@ function PokemonPageContent({
             </div>
 
             {selectedTab === "table" ? (
-              <FreeAgentTable
-                rows={filtered}
-                pendingPokemonId={pendingPokemonId}
-                disabled={!canPickup}
-                busy={isBusy}
-                sortKey={sortKey}
-                sortDir={sortDir}
-                onSort={handleSort}
-                onAdd={handleStartAdd}
-                onCancel={handleCancelAdd}
-                canAfford={canAffordRow}
-              />
+              <>
+                <FreeAgentTable
+                  rows={tableRows}
+                  pendingPokemonId={pendingPokemonId}
+                  disabled={!canPickup}
+                  busy={isBusy}
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onSort={handleSort}
+                  onAdd={handleStartAdd}
+                  onCancel={handleCancelAdd}
+                  canAfford={canAffordRow}
+                />
+                <div className="mt-4">
+                  <TablePagination
+                    page={tablePage}
+                    pageSize={pageSize}
+                    total={filtered.length}
+                    onPageChange={setPage}
+                    onPageSizeChange={handlePageSizeChange}
+                  />
+                </div>
+              </>
             ) : (
               <TierListView
                 rows={filtered}
@@ -1415,7 +1681,12 @@ function PokemonPageContent({
         <PickupConfirmDialog
           row={confirmTarget}
           goods={goods}
+          isOwner={isOwner}
+          teamId={pickupTeamId}
+          waiveTransactionCost={waiveTransactionCost}
           busy={isBusy}
+          onTeamChange={setPickupTeamId}
+          onWaiveChange={setWaiveTransactionCost}
           onConfirm={handleConfirmPickup}
           onCancel={handleCancelAdd}
         />

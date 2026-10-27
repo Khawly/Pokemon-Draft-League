@@ -3,7 +3,8 @@
  *
  * Loads a league's latest season (tolerating a database that predates the
  * optional season name column), builds the season label shown across the app,
- * and exposes the owner-only RPC that renames the current season.
+ * defines the season window in which rosters may change, and exposes the
+ * owner-only RPC that renames the current season.
  */
 import { supabase } from "@/lib/supabase/client";
 
@@ -183,6 +184,32 @@ export function formatSeasonLabel(season?: SeasonLabel | null): string {
   const name = season.name?.trim();
 
   return name || `Season ${season.season_number}`;
+}
+
+/** Season states that affect whether rosters may be changed. */
+export type RosterChangeStatus =
+  | "draft_pending"
+  | "draft_active"
+  | "draft_complete"
+  | "archived";
+
+/**
+ * Reports whether roster changes (free agent pickups and drops) are open.
+ *
+ * Members unlock once the draft is complete. League owners may also work while
+ * the season is still pending, so they can build or fix a roster before the
+ * draft begins. The draft itself stays closed to everyone because the draft
+ * engine is claiming from the same pool at that point.
+ *
+ * @param status - The season's lifecycle status, or null before a season exists.
+ * @param isOwner - Whether the caller owns the league.
+ * @returns True when pickups and drops should be available.
+ */
+export function rosterChangesOpen(
+  status: RosterChangeStatus | null | undefined,
+  isOwner: boolean,
+): boolean {
+  return status === "draft_complete" || (isOwner && status === "draft_pending");
 }
 
 /**

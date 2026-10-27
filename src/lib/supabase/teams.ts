@@ -4,9 +4,10 @@
  * Loads the league, latest season, season settings, teams with owner display
  * info, each team's roster (enriched with the bundled catalog + stats/abilities
  * datasets), and the season's match history. Also exposes the RPC-backed
- * mutations the page uses: dropping a roster Pokemon (with the tier refunded
- * into the team's token salary) and deleting a match (owner/admin only, handled
- * by RLS), plus the salary derivation the UI shows per team.
+ * mutations the page uses: dropping a roster Pokemon (members from their own
+ * team, the league owner from any team, with the tier refunded into the team's
+ * token salary) and deleting a match (owner/admin only, handled by RLS), plus
+ * the salary derivation the UI shows per team.
  */
 import { supabase } from "@/lib/supabase/client";
 import { isCurrentSeason, loadSeason } from "@/lib/supabase/seasons";
@@ -521,28 +522,44 @@ export function getTeamSalary(
   return { budget, spent, remaining: budget - spent };
 }
 
+/** Options for {@link dropRosterPokemon}. */
+export type DropRosterOptions = {
+  /**
+   * Target team. Omitted for the original member flow (the caller's own team);
+   * a non-owner naming a team they do not own is rejected by the database.
+   */
+  teamId?: string | null;
+};
+
 /**
- * Drops a Pokémon from the calling user's team roster for the league's current
- * season.
+ * Drops a Pokémon from a team roster for the league's current season.
  *
  * Delegates to the `drop_roster_pokemon` SECURITY DEFINER RPC, which validates
- * ownership and season state, refunds the tier cost into the team's token
- * salary (a 'dropped' transaction with a negative cost_delta, i.e. a refund),
- * removes the roster row, and re-lists the Pokémon as in-pool.
+ * season state and ownership, refunds the tier cost into the target team's
+ * token salary (a 'dropped' transaction with a negative cost_delta, i.e. a
+ * refund), removes the roster row, and re-lists the Pokémon as in-pool.
+ *
+ * A member may only drop from their own team. The league owner may target any
+ * team in the season, and the refund still goes to the team that loses the
+ * Pokémon. Transaction fees are not refunded; only the tier the roster slot
+ * cost.
  *
  * @param leagueId - The league whose season roster is being changed.
  * @param pokemonId - The roster Pokémon slug to drop.
+ * @param options - Optional target team for the league owner.
  * @returns The team id and the tier tokens refunded.
- * @throws If the database rejects the drop (not your team, draft not complete,
- *   or the Pokémon is not on the roster).
+ * @throws If the database rejects the drop (not your team, draft in progress,
+ *   or the Pokémon is not on the target roster).
  */
 export async function dropRosterPokemon(
   leagueId: string,
   pokemonId: string,
+  options: DropRosterOptions = {},
 ): Promise<{ team_id: string; refunded_tokens: number }> {
   const { data, error } = await supabase.rpc("drop_roster_pokemon", {
     p_league_id: leagueId,
     p_pokemon_id: pokemonId,
+    ...(options.teamId ? { p_team_id: options.teamId } : {}),
   });
 
   if (error) {

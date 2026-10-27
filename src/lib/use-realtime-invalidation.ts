@@ -119,6 +119,16 @@ export type RealtimeInvalidationOptions = {
 const DEFAULT_DEBOUNCE_MS = 250;
 
 /**
+ * Fallback poll cadence when the Realtime channel is unavailable.
+ *
+ * Realtime is best-effort. If the socket is closed, errored, or times out, a
+ * page that only listened for events would sit on stale data indefinitely. This
+ * interval reuses the same coalesced invalidation path, so a broken channel
+ * degrades to polling rather than to silence.
+ */
+const FALLBACK_POLL_MS = 30_000;
+
+/**
  * Default minimum spacing between flushes, in milliseconds.
  *
  * Chosen against the payload a change costs rather than against how the update feels:
@@ -250,6 +260,36 @@ export function useRealtimeInvalidation({
       timer = setTimeout(deliver, debounceMs);
     };
 
+    /*
+     * When the socket is down, fall back to a slow poll through the same
+     * coalescing queue. Starting/stopping is idempotent because a reconnect can
+     * emit several status transitions.
+     */
+    let fallbackTimer: ReturnType<typeof setInterval> | null = null;
+
+    const stopFallback = () => {
+      if (fallbackTimer) {
+        clearInterval(fallbackTimer);
+        fallbackTimer = null;
+      }
+    };
+
+    const startFallback = () => {
+      if (disposed || fallbackTimer) {
+        return;
+      }
+
+      fallbackTimer = setInterval(() => {
+        if (disposed) {
+          return;
+        }
+
+        for (const watcher of watchersRef.current) {
+          schedule(watcher.table)();
+        }
+      }, FALLBACK_POLL_MS);
+    };
+
     document.addEventListener("visibilitychange", onVisibilityChange);
 
     flushRef.current = () => {
@@ -293,13 +333,31 @@ export function useRealtimeInvalidation({
       );
     }
 
-    void channel.subscribe();
+    void channel.subscribe((status) => {
+      if (disposed) {
+        return;
+      }
+
+      if (status === "SUBSCRIBED") {
+        stopFallback();
+        return;
+      }
+
+      if (
+        status === "CHANNEL_ERROR" ||
+        status === "TIMED_OUT" ||
+        status === "CLOSED"
+      ) {
+        startFallback();
+      }
+    });
 
     return () => {
       disposed = true;
       if (timer) {
         clearTimeout(timer);
       }
+      stopFallback();
       document.removeEventListener("visibilitychange", onVisibilityChange);
       void supabase.removeChannel(channel);
       flushRef.current = () => undefined;

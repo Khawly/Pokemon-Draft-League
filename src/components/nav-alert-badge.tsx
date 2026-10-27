@@ -2,11 +2,12 @@
  * The notification markers shown on navigation buttons and tabs.
  *
  * Every nav entry in the app that carries a number renders it through this module:
- * the dashboard's Schedule and Trades buttons, and the Trades page's "My Trades" and
- * "Approvals" tabs. It started as a single pill in the dashboard shell and was then
- * retyped by hand on the trades page, which is how the two ended up rendering
- * different treatments for the same kind of fact. One module, imported everywhere,
- * makes "the same format" a property of the code rather than something to remember.
+ * the global league sub-navigation's Schedule and Trades buttons, and the Trades
+ * page's "My Trades" and "Approvals" tabs. It started as a single pill in the
+ * dashboard shell and was then retyped by hand on the trades page, which is how
+ * the two ended up rendering different treatments for the same kind of fact. One
+ * module, imported everywhere, makes "the same format" a property of the code
+ * rather than something to remember.
  *
  * {@link TabNotification} is the convention itself, and is what a new page or tab
  * should reach for: supply both counts and it decides which of the two forms applies.

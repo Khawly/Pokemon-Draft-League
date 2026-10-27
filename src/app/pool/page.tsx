@@ -13,7 +13,9 @@
  * ✓ button confirms (persists) a pending tier change for that single Pokémon,
  * independent of the global Save. The owner can also delete the selected saved
  * pool, and new/renamed pool names are rejected when they would duplicate an
- * existing saved pool in the dropdown.
+ * existing saved pool in the dropdown. While a pool's rows are loading -- on
+ * first open and after switching pools -- the summary, tabs, and table are
+ * replaced by the app's loading animation so stale contents are never shown.
  */
 "use client";
 
@@ -42,6 +44,7 @@ import {
 import { AbilityTooltip } from "@/components/ability-tooltip";
 import { useConfirm } from "@/components/confirm-dialog";
 import { LoadingGif } from "@/components/loading-gif";
+import { TablePagination } from "@/components/table-pagination";
 import { getSelectedSeason } from "@/lib/season-selection";
 import { isCurrentSeason as checkIsCurrentSeason, loadSeason } from "@/lib/supabase/seasons";
 
@@ -289,7 +292,7 @@ export default function PoolPage() {
     <Suspense
       fallback={
         <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
-          <div className="mx-auto max-w-5xl rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
+          <div className="mx-auto max-w-6xl rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
             <LoadingGif label="Loading draft pool" />
           </div>
         </main>
@@ -567,10 +570,6 @@ type PoolRowRecord = {
   species_name: string;
   tier_value: number;
   is_in_pool: boolean;
-  type_primary: string | null;
-  type_secondary: string | null;
-  bst: number | null;
-  generation: string | null;
   notes: string | null;
 };
 
@@ -586,20 +585,30 @@ const POOL_PAGE_SIZE = 1000;
  * past the cap silently vanish from the editor after a save-triggered refetch.
  *
  * @param poolId - The id of the draft pool whose rows to fetch.
+ * @param options - `inPoolOnly` narrows the read to species currently enabled in
+ *   the pool. Read-only members only need those rows; owners need the full table
+ *   because they can toggle off-pool species back in.
  * @returns A promise resolving to the ordered list of pool Pokémon rows.
  * @throws If any page query fails.
  */
-async function fetchPoolRows(poolId: string): Promise<PoolPokemonRow[]> {
+async function fetchPoolRows(
+  poolId: string,
+  options: { inPoolOnly?: boolean } = {},
+): Promise<PoolPokemonRow[]> {
   const allRows: PoolRowRecord[] = [];
 
   // The id order keeps each page's window stable across the loop.
   for (let from = 0; ; from += POOL_PAGE_SIZE) {
-    const { data, error: rowsError } = await supabase
+    let query = supabase
       .from("draft_pool_pokemon")
-      .select(
-        "id, pokemon_id, species_name, tier_value, is_in_pool, type_primary, type_secondary, bst, generation, notes",
-      )
-      .eq("draft_pool_id", poolId)
+      .select("id, pokemon_id, species_name, tier_value, is_in_pool, notes")
+      .eq("draft_pool_id", poolId);
+
+    if (options.inPoolOnly) {
+      query = query.eq("is_in_pool", true);
+    }
+
+    const { data, error: rowsError } = await query
       .order("id", { ascending: true })
       .range(from, from + POOL_PAGE_SIZE - 1);
 
@@ -627,13 +636,18 @@ async function fetchPoolRows(poolId: string): Promise<PoolPokemonRow[]> {
         dex: match?.dexNumber ?? 0,
         spriteId: match?.spriteId ?? 0,
         pokemon_id: row.pokemon_id,
-        species_name: row.species_name,
+        species_name: row.species_name || match?.name || row.pokemon_id,
         tier_value: row.tier_value,
         is_in_pool: row.is_in_pool,
-        type_primary: row.type_primary,
-        type_secondary: row.type_secondary,
-        bst: row.bst,
-        generation: row.generation,
+        /*
+         * Typing, BST and generation are derived from the bundled catalog rather
+         * than sent again by PostgREST. The table is thousands of rows and those
+         * columns are static Pokémon metadata, not editable pool state.
+         */
+        type_primary: match?.types[0] ?? null,
+        type_secondary: match?.types[1] ?? null,
+        bst: match?.bst ?? null,
+        generation: match?.generation ?? null,
         notes: row.notes,
       };
     },
@@ -701,6 +715,12 @@ function PoolPageContent({
   const [rows, setRows] = useState<PoolPokemonRow[]>([]);
   const [savedRows, setSavedRows] = useState<PoolPokemonRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  /**
+   * Whether the active pool's rows (and therefore the totals derived from them)
+   * are being loaded. The page shows the loading gif in the table area while
+   * this is true, on first open and whenever the pool selection changes.
+   */
+  const [isPoolLoading, setIsPoolLoading] = useState(true);
   const [isBusy, setIsBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -715,8 +735,23 @@ function PoolPageContent({
     status: "all",
   });
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  /*
+   * Table-tab paging only. The rows themselves are never paged: the tier cards,
+   * CSV export/import, bulk selection and the save/diff all read the full
+   * working set, so paging here limits rendering, not state.
+   */
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const nextClientKeyRef = useRef(1);
+  /**
+   * The pool whose rows are already in state. Saving a new pool refreshes its
+   * rows before selecting it, so the selection effect can skip a second fetch
+   * (and a second loading spinner) for data that is already loaded.
+   */
+  const loadedRowsPoolRef = useRef<string | null>(null);
+  /** Whether the loaded rows are the read-only in-pool subset. */
+  const loadedRowsInPoolOnlyRef = useRef(false);
 
   /**
    * Whether the pool can be changed. A past season's pool is a record: the owner can
@@ -882,23 +917,84 @@ function PoolPageContent({
   }, [router, requestedLeagueId]);
 
   // Load the rows for the active pool; an owner with no saved pool gets the
-  // default full-national-dex working state.
+  // default full-national-dex working state. The table-area gif stays up until
+  // both the rows and the totals derived from them are ready.
   useEffect(() => {
+    let cancelled = false;
+
     /** Loads the Pokémon rows for {@link activePoolId}. */
     async function loadPoolPokemon() {
+      const inPoolOnly = !isOwner || !isCurrentSeason;
+
       if (!activePoolId) {
-        setRows(isOwner && isCurrentSeason ? buildDefaultRows() : []);
+        /*
+         * Wait for the league/pools load to finish before deciding there is
+         * nothing to show. Otherwise the first mount (no active pool chosen
+         * yet) clears the loading flag early and the table flashes empty
+         * between the page load and the rows effect for the selected pool.
+         */
+        if (isLoading) {
+          return;
+        }
+
+        setIsPoolLoading(true);
+
+        const defaultRows =
+          isOwner && isCurrentSeason ? buildDefaultRows() : [];
+
+        if (cancelled) {
+          return;
+        }
+
+        setRows(defaultRows);
         setSavedRows([]);
         setSelectedIds(new Set());
+        loadedRowsPoolRef.current = null;
+        loadedRowsInPoolOnlyRef.current = false;
+        setIsPoolLoading(false);
         return;
       }
+
+      /*
+       * Saving a brand-new pool refreshes its rows itself and then selects it.
+       * The rows are already in state, so skip the fetch that the selection
+       * would otherwise trigger rather than showing the gif a second time.
+       */
+      if (
+        loadedRowsPoolRef.current === activePoolId &&
+        loadedRowsInPoolOnlyRef.current === inPoolOnly
+      ) {
+        setIsPoolLoading(false);
+        return;
+      }
+
+      setIsPoolLoading(true);
+      /*
+       * Drop the previous pool's rows before fetching. They are hidden by the
+       * loading panel, but leaving them in state would let Export CSV or Save
+       * act on the wrong pool during the gap.
+       */
+      loadedRowsPoolRef.current = null;
+      setRows([]);
+      setSavedRows([]);
+      setSelectedIds(new Set());
 
       const pool = pools.find((candidate) => candidate.id === activePoolId);
       setPoolName(pool?.name ?? "");
       setSavedPoolName(pool?.name ?? "");
 
       try {
-        const refreshed = await fetchPoolRows(activePoolId);
+        /*
+         * Read-only members only need the species actually in the pool. The
+         * full table (including off-pool species) is an owner editing concern,
+         * so keeping it out of their response is a direct egress saving.
+         */
+        const refreshed = await fetchPoolRows(activePoolId, { inPoolOnly });
+
+        if (cancelled) {
+          return;
+        }
+
         // An owner's empty pool is "unconfigured": present it as the default
         // working set (full national dex, off pool) rather than a blank table,
         // and treat it as the saved base so nothing looks dirty on first load.
@@ -906,10 +1002,17 @@ function PoolPageContent({
           refreshed.length === 0 && isOwner && isCurrentSeason
             ? buildDefaultRows()
             : refreshed;
+
         setRows(baseRows);
         setSavedRows(baseRows);
         setSelectedIds(new Set());
+        loadedRowsPoolRef.current = activePoolId;
+        loadedRowsInPoolOnlyRef.current = inPoolOnly;
       } catch (caughtError) {
+        if (cancelled) {
+          return;
+        }
+
         setError(
           caughtError instanceof Error
             ? caughtError.message
@@ -917,11 +1020,21 @@ function PoolPageContent({
         );
         setRows([]);
         setSavedRows([]);
+        loadedRowsPoolRef.current = activePoolId;
+        loadedRowsInPoolOnlyRef.current = inPoolOnly;
+      } finally {
+        if (!cancelled) {
+          setIsPoolLoading(false);
+        }
       }
     }
 
-    loadPoolPokemon();
-  }, [activePoolId, pools, isOwner, isCurrentSeason]);
+    void loadPoolPokemon();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activePoolId, pools, isOwner, isCurrentSeason, isLoading]);
 
   /** Resets the working state to a brand-new, unsaved pool. */
   async function startNewPool() {
@@ -943,6 +1056,11 @@ function PoolPageContent({
     setPoolName("");
     setSavedPoolName("");
     setSelectedIds(new Set());
+    setPage(1);
+    setIsPoolLoading(true);
+    setRows([]);
+    setSavedRows([]);
+    loadedRowsPoolRef.current = null;
     setError(null);
     setSuccessMessage(null);
   }
@@ -967,6 +1085,15 @@ function PoolPageContent({
       await startNewPool();
       return;
     }
+    const nextPool = pools.find((pool) => pool.id === nextPoolId);
+    setPoolName(nextPool?.name ?? "");
+    setSavedPoolName(nextPool?.name ?? "");
+    setIsPoolLoading(true);
+    setRows([]);
+    setSavedRows([]);
+    setSelectedIds(new Set());
+    setPage(1);
+    loadedRowsPoolRef.current = null;
     setActivePoolId(nextPoolId);
   }
 
@@ -1116,6 +1243,8 @@ function PoolPageContent({
       const refreshed = await fetchPoolRows(targetPoolId);
       setRows(refreshed);
       setSavedRows(refreshed);
+      loadedRowsPoolRef.current = targetPoolId;
+      loadedRowsInPoolOnlyRef.current = false;
       setPoolName(trimmedName);
       setSavedPoolName(trimmedName);
 
@@ -1237,8 +1366,18 @@ function PoolPageContent({
 
       // The loadPoolPokemon effect reacts to the new selection: the next
       // remaining pool's rows load, or the default new-pool working set when
-      // nothing is left.
-      setActivePoolId(remaining.length > 0 ? remaining[0].id : null);
+      // nothing is left. Clear the deleted pool's rows meanwhile so the loading
+      // gif replaces them and nothing can export or save stale contents.
+      setIsPoolLoading(true);
+      setRows([]);
+      setSavedRows([]);
+      setSelectedIds(new Set());
+      setPage(1);
+      loadedRowsPoolRef.current = null;
+      const nextPool = remaining[0] ?? null;
+      setPoolName(nextPool?.name ?? "");
+      setSavedPoolName(nextPool?.name ?? "");
+      setActivePoolId(nextPool?.id ?? null);
     } catch (caughtError) {
       setError(
         caughtError instanceof Error
@@ -1672,13 +1811,17 @@ function PoolPageContent({
   // responsive even though the table lists the entire pool.
   const deferredNameFilter = useDeferredValue(filters.name);
 
+  // Read-only viewers only receive in-pool rows, so the status filter has no
+  // off-pool option to offer and a stale "off" choice must not blank the table.
+  const effectiveStatus = canEdit ? filters.status : "all";
+
   const filteredRows = useMemo(() => {
     const query = deferredNameFilter.trim().toLowerCase();
     const next = rows.filter((row) => {
-      if (filters.status === "in" && !row.is_in_pool) {
+      if (effectiveStatus === "in" && !row.is_in_pool) {
         return false;
       }
-      if (filters.status === "out" && row.is_in_pool) {
+      if (effectiveStatus === "out" && row.is_in_pool) {
         return false;
       }
       if (
@@ -1731,7 +1874,23 @@ function PoolPageContent({
           ) * direction;
       }
     });
-  }, [rows, filters, deferredNameFilter, sortKey, sortDir]);
+  }, [rows, filters, deferredNameFilter, sortKey, sortDir, effectiveStatus]);
+
+  /*
+   * Clamp rather than store the page: bulk removal and a shrinking filter can
+   * leave the member on a page past the end. Deriving the visible page from the
+   * filtered count keeps the slice valid on the same render.
+   */
+  const tablePageCount = Math.max(1, Math.ceil(filteredRows.length / pageSize));
+  const tablePage = Math.min(page, tablePageCount);
+  const pageRows = useMemo(
+    () =>
+      filteredRows.slice(
+        (tablePage - 1) * pageSize,
+        tablePage * pageSize,
+      ),
+    [filteredRows, tablePage, pageSize],
+  );
 
   // A Pokémon's persisted (saved) tier is the "known" value the tier cards
   // group by; a staged tier change does not move the card until confirmed.
@@ -1779,6 +1938,7 @@ function PoolPageContent({
 
   /** Toggles the sort key/direction when a sortable header is clicked. */
   function handleSort(key: SortKey) {
+    setPage(1);
     if (key === sortKey) {
       setSortDir((current) => (current === "asc" ? "desc" : "asc"));
     } else {
@@ -1787,10 +1947,21 @@ function PoolPageContent({
     }
   }
 
+  /**
+   * Switches the rows-per-page setting and returns to the first page, so the
+   * member is never left on a page number that the larger/smaller size removed.
+   *
+   * @param nextPageSize - The newly selected page size.
+   */
+  function handlePageSizeChange(nextPageSize: number) {
+    setPageSize(nextPageSize);
+    setPage(1);
+  }
+
   if (isLoading) {
     return (
       <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
-        <div className="mx-auto max-w-5xl rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
+        <div className="mx-auto max-w-6xl rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
           <LoadingGif label="Loading draft pool" />
         </div>
       </main>
@@ -1799,7 +1970,7 @@ function PoolPageContent({
 
   return (
     <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
-      <div className="mx-auto max-w-7xl space-y-8">
+      <div className="mx-auto max-w-6xl space-y-8">
         <header className="space-y-2">
           <h1 className="text-2xl font-bold text-white">{leagueName} Pool</h1>
         </header>
@@ -1825,8 +1996,8 @@ function PoolPageContent({
         {!canEdit && (
           <p className="rounded-xl border border-amber-800 bg-amber-950/60 px-4 py-3 text-sm text-amber-200">
             {isCurrentSeason
-              ? "Read-only view: only the league owner can edit the draft pool."
-              : "Read-only history: this is not the league's current season, so its pool cannot be changed. Switch to the current season from the dashboard to edit it."}
+              ? "Read-only view: only the league owner can edit the draft pool. Only Pokémon currently in the pool are shown."
+              : "Read-only history: this is not the league's current season, so its pool cannot be changed. Only Pokémon currently in the pool are shown."}
           </p>
         )}
 
@@ -1883,7 +2054,7 @@ function PoolPageContent({
                   <button
                     type="button"
                     onClick={() => void startNewPool()}
-                    disabled={isBusy}
+                    disabled={isBusy || isPoolLoading}
                     className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-2.5 text-sm font-medium text-slate-300 transition hover:border-slate-600 disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     New pool
@@ -1893,7 +2064,7 @@ function PoolPageContent({
                     <button
                       type="button"
                       onClick={() => void handleDeletePool()}
-                      disabled={isBusy || !activePoolId}
+                      disabled={isBusy || isPoolLoading || !activePoolId}
                       title={
                         activePoolId
                           ? "Delete the selected draft pool"
@@ -1940,7 +2111,7 @@ function PoolPageContent({
                     <button
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
-                      disabled={isBusy}
+                      disabled={isBusy || isPoolLoading}
                       className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-2.5 text-sm font-medium text-slate-300 transition hover:border-slate-600 disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       Import CSV
@@ -1954,7 +2125,7 @@ function PoolPageContent({
                   <button
                     type="button"
                     onClick={() => void handleSetActivePool()}
-                    disabled={isBusy || !activePoolId || isDirty || selectedPoolIsActive}
+                    disabled={isBusy || isPoolLoading || !activePoolId || isDirty || selectedPoolIsActive}
                     title={
                       selectedPoolIsActive
                         ? "This pool is already the active draft pool"
@@ -1983,6 +2154,12 @@ function PoolPageContent({
           </div>
         </section>
 
+        {isPoolLoading ? (
+          <section className="flex min-h-[22rem] items-center justify-center rounded-2xl border border-slate-800 bg-slate-900/80 p-8 shadow-xl shadow-slate-950/40">
+            <LoadingGif label="Loading draft pool" />
+          </section>
+        ) : (
+          <>
         {/* Summary panel */}
         <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <div className="rounded-2xl border border-emerald-800 bg-emerald-950/40 p-5">
@@ -2033,23 +2210,25 @@ function PoolPageContent({
               <input
                 type="search"
                 value={filters.name}
-                onChange={(event) =>
+                onChange={(event) => {
                   setFilters((current) => ({
                     ...current,
                     name: event.target.value,
-                  }))
-                }
+                  }));
+                  setPage(1);
+                }}
                 placeholder="Search by name..."
                 className="flex-1 rounded-xl border border-slate-700 bg-slate-900 px-4 py-2.5 text-sm text-slate-100 outline-none transition focus:border-amber-400"
               />
               <select
                 value={filters.type}
-                onChange={(event) =>
+                onChange={(event) => {
                   setFilters((current) => ({
                     ...current,
                     type: event.target.value,
-                  }))
-                }
+                  }));
+                  setPage(1);
+                }}
                 className="rounded-xl border border-slate-700 bg-slate-900 px-3 py-2.5 text-sm text-slate-100 outline-none focus:border-amber-400"
               >
                 <option value="all">All types</option>
@@ -2061,12 +2240,13 @@ function PoolPageContent({
               </select>
               <select
                 value={filters.generation}
-                onChange={(event) =>
+                onChange={(event) => {
                   setFilters((current) => ({
                     ...current,
                     generation: event.target.value,
-                  }))
-                }
+                  }));
+                  setPage(1);
+                }}
                 className="rounded-xl border border-slate-700 bg-slate-900 px-3 py-2.5 text-sm text-slate-100 outline-none focus:border-amber-400"
               >
                 <option value="all">All generations</option>
@@ -2076,20 +2256,23 @@ function PoolPageContent({
                   </option>
                 ))}
               </select>
-              <select
-                value={filters.status}
-                onChange={(event) =>
-                  setFilters((current) => ({
-                    ...current,
-                    status: event.target.value,
-                  }))
-                }
-                className="rounded-xl border border-slate-700 bg-slate-900 px-3 py-2.5 text-sm text-slate-100 outline-none focus:border-amber-400"
-              >
-                <option value="all">All statuses</option>
-                <option value="in">In Pool</option>
-                <option value="out">Off Pool</option>
-              </select>
+              {canEdit && (
+                <select
+                  value={filters.status}
+                  onChange={(event) => {
+                    setFilters((current) => ({
+                      ...current,
+                      status: event.target.value,
+                    }));
+                    setPage(1);
+                  }}
+                  className="rounded-xl border border-slate-700 bg-slate-900 px-3 py-2.5 text-sm text-slate-100 outline-none focus:border-amber-400"
+                >
+                  <option value="all">All statuses</option>
+                  <option value="in">In Pool</option>
+                  <option value="out">Off Pool</option>
+                </select>
+              )}
             </div>
 
             {canEdit && selectedIds.size > 0 && (
@@ -2187,23 +2370,23 @@ function PoolPageContent({
                             <input
                               type="checkbox"
                               checked={
-                                filteredRows.length > 0 &&
-                                filteredRows.every((row) =>
+                                pageRows.length > 0 &&
+                                pageRows.every((row) =>
                                   selectedIds.has(row.key),
                                 )
                               }
                               onChange={() => {
-                                const allSelected = filteredRows.every((row) =>
+                                const allSelected = pageRows.every((row) =>
                                   selectedIds.has(row.key),
                                 );
                                 setSelectedIds((current) => {
                                   const next = new Set(current);
                                   if (allSelected) {
-                                    for (const row of filteredRows) {
+                                    for (const row of pageRows) {
                                       next.delete(row.key);
                                     }
                                   } else {
-                                    for (const row of filteredRows) {
+                                    for (const row of pageRows) {
                                       next.add(row.key);
                                     }
                                   }
@@ -2234,7 +2417,7 @@ function PoolPageContent({
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredRows.map((row) => (
+                      {pageRows.map((row) => (
                         <PoolTableRow
                           key={row.key}
                           row={row}
@@ -2250,6 +2433,14 @@ function PoolPageContent({
                 </div>
               )}
             </div>
+
+            <TablePagination
+              page={tablePage}
+              pageSize={pageSize}
+              total={filteredRows.length}
+              onPageChange={setPage}
+              onPageSizeChange={handlePageSizeChange}
+            />
           </section>
         )}
 
@@ -2343,6 +2534,8 @@ function PoolPageContent({
               ))
             )}
           </div>
+        )}
+          </>
         )}
       </div>
 

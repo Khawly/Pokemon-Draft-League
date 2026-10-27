@@ -21,13 +21,11 @@ import { supabase } from "@/lib/supabase/client";
 import {
   clearAllNotifications,
   loadDashboardData,
-  loadMatchTimeAlerts,
-  loadTradeAlerts,
   type DashboardGoods,
 } from "@/lib/supabase/dashboard";
 import { useRealtimeInvalidation } from "@/lib/use-realtime-invalidation";
-import { getSelectedSeason, setSelectedSeason } from "@/lib/season-selection";
-import { markNotificationsRead } from "@/lib/supabase/schedule";
+import { getSelectedSeason } from "@/lib/season-selection";
+import { announceNavAlertsChanged } from "@/lib/nav-alerts";
 import { LoadingGif } from "@/components/loading-gif";
 
 /**
@@ -39,7 +37,7 @@ export default function DashboardPage() {
     <Suspense
       fallback={
         <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
-          <div className="mx-auto max-w-5xl rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
+          <div className="mx-auto max-w-6xl rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
             <LoadingGif label="Loading dashboard" />
           </div>
         </main>
@@ -59,7 +57,6 @@ function DashboardPageContent() {
   const searchParams = useSearchParams();
   const [sessionUser, setSessionUser] = useState<{
     id: string;
-    email: string | null;
     displayName: string;
     avatarUrl: string | null;
     avatarInitials: string | null;
@@ -123,7 +120,6 @@ function DashboardPageContent() {
 
       setSessionUser({
         id: user.id,
-        email: user.email ?? "Unknown email",
         displayName,
         avatarUrl: (profileData?.avatar_url as string | null) ?? null,
         avatarInitials: (profileData?.avatar_initials as string | null) ?? null,
@@ -252,80 +248,6 @@ function DashboardPageContent() {
     await loadLeagueRef.current?.();
   }, []);
 
-  /**
-   * Switches the season on screen.
-   *
-   * The choice is stored per league and the dashboard reloaded with it, so every panel
-   * that reads the season -- standings, matchups, teams, roster -- moves together rather
-   * than leaving half the page on the previous season.
-   */
-  const handleSelectSeason = useCallback(
-    async (seasonId: string) => {
-      if (!goods?.leagueId) {
-        return;
-      }
-
-      setSelectedSeason(goods.leagueId, seasonId);
-      await reloadLeague();
-    },
-    // The compiler infers the whole object from `goods?.leagueId`, so naming the object
-    // keeps the manual dependencies in step with it.
-    [goods, reloadLeague],
-  );
-
-  /**
-   * Clears this week's match-time alerts when the member opens the schedule.
-   *
-   * The badge is dropped from local state first so it disappears the instant the
-   * Schedule tab is pressed rather than after a round trip; a failed write simply
-   * brings the count back on the next load, which is a far smaller problem than
-   * a badge that refuses to clear.
-   */
-  async function handleScheduleVisited() {
-    const ids = goods?.matchTimeAlertIds ?? [];
-
-    if (ids.length === 0) {
-      return;
-    }
-
-    setGoods((current) =>
-      current
-        ? { ...current, matchTimeAlertIds: [], matchTimeAlertCount: 0 }
-        : current,
-    );
-
-    try {
-      await markNotificationsRead(ids);
-    } catch {
-      // The next load restores whatever is genuinely still unread.
-    }
-  }
-
-  /*
-   * Identical handling to the schedule badge, and for the same reason: opening the
-   * Trades page is the member going to deal with the alert, so the count drops
-   * locally first and the read state is written behind it.
-   */
-  async function handleTradesVisited() {
-    const ids = goods?.tradeAlertIds ?? [];
-
-    if (ids.length === 0) {
-      return;
-    }
-
-    setGoods((current) =>
-      current
-        ? { ...current, tradeAlertIds: [], tradeAlertCount: 0 }
-        : current,
-    );
-
-    try {
-      await markNotificationsRead(ids);
-    } catch {
-      // The next load restores whatever is genuinely still unread.
-    }
-  }
-
   /*
    * Clearing notifications is a delete, so it is confirmed first. The dialog copy
    * names the scope, because "clear all" on a panel that shows five of the
@@ -367,10 +289,6 @@ function DashboardPageContent() {
           ? {
               ...current,
               notifications: [],
-              matchTimeAlertIds: [],
-              matchTimeAlertCount: 0,
-              tradeAlertIds: [],
-              tradeAlertCount: 0,
             }
           : current,
       );
@@ -380,6 +298,10 @@ function DashboardPageContent() {
           ? "1 notification cleared."
           : `${removed} notifications cleared.`,
       );
+
+      // The global sub-navigation owns the Schedule/Trades badges now; tell it
+      // the rows behind them are gone so they clear without a reload.
+      announceNavAlertsChanged();
     } catch (clearError) {
       /*
        * Reported inside the panel rather than through the page-level error, which
@@ -396,71 +318,20 @@ function DashboardPageContent() {
     }
   }, [goods?.leagueId, confirm]);
 
-  /**
-   * Refreshes only the two nav badges, for a notification or trade change that
-   * arrived while the dashboard was open.
-   *
-   * A new notification is by far the most common real-time event and it changes
-   * nothing on this page but the badges, so this deliberately avoids re-running the
-   * full dashboard load, which pages the entire draft pool and reads every roster.
-   */
-  const refreshAlerts = useCallback(async () => {
-    const leagueId = goods?.leagueId;
-
-    if (!leagueId) {
-      return;
-    }
-
-    const { data: sessionData } = await supabase.auth.getSession();
-    const userId = sessionData.session?.user?.id;
-
-    if (!userId) {
-      return;
-    }
-
-    /*
-     * Both badges in one pass. They are driven by the same table and the same
-     * visit-clears-it rule, so splitting them would mean two round trips to redraw
-     * two numbers that a single notification can move at once.
-     */
-    const [alerts, tradeAlerts] = await Promise.all([
-      loadMatchTimeAlerts(leagueId, userId),
-      loadTradeAlerts(leagueId, userId),
-    ]);
-
-    setGoods((previous) =>
-      previous
-        ? {
-            ...previous,
-            matchTimeAlertIds: alerts.ids,
-            matchTimeAlertCount: alerts.count,
-            tradeAlertIds: tradeAlerts.ids,
-            tradeAlertCount: tradeAlerts.count,
-          }
-        : previous,
-    );
-  }, [goods?.leagueId]);
-
   /*
-   * Live updates, scoped to what each table actually changes. A notification only
-   * moves a badge, so it takes the cheap path; a match changing status, time, or
-   * result changes the schedule, the week, and the standings, so it reloads the
-   * page's data. A trade only moves its own badge and the tab list it appears in,
-   * so it takes the cheap path too.
+   * Live updates. A match changing status, time, or result changes the schedule,
+   * the week, and the standings, so it reloads the page's data. The nav badges
+   * belong to the global sub-navigation and refresh there.
    */
   useRealtimeInvalidation({
     leagueId: goods?.leagueId ?? null,
-    watchers: [
-      { table: "notifications", onChange: () => void refreshAlerts() },
-      { table: "matches", onChange: () => void reloadLeague() },
-      { table: "trades", onChange: () => void refreshAlerts() },
-    ],
+    watchers: [{ table: "matches", onChange: () => void reloadLeague() }],
   });
 
   if (isLoading || !sessionUser || !leagueName) {
     return (
       <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
-        <div className="mx-auto max-w-5xl rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
+        <div className="mx-auto max-w-6xl rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
           <LoadingGif label="Loading dashboard" />
         </div>
       </main>
@@ -483,17 +354,13 @@ function DashboardPageContent() {
         <CrownProvider crownedUserIds={goods.crownedMemberIds}>
           <DashboardShell
           displayName={sessionUser.displayName}
-          email={sessionUser.email ?? "Unknown email"}
           userId={sessionUser.id}
           avatarUrl={sessionUser.avatarUrl}
           avatarInitials={sessionUser.avatarInitials}
           nameColor={sessionUser.nameColor}
           leagueName={leagueName}
-          leagueId={searchParams.get("leagueId") ?? null}
+          leagueId={goods.leagueId}
           goods={goods}
-          onSelectSeason={handleSelectSeason}
-          onScheduleVisited={() => void handleScheduleVisited()}
-          onTradesVisited={() => void handleTradesVisited()}
           onClearNotifications={() => void handleClearNotifications()}
           isClearingNotifications={isClearingNotifications}
           notificationError={notificationError}

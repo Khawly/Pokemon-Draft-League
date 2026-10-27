@@ -29,7 +29,15 @@
 "use client";
 
 import Image from "next/image";
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Suspense,
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useConfirm } from "@/components/confirm-dialog";
 import { useRealtimeInvalidation } from "@/lib/use-realtime-invalidation";
@@ -65,6 +73,7 @@ import {
 } from "@/lib/pokeapi";
 import { useUserTimeZone } from "@/lib/user-timezone";
 import { LoadingGif } from "@/components/loading-gif";
+import { TablePagination } from "@/components/table-pagination";
 import { getSelectedSeason } from "@/lib/season-selection";
 
 /*
@@ -1287,19 +1296,36 @@ const SORT_LABELS: Record<SortKey, string> = {
  * Renders the left pool panel: search box, type filter, sort controls, and the
  * draftable Pokemon table.
  *
- * @param props - {@link ArenaPanelProps} plus {@link PoolActions}.
+ * Memoized because the arena clock ticks every second and this panel has no
+ * countdown of its own. Leaving `now` out of its props and keeping the action
+ * object stable means the full pool table only re-renders when the draft state
+ * or the pick handler actually changes, not once a second during a live draft.
+ *
+ * @param props - {@link DraftGoods} plus the {@link PoolActions} it may trigger.
  * @returns The pool panel markup.
  */
-function PoolPanel({
+const PoolPanel = memo(function PoolPanel({
   goods,
-  now,
   actions,
-}: ArenaPanelProps & { actions: PoolActions }) {
+}: {
+  /** The complete loaded draft state. */
+  goods: DraftGoods;
+  /** The pick action for a table row or tier card. */
+  actions: PoolActions;
+}) {
   const [query, setQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>("tier");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [tab, setTab] = useState<"table" | "tiers">("table");
+  /*
+   * Table-tab paging only. The whole draftable pool stays loaded: search, type
+   * chips, pick validation and drag-to-priority all read the full set, so
+   * paging limits rendering rather than state. That matters here because the
+   * arena clock re-renders this panel every second during a live draft.
+   */
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
 
   /*
    * The type filter chips, each labelled with how many Pokemon of that type are
@@ -1392,6 +1418,29 @@ function PoolPanel({
     });
   }, [filteredRows, sortKey, sortDir]);
 
+  /*
+   * Clamp rather than store the page: changing a filter can leave the member on
+   * a page past the end. Deriving the visible page from the sorted row count
+   * keeps the slice valid on the same render.
+   */
+  const tablePageCount = Math.max(1, Math.ceil(rows.length / pageSize));
+  const tablePage = Math.min(page, tablePageCount);
+  const tableRows = useMemo(
+    () => rows.slice((tablePage - 1) * pageSize, tablePage * pageSize),
+    [rows, tablePage, pageSize],
+  );
+
+  /**
+   * Switches the rows-per-page setting and returns to the first page, so the
+   * member is never left on a page number that the larger/smaller size removed.
+   *
+   * @param nextPageSize - The newly selected page size.
+   */
+  function handlePageSizeChange(nextPageSize: number) {
+    setPageSize(nextPageSize);
+    setPage(1);
+  }
+
   // Groups the filtered rows into tier buckets (descending, unranked last) for
   // the Tier List tab, mirroring the draft pool page's tier list layout.
   const groupedByTier = useMemo(() => {
@@ -1417,6 +1466,7 @@ function PoolPanel({
   const rowDragEndedRecentlyRef = useRef(false);
 
   function toggleSort(key: SortKey) {
+    setPage(1);
     if (sortKey === key) {
       setSortDir((dir) => (dir === "asc" ? "desc" : "asc"));
     } else {
@@ -1467,7 +1517,10 @@ function PoolPanel({
         <input
           type="search"
           value={query}
-          onChange={(event) => setQuery(event.target.value)}
+          onChange={(event) => {
+            setQuery(event.target.value);
+            setPage(1);
+          }}
           placeholder="Enter Pokemon Name"
           aria-label="Search the draft pool"
           className="w-56 rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-2 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-amber-400"
@@ -1475,7 +1528,10 @@ function PoolPanel({
         <div className="flex flex-wrap items-center gap-1.5">
           <button
             type="button"
-            onClick={() => setTypeFilter(null)}
+            onClick={() => {
+              setTypeFilter(null);
+              setPage(1);
+            }}
             className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
               typeFilter == null
                 ? "bg-amber-500/15 text-amber-300"
@@ -1488,9 +1544,10 @@ function PoolPanel({
             <button
               key={type}
               type="button"
-              onClick={() =>
-                setTypeFilter((current) => (current === type ? null : type))
-              }
+              onClick={() => {
+                setTypeFilter((current) => (current === type ? null : type));
+                setPage(1);
+              }}
               title={`${count} ${type}-type Pokémon left in the pool`}
               className={`rounded-full px-2.5 py-1 text-xs font-semibold transition ${
                 TYPE_STYLES[type] ?? "bg-slate-700 text-slate-200"
@@ -1600,7 +1657,7 @@ function PoolPanel({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/80 bg-slate-950/40">
-              {rows.map((row) => {
+              {tableRows.map((row) => {
                 const isTaken = picked.has(row.pokemon_id);
                 const canPick = canPickRow(row);
                 const details = getPokemonDetailsBySlug(row.pokemon_id);
@@ -1709,6 +1766,18 @@ function PoolPanel({
         </div>
       )}
 
+      {tab === "table" && (
+        <div className="shrink-0 border-t border-slate-800 p-3">
+          <TablePagination
+            page={tablePage}
+            pageSize={pageSize}
+            total={rows.length}
+            onPageChange={setPage}
+            onPageSizeChange={handlePageSizeChange}
+          />
+        </div>
+      )}
+
       {tab === "tiers" && (
         <div className="min-h-0 flex-1 overflow-auto p-4">
           {groupedByTier.length === 0 ? (
@@ -1805,7 +1874,7 @@ function PoolPanel({
       </div>
     </section>
   );
-}
+});
 
 /*
  * The pick confirmation dialog: shown when a user clicks a pool row or priority
@@ -2646,32 +2715,46 @@ function DraftArena({ leagueId }: { leagueId: string }) {
   }, [goods, slice, deadline, now, myRemaining, refreshGoods]);
 
   // Opens the confirmation dialog for a pending pick, guarded to only when the
-  // Pokemon is a valid, unpicked, affordable choice on the user's turn.
-  function requestPick(pokemonId: string | null) {
-    if (!goods || busyPick || !pokemonId || !goods.isCurrentSeason) return;
-    const row = goods.poolRows.find(
-      (candidate) => candidate.pokemon_id === pokemonId,
-    );
-    if (!row) return;
-    const expensesOn = goods.settings?.enable_pokemon_costs;
-    const salary = goods.myTeamId ? getTeamSalary(goods, goods.myTeamId) : null;
-    const affordable =
-      !expensesOn || (salary?.remaining ?? 0) >= row.tier_value;
-    const slice = computeDraftSlice(goods);
-    const alreadyPicked = goods.picks.some(
-      (pick) => pick.pokemon_id === pokemonId,
-    );
-    if (
-      !slice.isMyTurn ||
-      slice.isOver ||
-      alreadyPicked ||
-      !affordable ||
-      goods.userRole === null
-    ) {
-      return;
-    }
-    setPendingPickId(pokemonId);
-  }
+  // Pokemon is a valid, unpicked, affordable choice on the user's turn. Memoized
+  // so the pool panel's action prop keeps a stable identity between clock ticks.
+  const requestPick = useCallback(
+    (pokemonId: string | null) => {
+      if (!goods || busyPick || !pokemonId || !goods.isCurrentSeason) return;
+      const row = goods.poolRows.find(
+        (candidate) => candidate.pokemon_id === pokemonId,
+      );
+      if (!row) return;
+      const expensesOn = goods.settings?.enable_pokemon_costs;
+      const salary = goods.myTeamId ? getTeamSalary(goods, goods.myTeamId) : null;
+      const affordable =
+        !expensesOn || (salary?.remaining ?? 0) >= row.tier_value;
+      const slice = computeDraftSlice(goods);
+      const alreadyPicked = goods.picks.some(
+        (pick) => pick.pokemon_id === pokemonId,
+      );
+      if (
+        !slice.isMyTurn ||
+        slice.isOver ||
+        alreadyPicked ||
+        !affordable ||
+        goods.userRole === null
+      ) {
+        return;
+      }
+      setPendingPickId(pokemonId);
+    },
+    [goods, busyPick],
+  );
+
+  /*
+   * One stable action object for the memoized pool panel. Building it inline in
+   * the JSX would give it a new identity on every render, which defeats memo and
+   * puts the whole table back on the once-per-second arena clock.
+   */
+  const poolActions = useMemo<PoolActions>(
+    () => ({ onPick: requestPick }),
+    [requestPick],
+  );
 
   async function handlePick(pokemonId: string | null) {
     if (!goods || busyPick || !goods.isCurrentSeason) return;
@@ -2896,7 +2979,7 @@ function DraftArena({ leagueId }: { leagueId: string }) {
   if (!goods) {
     return (
       <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
-        <div className="mx-auto max-w-7xl space-y-6">
+        <div className="mx-auto max-w-6xl space-y-6">
           <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 text-sm text-slate-400">
             {error ? error : <LoadingGif label="Loading draft" />}
           </div>
@@ -2908,7 +2991,7 @@ function DraftArena({ leagueId }: { leagueId: string }) {
   if (!goods.season) {
     return (
       <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
-        <div className="mx-auto max-w-7xl">
+        <div className="mx-auto max-w-6xl">
           <EmptyDraft leagueName={goods.league.name} />
         </div>
       </main>
@@ -2917,7 +3000,7 @@ function DraftArena({ leagueId }: { leagueId: string }) {
 
   return (
     <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
-      <div className="mx-auto flex max-w-7xl flex-col gap-6">
+      <div className="mx-auto flex max-w-6xl flex-col gap-6">
         <DraftHeader
           goods={goods}
           now={now}
@@ -2975,13 +3058,7 @@ function DraftArena({ leagueId }: { leagueId: string }) {
         <PickBoard goods={goods} now={now} />
 
         <div className="grid min-h-0 flex-1 gap-6 lg:grid-cols-[2.2fr_1fr]">
-          <PoolPanel
-            goods={goods}
-            now={now}
-            actions={{
-              onPick: (pokemonId) => requestPick(pokemonId),
-            }}
-          />
+          <PoolPanel goods={goods} actions={poolActions} />
           <div className="lg:sticky lg:top-0 lg:max-h-screen">
             {goods.isCurrentSeason ? (
               <PriorityPanel
@@ -3049,7 +3126,7 @@ export default function DraftPage() {
     <Suspense
       fallback={
         <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
-          <div className="mx-auto max-w-7xl rounded-2xl border border-slate-800 bg-slate-900/80 p-6 text-sm text-slate-400">
+          <div className="mx-auto max-w-6xl rounded-2xl border border-slate-800 bg-slate-900/80 p-6 text-sm text-slate-400">
             <LoadingGif label="Loading draft arena" />
           </div>
         </main>

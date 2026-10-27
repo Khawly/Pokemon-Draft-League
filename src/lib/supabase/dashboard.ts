@@ -4,9 +4,9 @@
  * Loads everything the dashboard shell renders for the league's latest season:
  * the season standings (through the season_standings RPC), the open schedule,
  * the free agent pool size, the signed-in member's own team and roster, their
- * open trade proposals, their most recent notifications, and the unread
- * match-time alerts their opponent has raised for this week's matchup. Read-only
- * - the dashboard links out to the pages that own each write.
+ * open trade proposals, and their most recent notifications. Read-only - the
+ * dashboard links out to the pages that own each write. The nav alert badges are
+ * loaded by the shared league shell, not here.
  */
 import { supabase } from "@/lib/supabase/client";
 import { loadLatestSeason } from "@/lib/supabase/seasons";
@@ -289,22 +289,6 @@ export type DashboardGoods = {
   /** The member's most recent notifications, newest first. */
   notifications: DashboardNotification[];
   /**
-   * Unread match-time alerts raised by the member's opponent for their matchup in
-   * the current week, backing the badge on the Schedule nav button. Ids are
-   * carried alongside the count so opening the schedule can clear exactly these.
-   */
-  matchTimeAlertIds: string[];
-  /** How many of those alerts there are. */
-  matchTimeAlertCount: number;
-  /**
-   * Unread trade alerts raised by the other party, backing the badge on the Trades
-   * nav button and on the Trades page's "My Trades" tab. Ids are carried alongside
-   * the count so opening either can clear exactly these.
-   */
-  tradeAlertIds: string[];
-  /** How many of those alerts there are. */
-  tradeAlertCount: number;
-  /**
    * The league this payload describes. Exposed so a real-time refresh can scope
    * its own reads without re-resolving the league from the URL.
    */
@@ -343,10 +327,6 @@ standings: [],
     myTeam: null,
     myRoster: [],
     notifications: [],
-    matchTimeAlertIds: [],
-    matchTimeAlertCount: 0,
-    tradeAlertIds: [],
-    tradeAlertCount: 0,
     isOwner: false,
     leagueId: "",
     crownedMemberIds: [],
@@ -545,23 +525,35 @@ export async function loadDashboardData(
     return emptyGoods();
   }
 
-const [settingsResult, teamResult, standingsResult, matchResult, rulesResult, leagueResult, crownResult] =
+  /*
+   * Two waves instead of one seven-query burst. Shared CPU and the connection
+   * pooler are the free-plan constraint, so a page load only holds three
+   * queries in flight at once; the remaining four run after the first group.
+   * The extra round-trip is a deliberate trade for lower peak concurrency.
+   */
+  const [settingsResult, teamResult, standingsResult] = await Promise.all([
+    supabase
+      .from("league_settings")
+      .select("regular_season_weeks, match_format")
+      .eq("season_id", season.id)
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from("teams")
+      .select(
+        "id, team_name, owner_user_id, profiles: owner_user_id (display_name, avatar_url, name_color, avatar_initials)",
+      )
+      .eq("league_id", leagueId)
+      .eq("season_id", season.id)
+      .order("draft_position", { ascending: true, nullsFirst: false }),
+    supabase.rpc("season_standings_for", {
+      p_league_id: leagueId,
+      p_season_id: season.id,
+    }),
+  ]);
+
+  const [matchResult, rulesResult, leagueResult, crownResult] =
     await Promise.all([
-      supabase
-        .from("league_settings")
-        .select("regular_season_weeks, match_format")
-        .eq("season_id", season.id)
-        .limit(1)
-.maybeSingle(),
-      supabase
-        .from("teams")
-        .select(
-          "id, team_name, owner_user_id, profiles: owner_user_id (display_name, avatar_url, name_color, avatar_initials)",
-        )
-        .eq("league_id", leagueId)
-        .eq("season_id", season.id)
-        .order("draft_position", { ascending: true, nullsFirst: false }),
-      supabase.rpc("season_standings_for", { p_league_id: leagueId, p_season_id: season.id }),
       supabase
         .from("matches")
         .select(
@@ -584,8 +576,7 @@ const [settingsResult, teamResult, standingsResult, matchResult, rulesResult, le
         .maybeSingle(),
       /*
        * The league's owner, so the shell can tell the owner apart from everyone
-       * else when wording the rules panel. Read last so the destructuring above
-       * lines up.
+       * else when wording the rules panel.
        */
       supabase
         .from("leagues")
@@ -743,19 +734,6 @@ const [settingsResult, teamResult, standingsResult, matchResult, rulesResult, le
     // No settings row, no migration, or not a member: keep the derived week.
   }
 
-  /*
-   * Started before the payload's other reads so it overlaps with them rather than
-   * extending the load. It resolves its own week and matchup so the same function
-   * can serve a badge-only refresh later.
-   */
-  const alertsPromise = loadMatchTimeAlerts(leagueId, userId).catch(
-    () => NO_ALERTS,
-  );
-
-  const tradeAlertsPromise = loadTradeAlerts(leagueId, userId).catch(
-    () => NO_ALERTS,
-  );
-
   const [rosterResult, poolResult, tradeResult, notificationResult] =
     await Promise.all([
       teamIds.length > 0
@@ -781,9 +759,6 @@ const [settingsResult, teamResult, standingsResult, matchResult, rulesResult, le
         .order("created_at", { ascending: false })
         .limit(NOTIFICATION_LIMIT),
     ]);
-
-  const alerts = await alertsPromise;
-  const tradeAlerts = await tradeAlertsPromise;
 
   // Surface the member's own fixtures first, then the soonest by kickoff.
   const sortedOpen = [...openMatches].sort((a, b) => {
@@ -918,10 +893,6 @@ standings,
     myTeam,
     myRoster,
     notifications,
-    matchTimeAlertIds: alerts.ids,
-    matchTimeAlertCount: alerts.count,
-    tradeAlertIds: tradeAlerts.ids,
-    tradeAlertCount: tradeAlerts.count,
     leagueId,
     isOwner,
     crownedMemberIds: crownResult.error
@@ -952,10 +923,10 @@ export type MatchTimeAlerts = {
  * are addressed per league and season. A member who plays in two leagues clears
  * one and keeps the other.
  *
- * The match-time alerts behind the Schedule nav badge are notifications too, so
- * clearing removes them and the badge with it. The caller is responsible for
- * dropping the badge in the same state update, or the number will outlive the
- * rows it was counting.
+ * The match-time and trade alerts behind the nav badges are notifications too,
+ * so clearing removes them. The caller announces the change (`nav-alerts.ts`) so
+ * the shared league shell re-reads its badges instead of showing a count for
+ * rows that no longer exist.
  *
  * @param leagueId - The league to clear the member's notifications in.
  * @returns How many notifications were removed.

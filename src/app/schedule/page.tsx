@@ -549,12 +549,7 @@ function RosterSprites({
     >
       {roster.map((pokemon) => (
         <li key={pokemon.id} className="flex flex-col items-center gap-1">
-          <div className="relative flex h-16 w-16 items-center justify-center overflow-hidden rounded-full border-2 border-slate-900 bg-[linear-gradient(to_bottom,#dc2626_0_45%,#0f172a_45%_55%,#f8fafc_55%)] shadow-md shadow-slate-950/50">
-            {/* Pokeball centre button, drawn beneath the sprite. */}
-            <span
-              aria-hidden="true"
-              className="absolute left-1/2 top-1/2 h-1/5 w-1/5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-slate-900 bg-white"
-            />
+          <div className="relative flex h-16 w-16 items-center justify-center overflow-hidden rounded-full border-2 border-slate-900 bg-[url('/images/pokeball_2D.jpg')] bg-cover bg-center shadow-md shadow-slate-950/50">
             {pokemon.spriteId > 0 ? (
               <img
                 src={getSpriteUrl(pokemon.spriteId)}
@@ -846,7 +841,7 @@ export default function SchedulePage() {
     <Suspense
       fallback={
         <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
-          <div className="mx-auto max-w-5xl rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
+          <div className="mx-auto max-w-6xl rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
             <LoadingGif label="Loading schedule" />
           </div>
         </main>
@@ -2520,7 +2515,7 @@ function SchedulePageContent({
   if (isLoading) {
     return (
       <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
-        <div className="mx-auto max-w-5xl rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
+        <div className="mx-auto max-w-6xl rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
           <LoadingGif label="Loading schedule" />
         </div>
       </main>

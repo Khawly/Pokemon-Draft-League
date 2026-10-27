@@ -15,12 +15,11 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { signOut } from "@/lib/supabase/auth";
-import { Fragment, useEffect, useRef, useState } from "react";
+import { Fragment } from "react";
 import { getSpriteUrl } from "@/lib/pokeapi";
 import { MemberName } from "@/components/member-name";
 import { MemberAvatar } from "@/components/member-avatar";
-import { TabNotification } from "@/components/nav-alert-badge";
+import { routeFor } from "@/lib/league-routes";
 import {
   formatMatchTime,
   formatNotificationAge,
@@ -34,40 +33,10 @@ import { formatSeasonLabel } from "@/lib/supabase/seasons";
 import { useUserTimeZone } from "@/lib/user-timezone";
 import { formatDateTimeInZone } from "@/lib/datetime";
 
-/** Navigation tab labels displayed in the league header. */
-const tabs = [
-  "Dashboard",
-  "Draft Board",
-  "Teams",
-  "Pokémon",
-  "Schedule",
-  "Trades",
-  "Rules",
-  "Hall of Fame",
-];
-
-/** Maps the navigable header tabs to their route slugs (leagueId is appended). */
-const TAB_ROUTES: Record<string, string> = {
-  "Draft Board": "draftboard",
-  Teams: "teams",
-  Pokémon: "pokemon",
-  Schedule: "schedule",
-  Trades: "trades",
-  Rules: "rules",
-  "Hall of Fame": "hall-of-fame",
-};
-
-/** Builds the route for a tab slug using the selected league id. */
-function routeFor(slug: string, leagueId?: string | null): string {
-  return leagueId ? `/${slug}?leagueId=${leagueId}` : `/${slug}`;
-}
-
 /** Props for the {@link DashboardShell} component. */
 export interface DashboardShellProps {
   /** The authenticated user's display name, shown in the header and standings. */
   displayName: string;
-  /** The authenticated user's email address. */
-  email: string;
   /** The signed-in member's id, so their own name can carry the champion crown. */
   userId?: string | null;
   /** Optional URL for the user's avatar image. Falls back to an initial-based placeholder. */
@@ -91,16 +60,6 @@ export interface DashboardShellProps {
   /** Season data backing every panel; omitted panels render their empty state. */
   goods: DashboardGoods;
   /**
-   * Called when the Schedule tab is opened, so the page can mark this week's
-   * match-time alerts as read and drop the badge.
-   */
-  onScheduleVisited?: () => void;
-  /**
-   * Called when the Trades tab is opened, so the page can mark the member's
-   * unread trade alerts as read and drop the badge.
-   */
-  onTradesVisited?: () => void;
-  /**
    * Called when the member asks to clear every notification for this league. The
    * page owns the confirmation and the delete, so this panel stays presentational
    * and the irreversible action is confirmed in one place.
@@ -112,8 +71,6 @@ export interface DashboardShellProps {
   notificationError?: string | null;
   /** Panel-level confirmation text, e.g. how many notifications were removed. */
   notificationNotice?: string | null;
-  /** Called when the member picks a different season in the header. */
-  onSelectSeason?: (seasonId: string) => void;
 }
 
 /** Props for the {@link RulesPanel} component. */
@@ -225,13 +182,8 @@ function RosterStrip({ roster }: RosterStripProps) {
           {roster.map((pokemon) => (
             <li
               key={pokemon.id}
-              className="relative flex h-[88px] w-[88px] items-center justify-center overflow-hidden rounded-full border-2 border-slate-900 bg-[linear-gradient(to_bottom,#dc2626_0_45%,#0f172a_45%_55%,#f8fafc_55%)] shadow-md shadow-slate-950/50"
+              className="relative flex h-[88px] w-[88px] items-center justify-center overflow-hidden rounded-full border-2 border-slate-900 bg-[url('/images/pokeball_2D.jpg')] bg-cover bg-center shadow-md shadow-slate-950/50"
             >
-              {/* Pokeball centre button, drawn beneath the sprite. */}
-              <span
-                aria-hidden="true"
-                className="absolute left-1/2 top-1/2 h-1/5 w-1/5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-slate-900 bg-white"
-              />
               {pokemon.spriteId > 0 ? (
                 <img
                   src={getSpriteUrl(pokemon.spriteId)}
@@ -341,13 +293,8 @@ function LineupSprites({ roster }: LineupSpritesProps) {
       {roster.map((pokemon) => (
         <li
           key={pokemon.id}
-          className="relative flex h-[72px] w-[72px] items-center justify-center overflow-hidden rounded-full border-2 border-slate-900 bg-[linear-gradient(to_bottom,#dc2626_0_45%,#0f172a_45%_55%,#f8fafc_55%)] shadow-md shadow-slate-950/50"
+          className="relative flex h-[72px] w-[72px] items-center justify-center overflow-hidden rounded-full border-2 border-slate-900 bg-[url('/images/pokeball_2D.jpg')] bg-cover bg-center shadow-md shadow-slate-950/50"
         >
-          {/* Pokeball centre button, drawn beneath the sprite. */}
-          <span
-            aria-hidden="true"
-            className="absolute left-1/2 top-1/2 h-1/5 w-1/5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-slate-900 bg-white"
-          />
           {pokemon.spriteId > 0 ? (
             <img
               src={getSpriteUrl(pokemon.spriteId)}
@@ -368,132 +315,18 @@ function LineupSprites({ roster }: LineupSpritesProps) {
   );
 }
 
-/** Props for {@link SettingsMenu}. */
-interface SettingsMenuProps {
-  /** The league whose settings are opened. */
-  leagueId: string | null;
-  /** The season on screen, carried into every season-scoped settings page. */
-  seasonId: string | null;
-  /** League settings are owner-only; members settings are not. */
-  isOwner: boolean;
-}
-
-/**
- * The league settings menu, sitting beside the season selector.
- *
- * User settings moved to the avatar in the top bar: it is the one entry that is not
- * about a league or a season, so it belongs with the person rather than with the
- * season it would otherwise appear to describe.
- *
- * The links carry the league and season ids, so the settings pages open on the season
- * the member is looking at instead of resolving the newest one for themselves.
- *
- * @param props - {@link SettingsMenuProps}
- * @returns The gear button and its menu.
- */
-function SettingsMenu({ leagueId, seasonId, isOwner }: SettingsMenuProps) {
-  const router = useRouter();
-  const [isOpen, setIsOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!isOpen) {
-      return;
-    }
-
-    function handleClickOutside(event: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
-    }
-
-    document.addEventListener("click", handleClickOutside);
-    return () => document.removeEventListener("click", handleClickOutside);
-  }, [isOpen]);
-
-  const items = [
-    ...(isOwner
-      ? [
-          { label: "Draft Settings", slug: "draft-settings" },
-          { label: "League Settings", slug: "league-settings" },
-        ]
-      : []),
-    { label: "Members Settings", slug: "members-settings" },
-  ];
-
-  /**
-   * Builds a settings route for the season on screen.
-   *
-   * @param slug - The settings route, e.g. "draft-settings".
-   * @returns The route with the league and season attached.
-   */
-  function hrefFor(slug: string): string {
-    const params = new URLSearchParams();
-
-    if (leagueId) {
-      params.set("leagueId", leagueId);
-    }
-    if (seasonId) {
-      params.set("seasonId", seasonId);
-    }
-
-    const query = params.toString();
-    return query ? `/${slug}?${query}` : `/${slug}`;
-  }
-
-  return (
-    <div className="relative" ref={menuRef}>
-      <button
-        type="button"
-        onClick={() => setIsOpen((current) => !current)}
-        className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-700 bg-slate-950 text-slate-300 transition hover:border-slate-500 hover:text-slate-100"
-        aria-label="Open settings menu"
-        aria-expanded={isOpen}
-        title="Settings"
-      >
-        <svg
-          viewBox="0 0 24 24"
-          aria-hidden="true"
-          className="h-5 w-5 fill-current"
-        >
-          <path d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.61-.18l-2.39.96a7.03 7.03 0 0 0-1.63-.94L14.48 2.5a.5.5 0 0 0-.5-.5h-3.96a.5.5 0 0 0-.5.5l-.27 2.56c-.57.23-1.11.55-1.63.94l-2.39-.96a.5.5 0 0 0-.61.18L2.71 9.84a.5.5 0 0 0 .12.64l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94L2.83 13.52a.5.5 0 0 0-.12.64l1.92 3.32a.5.5 0 0 0 .61.18l2.39-.96c.52.39 1.06.71 1.63.94l.27 2.56a.5.5 0 0 0 .5.5h3.96a.5.5 0 0 0 .5-.5l.27-2.56c.57-.23 1.11-.55 1.63-.94l2.39.96a.5.5 0 0 0 .61-.18l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58ZM12 15.5A3.5 3.5 0 1 1 12 8a3.5 3.5 0 0 1 0 7.5Z" />
-        </svg>
-      </button>
-
-      {isOpen && (
-        <div className="absolute right-0 z-20 mt-2 w-56 overflow-hidden rounded-xl border border-slate-700 bg-slate-900 shadow-2xl shadow-slate-950/60">
-          {items.map((item) => (
-            <button
-              key={item.slug}
-              type="button"
-              onClick={() => {
-                setIsOpen(false);
-                router.push(hrefFor(item.slug));
-              }}
-              className="block w-full border-b border-slate-800 bg-slate-900 px-4 py-3 text-left text-sm text-slate-100 transition last:border-b-0 hover:bg-slate-800"
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 /**
  * Full dashboard layout for a selected league.
  *
  * Displays league metadata, notifications, schedule, standings, and the league
- * rules. Provides navigation to the draft board, teams, Pokémon (free agent)
- * and settings pages.
+ * rules. Page navigation now lives in the global league sub-navigation, which
+ * renders on every route; this shell carries only the dashboard's own content.
  *
  * @param props - {@link DashboardShellProps}
  * @returns A grid-based dashboard layout.
  */
 export function DashboardShell({
   displayName,
-  email,
   userId = null,
   avatarUrl,
   avatarInitials = null,
@@ -501,23 +334,16 @@ export function DashboardShell({
   leagueName = "League Name",
   leagueId,
   goods,
-  onScheduleVisited,
-  onTradesVisited,
   onClearNotifications,
   isClearingNotifications = false,
   notificationError = null,
   notificationNotice = null,
-  onSelectSeason,
 }: DashboardShellProps) {
   const router = useRouter();
   const scheduleRoute = routeFor("schedule", leagueId);
   const draftRoute = routeFor("draft", leagueId);
   /** Match and notification times render in the zone the member picked in settings. */
   const timeZone = useUserTimeZone();
-  /** Unread match-time alerts raised by the member's opponent this week. */
-  const scheduleAlertCount = goods.matchTimeAlertCount ?? 0;
-  /** Unread trade alerts raised by the other party on a trade still in play. */
-  const tradeAlertCount = goods.tradeAlertCount ?? 0;
 
   /*
    * Whether the season's draft has finished, which is what gates every panel
@@ -554,19 +380,6 @@ export function DashboardShell({
   const myStanding =
     myStandingIndex >= 0 ? goods.standings[myStandingIndex] : null;
   const myRank = myStandingIndex >= 0 ? myStandingIndex + 1 : null;
-
-  /*
-   * Which of the header tabs can carry a bubble, and what each would be counting.
-   * Declared as data so the render below has no per-tab special cases, matching how
-   * the Trades page builds its own strip.
-   *
-   * The dashboard's tabs show no list length, so `total` is always 0 at the call site
-   * and the bubble is the only marker these entries ever carry.
-   */
-  const tabAlerts: Record<string, { badge: number; subject: string }> = {
-    Schedule: { badge: scheduleAlertCount, subject: "match time" },
-    Trades: { badge: tradeAlertCount, subject: "trade" },
-  };
 
   /*
    * Labels a team by its owner's live display name. The standings RPC returns
@@ -652,89 +465,6 @@ export function DashboardShell({
           </div>
 
           <RosterStrip roster={goods.myRoster} />
-        </div>
-
-        <div className="mt-5 flex flex-wrap gap-2 border-t border-slate-700 pt-4">
-          {tabs.map((tab, index) => (
-            <button
-              key={tab}
-              type="button"
-              onClick={() => {
-                const route = TAB_ROUTES[tab];
-                if (!route) {
-                  return;
-                }
-
-                // Opening the schedule is what clears the match-time alerts, so
-                // the badge goes away as a result of going to deal with them.
-                if (route === "schedule") {
-                  onScheduleVisited?.();
-                }
-
-                // Same idea for trades: navigating there is the member acting on
-                // the alert, so the badge is dropped as a result.
-                if (route === "trades") {
-                  onTradesVisited?.();
-                }
-
-                router.push(routeFor(route, leagueId));
-              }}
-              className={`relative rounded-full px-3.5 py-2 text-sm font-medium transition ${
-                index === 0
-                  ? "bg-amber-500 text-slate-950"
-                  : "bg-slate-800 text-slate-300 hover:bg-slate-700"
-              }`}
-            >
-              {tab}
-
-              {/*
-                The app-wide notification convention: the red bubble when something
-                is waiting on the member, nothing when it is not. See TabNotification.
-              */}
-              {/*
-                The app-wide notification convention: the red bubble when something
-                is waiting on the member, nothing when it is not. See TabNotification.
-              */}
-              {tabAlerts[tab] && (
-                <TabNotification
-                  badge={tabAlerts[tab].badge}
-                  total={0}
-                  subject={tabAlerts[tab].subject}
-                />
-              )}
-            </button>
-          ))}
-
-          {/*
-            The season choice and the settings for it. The settings menu sits here rather
-            than in the top bar because its entries are about the season on screen: the
-            links carry this season's id, so opening League or Draft Settings lands on the
-            season the member is looking at rather than on the newest one.
-          */}
-          <div className="ml-auto flex items-center gap-2">
-            {goods.seasons.length > 1 && onSelectSeason && (
-              <label className="flex items-center gap-2 text-sm text-slate-400">
-                <span className="hidden sm:inline">Season</span>
-                <select
-                  value={goods.season?.id ?? ""}
-                  onChange={(event) => onSelectSeason(event.target.value)}
-                  className="rounded-full border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-500"
-                >
-                  {goods.seasons.map((season) => (
-                    <option key={season.id} value={season.id}>
-                      {season.name?.trim() || `Season ${season.season_number}`}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
-
-            <SettingsMenu
-              leagueId={goods.leagueId}
-              seasonId={goods.season?.id ?? null}
-              isOwner={goods.isOwner}
-            />
-          </div>
         </div>
       </header>
 

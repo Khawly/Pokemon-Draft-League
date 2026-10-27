@@ -6,6 +6,7 @@
  */
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { fetchWithRetry } from "@/lib/supabase/fetch-retry";
 
 // Reads the first defined environment variable from the given candidate keys.
 const getEnvValue = (...keys: string[]) => {
@@ -55,6 +56,9 @@ export async function createSupabaseServerClient() {
           // Server components may not allow cookie writes in this context.
         }
       },
+    },
+    global: {
+      fetch: fetchWithRetry,
     },
   });
 }

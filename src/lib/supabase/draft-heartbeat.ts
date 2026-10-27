@@ -12,6 +12,12 @@
  * server or a self-hosted Node build), not for per-request serverless
  * instances.
  *
+ * The sweep RPC is granted only to the service role, so this heartbeat reads
+ * `SUPABASE_SECRET_KEY` (or `SUPABASE_SERVICE_ROLE_KEY`) from the server
+ * environment. It deliberately does not fall back to the public anon key: a
+ * sweep is a server-only operation, and a browser-side caller must not be able
+ * to trigger a league-wide scan.
+ *
  * Errors are caught rather than crashing the process, and an in-flight guard
  * skips ticks so a hung request can never stack up connections or stall the
  * schedule.
@@ -72,7 +78,7 @@ type HeartbeatLogState = {
 };
 
 /**
- * Runs a single overdue-draft sweep with the public anon client.
+ * Runs a single overdue-draft sweep with the service-role client.
  *
  * Guarantees one sweep-at-a-time: a promise that never settles holds the
  * single guard, later ticks skip (printing a warning) instead of stacking
@@ -152,20 +158,21 @@ export function startDraftHeartbeat(intervalMs = HEARTBEAT_INTERVAL_MS): void {
     "NEXT_PUBLIC_SUPABASE_URL",
     "SUPABASE_URL",
   );
-  const supabaseAnonKey = getEnvValue(
-    "NEXT_PUBLIC_SUPABASE_ANON_KEY",
-    "SUPABASE_PUBLISHABLE_KEY",
-    "SUPABASE_ANON_KEY",
+  const serviceKey = getEnvValue(
+    "SUPABASE_SECRET_KEY",
+    "SUPABASE_SERVICE_ROLE_KEY",
   );
 
-  if (!supabaseUrl || !supabaseAnonKey) {
-    console.warn("[draft-heartbeat] supabase env vars missing; sweep idle");
+  if (!supabaseUrl || !serviceKey) {
+    console.warn("[draft-heartbeat] service-role key missing; sweep idle");
     return;
   }
 
   // One shared client (per-call clients leak connections), reused by every
-  // sweep tick via the closure below.
-  const client = createClient(supabaseUrl, supabaseAnonKey);
+  // sweep tick via the closure below. The sweep runs as the service role.
+  const client = createClient(supabaseUrl, serviceKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
 
   const logState: HeartbeatLogState = {
     lastLivenessLogAt: 0,

@@ -30,14 +30,22 @@ export type ConfirmOptions = {
   cancelLabel?: string;
   /** `danger` for irreversible actions, `default` for ordinary ones. */
   tone?: ConfirmTone;
+  /**
+   * When set, the confirm button stays disabled until the member types this
+   * exact text. Used for irreversible actions such as deleting a league.
+   */
+  requireText?: string;
 };
 
 /** A pending request plus the resolver that settles the caller's promise. */
 type ConfirmRequest = Required<Pick<ConfirmOptions, "title">> & {
+  /** Changes per request so the dialog's local typed text resets. */
+  id: number;
   detail?: string;
   confirmLabel: string;
   cancelLabel: string;
   tone: ConfirmTone;
+  requireText?: string;
 };
 
 /** Props for the {@link ConfirmDialog} component. */
@@ -66,13 +74,19 @@ const TONE_STYLES: Record<ConfirmTone, string> = {
  */
 export function ConfirmDialog({ request, onResolve }: ConfirmDialogProps) {
   const confirmButtonRef = useRef<HTMLButtonElement | null>(null);
+  const textInputRef = useRef<HTMLInputElement | null>(null);
+  const [typedText, setTypedText] = useState("");
 
   useEffect(() => {
     if (!request) {
       return;
     }
 
-    confirmButtonRef.current?.focus();
+    if (request.requireText) {
+      textInputRef.current?.focus();
+    } else {
+      confirmButtonRef.current?.focus();
+    }
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
@@ -90,6 +104,9 @@ export function ConfirmDialog({ request, onResolve }: ConfirmDialogProps) {
   if (!request) {
     return null;
   }
+
+  const canConfirm =
+    !request.requireText || typedText === request.requireText;
 
   return (
     <div
@@ -122,6 +139,33 @@ export function ConfirmDialog({ request, onResolve }: ConfirmDialogProps) {
           </p>
         )}
 
+        {request.requireText && (
+          <label className="mt-4 block">
+            <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.15em] text-slate-400">
+              Type {request.requireText} to confirm
+            </span>
+            <input
+              ref={textInputRef}
+              type="text"
+              value={typedText}
+              onChange={(event) => setTypedText(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && canConfirm) {
+                  event.preventDefault();
+                  onResolve(true);
+                }
+              }}
+              autoComplete="off"
+              spellCheck={false}
+              className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none transition focus:border-rose-500"
+              placeholder={request.requireText}
+              aria-describedby={
+                request.detail ? "confirm-dialog-detail" : undefined
+              }
+            />
+          </label>
+        )}
+
         <div className="mt-6 flex flex-wrap justify-end gap-2">
           <button
             type="button"
@@ -134,7 +178,8 @@ export function ConfirmDialog({ request, onResolve }: ConfirmDialogProps) {
             ref={confirmButtonRef}
             type="button"
             onClick={() => onResolve(true)}
-            className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${TONE_STYLES[request.tone]}`}
+            disabled={!canConfirm}
+            className={`rounded-xl px-4 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-40 ${TONE_STYLES[request.tone]}`}
           >
             {request.confirmLabel}
           </button>
@@ -163,6 +208,7 @@ export type UseConfirmResult = {
 export function useConfirm(): UseConfirmResult {
   const [request, setRequest] = useState<ConfirmRequest | null>(null);
   const resolverRef = useRef<((accepted: boolean) => void) | null>(null);
+  const requestIdRef = useRef(0);
 
   const confirm = useCallback((options: ConfirmOptions) => {
     // Only one question can be outstanding; a second call cancels the first so
@@ -172,11 +218,13 @@ export function useConfirm(): UseConfirmResult {
     return new Promise<boolean>((resolve) => {
       resolverRef.current = resolve;
       setRequest({
+        id: ++requestIdRef.current,
         title: options.title,
         detail: options.detail,
         confirmLabel: options.confirmLabel ?? "Confirm",
         cancelLabel: options.cancelLabel ?? "Cancel",
         tone: options.tone ?? "default",
+        requireText: options.requireText,
       });
     });
   }, []);
@@ -198,6 +246,12 @@ export function useConfirm(): UseConfirmResult {
 
   return {
     confirm,
-    confirmDialog: <ConfirmDialog request={request} onResolve={onResolve} />,
+    confirmDialog: (
+      <ConfirmDialog
+        key={request?.id ?? "idle"}
+        request={request}
+        onResolve={onResolve}
+      />
+    ),
   };
 }

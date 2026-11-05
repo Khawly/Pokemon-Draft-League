@@ -23,8 +23,10 @@
  * Showdown battle log for a pasted link, and the form shows the resulting KO
  * differential read-only so nobody has to type a signed number into the
  * unsigned count box. Upcoming matches are listed with the user's matches
- * first. Standings shows rank /
- * player / W-L / KO Diff, Playoffs renders the seeded bracket (single or
+ * first. Every member can predict the winner of a matchup from its card; a
+ * correct pick is worth one PP point in the standings, and picks close at the
+ * scheduled time or when the first game is submitted. Standings shows rank /
+ * player / W-L / KO Diff / PP, Playoffs renders the seeded bracket (single or
  * double elimination, advanced round by round by the owner), and History lists
  * every posted game newest first. All match times are shown in the time zone the
  * member picked in user settings, and the header states the league's next weekly
@@ -56,6 +58,7 @@ import { PlayoffBracket } from "@/components/playoff-bracket";
 import { ManualScheduleEditor } from "@/components/manual-schedule-editor";
 import { CrownProvider } from "@/components/crown-provider";
 import { MatchupPicker } from "@/components/matchup-picker";
+import { MatchPredictionButtons } from "@/components/match-prediction-buttons";
 import {
   loadWeekProgressState,
   runWeekDeadlineSweep,
@@ -64,6 +67,11 @@ import {
 import { formatSeasonLabel } from "@/lib/supabase/seasons";
 import { deleteMatch } from "@/lib/supabase/teams";
 import { useUserTimeZone } from "@/lib/user-timezone";
+import {
+  predictionIsOpen,
+  predictionLockMessage,
+  predictionLockReason,
+} from "@/lib/predictions";
 import { useRealtimeInvalidation } from "@/lib/use-realtime-invalidation";
 import { getSpriteUrl } from "@/lib/pokeapi";
 import {
@@ -118,6 +126,7 @@ import {
   respondToMatchProposal,
   saveManualSchedule,
   seasonPhaseLabel,
+  setMatchPrediction,
   setToiletBowl,
   submitGameResult,
   updateGameResult,
@@ -514,6 +523,11 @@ interface RosterSpritesProps {
   align?: "center" | "start";
   /** Whether to print each Pokemon's name under its sprite. Off by default. */
   showNames?: boolean;
+  /**
+   * Apply the one-row/split-evenly layout even without names. Named sprites
+   * always use it; unnamed cards opt in when they want the same arrangement.
+   */
+  splitRows?: boolean;
 }
 
 /**
@@ -521,58 +535,91 @@ interface RosterSpritesProps {
  * A rostered Pokemon with no sprite falls back to a "?" tile, and a team with
  * nothing rostered says so rather than rendering an empty row.
  *
- * With `showNames`, each name sits under its sprite. The sprite tile keeps its
- * size; the name gets its own slot below it, so nothing shrinks to make room.
+ * With `showNames`, up to six sprites sit on one row. A larger roster is split
+ * into the two most even rows possible (7 becomes 4 + 3, 8 becomes 4 + 4, 12
+ * becomes 6 + 6) instead of wrapping into whatever the width happens to allow.
+ * The sprite tile keeps its size; the name gets its own slot below it, so
+ * nothing shrinks to make room. An unnamed card can request the same arrangement
+ * with `splitRows`.
  *
  * @param props - {@link RosterSpritesProps}
- * @returns A wrapping row of roster sprites, or a short empty-state line.
+ * @returns A row or two of roster sprites, or a short empty-state line.
  */
 function RosterSprites({
   roster,
   align = "center",
   showNames = false,
+  splitRows = false,
 }: RosterSpritesProps) {
   if (roster.length === 0) {
     return <p className="text-xs text-slate-500">No Pokémon yet</p>;
   }
 
-  return (
-    <ul
-      className={
-        showNames
-          ? // Named sprites sit in a fixed three-column grid so a team reads as two rows of three.
-            "grid grid-cols-3 justify-items-center gap-x-1 gap-y-2"
-          : `flex flex-wrap items-start gap-1 ${
-              align === "center" ? "justify-center" : "justify-start"
-            }`
-      }
-    >
-      {roster.map((pokemon) => (
-        <li key={pokemon.id} className="flex flex-col items-center gap-1">
-          <div className="relative flex h-16 w-16 items-center justify-center overflow-hidden rounded-full border-2 border-slate-900 bg-[url('/images/pokeball_2D.jpg')] bg-cover bg-center shadow-md shadow-slate-950/50">
-            {pokemon.spriteId > 0 ? (
-              <img
-                src={getSpriteUrl(pokemon.spriteId)}
-                alt={pokemon.name}
-                title={pokemon.name}
-                width={48}
-                height={48}
-                loading="lazy"
-                className="relative h-12 w-12 object-contain"
-              />
-            ) : (
-              <span className="relative flex h-12 w-12 items-center justify-center rounded-full bg-slate-700 text-sm text-slate-400">
-                ?
-              </span>
-            )}
-          </div>
-          {showNames && (
-            <span className="w-20 break-words text-center text-[10px] leading-tight text-slate-300">
-              {pokemon.name}
+  /** Renders one roster entry, identical in the named and unnamed layouts. */
+  function renderPokemon(pokemon: ScheduleRosterSprite) {
+    return (
+      <li key={pokemon.id} className="flex flex-col items-center gap-1">
+        <div className="relative flex h-16 w-16 items-center justify-center overflow-hidden rounded-full border-2 border-slate-900 shadow-md shadow-slate-950/50">
+          {pokemon.spriteId > 0 ? (
+            <img
+              src={getSpriteUrl(pokemon.spriteId)}
+              alt={pokemon.name}
+              title={pokemon.name}
+              width={48}
+              height={48}
+              loading="lazy"
+              className="relative h-12 w-12 object-contain"
+            />
+          ) : (
+            <span className="relative flex h-12 w-12 items-center justify-center rounded-full bg-slate-700 text-sm text-slate-400">
+              ?
             </span>
           )}
-        </li>
-      ))}
+        </div>
+        {showNames && (
+          <span className="w-20 break-words text-center text-[10px] leading-tight text-slate-300">
+            {pokemon.name}
+          </span>
+        )}
+      </li>
+    );
+  }
+
+  if (showNames || splitRows) {
+    /*
+     * Split the roster in half rather than letting flex-wrap decide, so a
+     * seven-Pokemon team reads as 4 + 3 instead of 6 + 1. Six or fewer stay on
+     * a single row, which is the whole point of this layout.
+     */
+    const splitAt = Math.ceil(roster.length / 2);
+    const rows =
+      roster.length > 6
+        ? [roster.slice(0, splitAt), roster.slice(splitAt)]
+        : [roster];
+
+    return (
+      <div className="space-y-2">
+        {rows.map((row, index) => (
+          <ul
+            key={row[0]?.id ?? index}
+            className={`flex items-start gap-1 ${
+              align === "center" ? "justify-center" : "justify-start"
+            }`}
+          >
+            {row.map(renderPokemon)}
+          </ul>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <ul
+      className={`flex flex-wrap items-start gap-1 ${
+        align === "center" ? "justify-center" : "justify-start"
+      }`}
+    >
+      {roster.map(renderPokemon)}
     </ul>
   );
 }
@@ -841,7 +888,7 @@ export default function SchedulePage() {
     <Suspense
       fallback={
         <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
-          <div className="mx-auto max-w-6xl rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
+          <div className="mx-auto max-w-[96rem] rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
             <LoadingGif label="Loading schedule" />
           </div>
         </main>
@@ -910,7 +957,21 @@ function SchedulePageContent({
     isLoading: boolean;
     error: string | null;
   } | null>(null);
-  const [activeTab, setActiveTab] = useState<Tab>("Schedule");
+  const [activeTab, setActiveTab] = useState<Tab>(() => {
+    const requested = searchParams?.get("tab")?.trim().toLowerCase();
+
+    if (!requested) {
+      return "Schedule";
+    }
+
+    // Setup is owner-only and is filtered from the tab strip for other members,
+    // so it is never selected from a URL.
+    return (
+      TABS.find(
+        (tab) => tab !== "Setup" && tab.toLowerCase() === requested,
+      ) ?? "Schedule"
+    );
+  });
   const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
   /** The week picked in the Upcoming matches dropdown; null follows the current week. */
   const [upcomingWeekKey, setUpcomingWeekKey] = useState<string | null>(null);
@@ -1223,6 +1284,47 @@ function SchedulePageContent({
   );
 
   /*
+   * Whether the selected matchup still accepts a winner pick. The database
+   * enforces the same rule on write; this copy drives the card's buttons and the
+   * explanation shown when they are closed.
+   */
+  const selectedPredictionLock = useMemo(
+    () => (selectedMatch ? predictionLockReason(selectedMatch) : null),
+    [selectedMatch],
+  );
+
+  /** The sides offered by the prediction picker, already narrowed to real teams. */
+  const predictionSides = useMemo(() => {
+    if (!selectedMatch) {
+      return [];
+    }
+
+    return [
+      {
+        teamId: selectedMatch.player_1_team_id,
+        name: selectedMatch.player_1_name,
+      },
+      ...(selectedMatch.player_2_team_id
+        ? [
+            {
+              teamId: selectedMatch.player_2_team_id,
+              name: selectedMatch.player_2_name,
+            },
+          ]
+        : []),
+    ];
+  }, [selectedMatch]);
+
+  /** The name of the member's current pick, or null when they have not picked. */
+  const predictionPickName = useMemo(
+    () =>
+      predictionSides.find(
+        (side) => side.teamId === selectedMatch?.my_prediction_team_id,
+      )?.name ?? null,
+    [predictionSides, selectedMatch?.my_prediction_team_id],
+  );
+
+  /*
    * True while the member is part-way through one of the page's forms. A refresh
    * replaces the matches, which re-derives the selected matchup, so refetching
    * underneath an open form could move them off the matchup they are filling in
@@ -1262,6 +1364,7 @@ function SchedulePageContent({
         leagueId,
         seasonId,
         goodsRef.current?.ownerDisplayName ?? null,
+        goodsRef.current?.currentUserId ?? "",
       );
 
       const standingsMoved = movesStandings(
@@ -1940,19 +2043,21 @@ function SchedulePageContent({
   const canRunMutation = async (
     mutation: () => Promise<unknown>,
     leagueId: string,
-  ) => {
+  ): Promise<boolean> => {
     setIsBusy(true);
     setError(null);
     setNotice(null);
     try {
       await mutation();
       await refresh(leagueId);
+      return true;
     } catch (caughtError) {
       setError(
         caughtError instanceof Error
           ? caughtError.message
           : "That action could not be completed.",
       );
+      return false;
     } finally {
       setIsBusy(false);
     }
@@ -2381,6 +2486,30 @@ function SchedulePageContent({
     setNotice("Result submitted.");
   }
 
+  /**
+   * Saves the member's winner pick for a matchup.
+   *
+   * The full refresh after the write re-reads both the match's pick and the
+   * standings, so the card and the PP column agree without a second code path.
+   *
+   * @param matchId - The matchup being predicted.
+   * @param teamId - The team the member picked to win.
+   */
+  async function handlePredict(matchId: string, teamId: string) {
+    if (!goods) {
+      return;
+    }
+
+    const saved = await canRunMutation(
+      () => setMatchPrediction(matchId, teamId),
+      goods.league.id,
+    );
+
+    if (saved) {
+      setNotice("Prediction saved.");
+    }
+  }
+
   function openEditResult(result: ScheduleMatchResult) {
     setEditingResultId(result.id);
     setEditWinner(result.winner_team_id);
@@ -2515,7 +2644,7 @@ function SchedulePageContent({
   if (isLoading) {
     return (
       <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
-        <div className="mx-auto max-w-6xl rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
+        <div className="mx-auto max-w-[96rem] rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
           <LoadingGif label="Loading schedule" />
         </div>
       </main>
@@ -2562,7 +2691,7 @@ function SchedulePageContent({
   return (
     <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
       <CrownProvider crownedUserIds={goods.crownedMemberIds}>
-        <div className="mx-auto max-w-6xl space-y-6">
+        <div className="mx-auto max-w-[96rem] space-y-6">
         <header className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-2xl shadow-slate-950/40">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -3025,6 +3154,89 @@ function SchedulePageContent({
                         “{selectedMatch.notes}”
                       </p>
                     )}
+
+                    {/*
+                     * Every member may predict, not just the two participants.
+                     * The pick is stored per match and member, and the card says
+                     * why it is closed rather than silently hiding the control.
+                     */}
+                    <div className="w-full rounded-xl border border-slate-800 bg-slate-950/60 p-4">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="text-sm font-semibold text-slate-200">
+                          Winner prediction
+                        </p>
+                        <span
+                          className={`text-xs font-medium ${
+                            goods.isCurrentSeason &&
+                            selectedPredictionLock === null
+                              ? "text-emerald-300"
+                              : "text-slate-500"
+                          }`}
+                        >
+                          {goods.isCurrentSeason &&
+                          selectedPredictionLock === null
+                            ? "Correct pick = +1 PP"
+                            : "Closed"}
+                        </span>
+                      </div>
+
+                      {selectedPredictionLock ? (
+                        <p className="mt-2 text-sm text-slate-500">
+                          {predictionLockMessage(selectedPredictionLock)}
+                        </p>
+                      ) : !goods.isCurrentSeason ? (
+                        <p className="mt-2 text-sm text-slate-500">
+                          Predictions are closed for past seasons.
+                        </p>
+                      ) : (
+                        <>
+                          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                            {predictionSides.map((side) => {
+                              const picked =
+                                selectedMatch.my_prediction_team_id ===
+                                side.teamId;
+
+                              return (
+                                <button
+                                  key={side.teamId}
+                                  type="button"
+                                  disabled={isBusy}
+                                  aria-pressed={picked}
+                                  onClick={() =>
+                                    void handlePredict(
+                                      selectedMatch.id,
+                                      side.teamId,
+                                    )
+                                  }
+                                  className={`rounded-xl border px-3 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                                    picked
+                                      ? "border-emerald-500 bg-emerald-500/15 text-emerald-200"
+                                      : "border-slate-700 bg-slate-800 text-slate-200 hover:border-amber-500/60 hover:bg-slate-700"
+                                  }`}
+                                >
+                                  {picked ? "Your pick: " : "Pick "}
+                                  {side.name}
+                                </button>
+                              );
+                            })}
+                          </div>
+                          <p className="mt-2 text-xs text-slate-500">
+                            {selectedMatch.my_prediction_team_id
+                              ? "You can change this pick until the scheduled time or the first submitted game."
+                              : "Pick the team you think will win. You can change it until the scheduled time or the first submitted game."}
+                          </p>
+                        </>
+                      )}
+
+                      {selectedPredictionLock !== null ||
+                      !goods.isCurrentSeason ? (
+                        predictionPickName ? (
+                          <p className="mt-2 text-xs text-slate-400">
+                            Your pick: {predictionPickName}
+                          </p>
+                        ) : null
+                      ) : null}
+                    </div>
 
                     {canAct && (
                       <div className="flex flex-wrap justify-center gap-2">
@@ -3685,16 +3897,19 @@ function SchedulePageContent({
               ) : (
                 <div className="space-y-2">
                   {visibleUpcomingMatches.map((match) => (
-                    <button
+                    <div
                       key={match.id}
-                      type="button"
-                      onClick={() => setSelectedMatchId(match.id)}
-                      className={`flex w-full flex-col rounded-xl border p-3 text-left transition ${
+                      className={`rounded-xl border p-3 transition ${
                         selectedMatchId === match.id
                           ? "border-amber-500/60 bg-slate-800/80"
                           : "border-slate-700 bg-slate-800/50 hover:bg-slate-800"
                       }`}
                     >
+                      <button
+                        type="button"
+                        onClick={() => setSelectedMatchId(match.id)}
+                        className="flex w-full flex-col text-left"
+                      >
                       <div className="flex w-full items-start justify-between gap-3">
                         <p className="flex flex-wrap items-center gap-x-1 font-semibold text-slate-100">
                           <span>
@@ -3742,6 +3957,7 @@ function SchedulePageContent({
                                 goods.rostersByTeam[match.player_1_team_id] ??
                                 []
                               }
+                              splitRows
                             />
                           </div>
                         </div>
@@ -3771,11 +3987,48 @@ function SchedulePageContent({
                                 goods.rostersByTeam[match.player_2_team_id ?? ""] ??
                                 []
                               }
+                              splitRows
                             />
                           </div>
                         </div>
                       </div>
-                    </button>
+                      </button>
+
+                      {goods.isCurrentSeason && predictionIsOpen(match) ? (
+                        <div className="mt-2 border-t border-slate-700/60 pt-2">
+                          <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.15em] text-slate-500">
+                            Winner prediction
+                          </p>
+                          <MatchPredictionButtons
+                            playerOne={{
+                              teamId: match.player_1_team_id,
+                              name: match.player_1_name,
+                            }}
+                            playerTwo={
+                              match.player_2_team_id
+                                ? {
+                                    teamId: match.player_2_team_id,
+                                    name: match.player_2_name,
+                                  }
+                                : null
+                            }
+                            predictedTeamId={match.my_prediction_team_id}
+                            disabled={isBusy}
+                            onPick={(teamId) =>
+                              void handlePredict(match.id, teamId)
+                            }
+                          />
+                        </div>
+                      ) : match.my_prediction_team_id ? (
+                        <p className="mt-2 border-t border-slate-700/60 pt-2 text-xs font-medium text-amber-200/80">
+                          Your pick:{" "}
+                          {match.my_prediction_team_id ===
+                          match.player_1_team_id
+                            ? match.player_1_name
+                            : match.player_2_name}
+                        </p>
+                      ) : null}
+                    </div>
                   ))}
                 </div>
               )}
@@ -3836,7 +4089,7 @@ function SchedulePageContent({
 
         {activeTab === "Standings" && (
           <SectionCard title="Standings">
-            <div className="overflow-hidden rounded-xl border border-slate-800">
+            <div className="overflow-x-auto rounded-xl border border-slate-800">
               <table className="min-w-full divide-y divide-slate-800 text-sm">
                 <thead className="bg-slate-950 text-slate-300">
                   <tr>
@@ -3848,6 +4101,12 @@ function SchedulePageContent({
                     <th className="px-4 py-3 text-center font-semibold">L</th>
                     <th className="px-4 py-3 text-center font-semibold">
                       KO Diff
+                    </th>
+                    <th
+                      className="px-4 py-3 text-center font-semibold"
+                      title="Prediction points: one per correct winner pick"
+                    >
+                      PP
                     </th>
                     <th className="px-4 py-3 text-left font-semibold">
                       Pokemon
@@ -3891,6 +4150,9 @@ function SchedulePageContent({
                       <td className="px-4 py-3 text-center font-medium text-slate-100">
                         {row.ko_diff}
                       </td>
+                      <td className="px-4 py-3 text-center font-medium text-white">
+                        {row.prediction_points}
+                      </td>
                       <td className="px-4 py-3">
                         <ul className="flex flex-wrap items-center gap-1.5">
                           {(goods.rostersByTeam[row.team_id] ?? []).map(
@@ -3921,6 +4183,10 @@ function SchedulePageContent({
                 </tbody>
               </table>
             </div>
+            <p className="mt-3 text-xs text-slate-500">
+              PP = prediction points: one for each correct winner pick, credited
+              to the picker&apos;s team.
+            </p>
           </SectionCard>
         )}
 

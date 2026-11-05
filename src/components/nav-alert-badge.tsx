@@ -2,7 +2,7 @@
  * The notification markers shown on navigation buttons and tabs.
  *
  * Every nav entry in the app that carries a number renders it through this module:
- * the global league sub-navigation's Schedule and Trades buttons, and the Trades
+ * the global top navigation's Schedule and Trades buttons, and the Trades
  * page's "My Trades" and "Approvals" tabs. It started as a single pill in the
  * dashboard shell and was then retyped by hand on the trades page, which is how
  * the two ended up rendering different treatments for the same kind of fact. One

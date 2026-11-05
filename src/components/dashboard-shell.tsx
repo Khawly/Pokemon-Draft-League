@@ -19,7 +19,9 @@ import { Fragment } from "react";
 import { getSpriteUrl } from "@/lib/pokeapi";
 import { MemberName } from "@/components/member-name";
 import { MemberAvatar } from "@/components/member-avatar";
+import { MatchPredictionButtons } from "@/components/match-prediction-buttons";
 import { routeFor } from "@/lib/league-routes";
+import { predictionIsOpen } from "@/lib/predictions";
 import {
   formatMatchTime,
   formatNotificationAge,
@@ -71,6 +73,15 @@ export interface DashboardShellProps {
   notificationError?: string | null;
   /** Panel-level confirmation text, e.g. how many notifications were removed. */
   notificationNotice?: string | null;
+  /**
+   * Called when the member picks a winner on a Schedule-panel matchup card. The
+   * page owns the write, so the panel stays presentational.
+   */
+  onPredict?: (matchId: string, teamId: string) => void;
+  /** The matchup currently saving a pick, which disables its two buttons. */
+  predictingMatchId?: string | null;
+  /** Panel-level failure text for a prediction that could not be saved. */
+  predictionError?: string | null;
 }
 
 /** Props for the {@link RulesPanel} component. */
@@ -182,7 +193,7 @@ function RosterStrip({ roster }: RosterStripProps) {
           {roster.map((pokemon) => (
             <li
               key={pokemon.id}
-              className="relative flex h-[88px] w-[88px] items-center justify-center overflow-hidden rounded-full border-2 border-slate-900 bg-[url('/images/pokeball_2D.jpg')] bg-cover bg-center shadow-md shadow-slate-950/50"
+              className="relative flex h-[88px] w-[88px] items-center justify-center overflow-hidden rounded-full border-2 border-slate-900 shadow-md shadow-slate-950/50"
             >
               {pokemon.spriteId > 0 ? (
                 <img
@@ -293,7 +304,7 @@ function LineupSprites({ roster }: LineupSpritesProps) {
       {roster.map((pokemon) => (
         <li
           key={pokemon.id}
-          className="relative flex h-[72px] w-[72px] items-center justify-center overflow-hidden rounded-full border-2 border-slate-900 bg-[url('/images/pokeball_2D.jpg')] bg-cover bg-center shadow-md shadow-slate-950/50"
+          className="relative flex h-[72px] w-[72px] items-center justify-center overflow-hidden rounded-full border-2 border-slate-900 shadow-md shadow-slate-950/50"
         >
           {pokemon.spriteId > 0 ? (
             <img
@@ -319,7 +330,7 @@ function LineupSprites({ roster }: LineupSpritesProps) {
  * Full dashboard layout for a selected league.
  *
  * Displays league metadata, notifications, schedule, standings, and the league
- * rules. Page navigation now lives in the global league sub-navigation, which
+ * rules. Page navigation now lives in the global top navigation bar, which
  * renders on every route; this shell carries only the dashboard's own content.
  *
  * @param props - {@link DashboardShellProps}
@@ -338,9 +349,20 @@ export function DashboardShell({
   isClearingNotifications = false,
   notificationError = null,
   notificationNotice = null,
+  onPredict,
+  predictingMatchId = null,
+  predictionError = null,
 }: DashboardShellProps) {
   const router = useRouter();
   const scheduleRoute = routeFor("schedule", leagueId);
+  /*
+   * The standings panel's "View full table" opens the Schedule page directly on
+   * its Standings tab. The page reads `tab` from the query string so a shared link
+   * lands on the same view without a second navigation step.
+   */
+  const standingsRoute = `${scheduleRoute}${
+    scheduleRoute.includes("?") ? "&" : "?"
+  }tab=standings`;
   const draftRoute = routeFor("draft", leagueId);
   /** Match and notification times render in the zone the member picked in settings. */
   const timeZone = useUserTimeZone();
@@ -404,6 +426,16 @@ export function DashboardShell({
   const matchFormatLabel =
     goods.matchFormat === "single" ? "Single game" : "Best of 3";
   /*
+   * A past season is read-only, so its cards never offer a winner pick even when
+   * an old matchup was somehow left unscheduled. The newest season is the one
+   * `seasons` ends on, because the loader orders them oldest first.
+   */
+  const isCurrentSeason =
+    goods.season != null &&
+    goods.seasons.length > 0 &&
+    goods.season.id === goods.seasons[goods.seasons.length - 1].id;
+
+  /*
    * The Schedule panel lists the week's matchups without the member's own, which
    * the Next match panel already shows. The data still carries it for that panel.
    */
@@ -420,6 +452,13 @@ export function DashboardShell({
         <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex flex-col gap-3">
             <div className="flex flex-wrap items-center gap-3">
+              {goods.leagueImageUrl && (
+                <img
+                  src={goods.leagueImageUrl}
+                  alt={`${leagueName} logo`}
+                  className="h-12 w-12 rounded-xl border border-slate-700 object-cover shadow-md shadow-slate-950/40"
+                />
+              )}
               <h2 className="text-3xl font-bold text-white">{leagueName}</h2>
               <span className="rounded-full bg-amber-500/15 px-2.5 py-1 text-sm font-medium text-amber-300">
                 {formatSeasonLabel(goods.season)}
@@ -576,6 +615,12 @@ export function DashboardShell({
                 </button>
               </div>
 
+              {predictionError && (
+                <p className="mt-3 rounded-lg border border-rose-800 bg-rose-950/40 px-3 py-2 text-sm text-rose-200">
+                  {predictionError}
+                </p>
+              )}
+
               {otherWeekMatches.length === 0 ? (
                 <p className="mt-5 rounded-xl border border-slate-800 bg-slate-950/60 p-4 text-sm text-slate-500">
                   {/*
@@ -677,6 +722,37 @@ export function DashboardShell({
                           </Fragment>
                         ))}
                       </div>
+
+                      {onPredict &&
+                      isCurrentSeason &&
+                      predictionIsOpen(match) ? (
+                        <div className="border-t border-slate-700/60 pt-3">
+                          <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.15em] text-slate-500">
+                            Winner prediction
+                          </p>
+                          <MatchPredictionButtons
+                            playerOne={{
+                              teamId: match.player_1_team_id,
+                              name: match.player_1_name,
+                            }}
+                            playerTwo={{
+                              teamId: match.player_2_team_id,
+                              name: match.player_2_name,
+                            }}
+                            predictedTeamId={match.my_prediction_team_id}
+                            disabled={predictingMatchId === match.id}
+                            onPick={(teamId) => onPredict(match.id, teamId)}
+                          />
+                        </div>
+                      ) : match.my_prediction_team_id ? (
+                        <p className="border-t border-slate-700/60 pt-3 text-xs font-medium text-amber-200/80">
+                          Your pick:{" "}
+                          {match.my_prediction_team_id ===
+                          match.player_1_team_id
+                            ? match.player_1_name
+                            : match.player_2_name}
+                        </p>
+                      ) : null}
                     </div>
                   ))}
                 </div>
@@ -781,7 +857,7 @@ export function DashboardShell({
                   </div>
                   <button
                     type="button"
-                    onClick={() => router.push(scheduleRoute)}
+                    onClick={() => router.push(standingsRoute)}
                     className="rounded-xl bg-amber-500 px-3 py-2 text-sm font-semibold text-slate-950 transition hover:bg-amber-400"
                   >
                     View full table
@@ -808,6 +884,12 @@ export function DashboardShell({
                           <th className="px-4 py-3 font-semibold">L</th>
                           <th className="px-4 py-3 text-center font-semibold">
                             KO Diff
+                          </th>
+                          <th
+                            className="px-4 py-3 text-center font-semibold"
+                            title="Prediction points: one per correct winner pick"
+                          >
+                            PP
                           </th>
                         </tr>
                       </thead>
@@ -838,12 +920,19 @@ export function DashboardShell({
                                 ? `+${row.ko_diff}`
                                 : row.ko_diff}
                             </td>
+                            <td className="px-4 py-3 text-center font-medium text-white">
+                              {row.prediction_points}
+                            </td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
                   </div>
                 )}
+                <p className="mt-3 text-xs text-slate-500">
+                  PP = prediction points: one for each correct winner pick,
+                  credited to the picker&apos;s team.
+                </p>
               </div>
             </aside>
           </section>

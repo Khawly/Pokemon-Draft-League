@@ -1,12 +1,12 @@
 /*
  * Shared league shell data for the Pokemon Draft League.
  *
- * The top bar and the league sub-navigation both need the same small facts:
- * who is signed in, which leagues they belong to, which league is selected,
- * that league's seasons and selected season, whether they own it, and the two
- * nav alert counts. Reading those independently in each component meant every
- * page load repeated the profile and membership queries, and the dashboard also
- * re-read the alert feeds that the sub-navigation had already loaded.
+ * The top navigation bar needs a small set of facts on every page: who is
+ * signed in, which leagues they belong to, which league is selected, that
+ * league's seasons and selected season, whether they own it, and the two nav
+ * alert counts. Reading those independently on each surface meant every page
+ * load repeated the profile and membership queries, and the dashboard also
+ * re-read the alert feeds the navigation had already loaded.
  *
  * This provider owns that data once for the shell. Pages still load their own
  * league-specific payloads; they need rows and shapes the shell does not.
@@ -60,14 +60,14 @@ export type ShellProfile = {
   nameColor: string | null;
 };
 
-/** A season option for the sub-navigation's season selector. */
+/** A season option for the top navigation's season selector. */
 export type SeasonOption = {
   id: string;
   season_number: number;
   name: string | null;
 };
 
-/** Both alert feeds the sub-navigation reads. */
+/** Both alert feeds the top navigation reads. */
 export type NavAlerts = {
   match: MatchTimeAlerts;
   trade: MatchTimeAlerts;
@@ -146,9 +146,9 @@ async function fetchProfile(userId: string): Promise<ShellProfile> {
 
 /**
  * Provides the shell identity, league list, season list, and alert counts once
- * to both navigation bars.
+ * to the top navigation bar.
  *
- * @param props.children - The top bar and league sub-navigation.
+ * @param props.children - The top navigation bar.
  * @returns The context provider.
  */
 export function LeagueShellProvider({ children }: { children: ReactNode }) {

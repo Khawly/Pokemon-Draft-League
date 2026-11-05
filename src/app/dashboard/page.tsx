@@ -22,7 +22,9 @@ import {
   clearAllNotifications,
   loadDashboardData,
   type DashboardGoods,
+  type DashboardMatch,
 } from "@/lib/supabase/dashboard";
+import { setMatchPrediction } from "@/lib/supabase/schedule";
 import { useRealtimeInvalidation } from "@/lib/use-realtime-invalidation";
 import { getSelectedSeason } from "@/lib/season-selection";
 import { announceNavAlertsChanged } from "@/lib/nav-alerts";
@@ -37,7 +39,7 @@ export default function DashboardPage() {
     <Suspense
       fallback={
         <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
-          <div className="mx-auto max-w-6xl rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
+          <div className="mx-auto max-w-[96rem] rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
             <LoadingGif label="Loading dashboard" />
           </div>
         </main>
@@ -75,6 +77,12 @@ function DashboardPageContent() {
   const [notificationError, setNotificationError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [isClearingNotifications, setIsClearingNotifications] = useState(false);
+  /** The matchup whose prediction is being saved, if any. */
+  const [predictingMatchId, setPredictingMatchId] = useState<string | null>(
+    null,
+  );
+  /** Panel-level failure text for a prediction that could not be saved. */
+  const [predictionError, setPredictionError] = useState<string | null>(null);
   const { confirm, confirmDialog } = useConfirm();
 
   /*
@@ -303,7 +311,7 @@ function DashboardPageContent() {
           : `${removed} notifications cleared.`,
       );
 
-      // The global sub-navigation owns the Schedule/Trades badges now; tell it
+      // The global top navigation owns the Schedule/Trades badges now; tell it
       // the rows behind them are gone so they clear without a reload.
       announceNavAlertsChanged();
     } catch (clearError) {
@@ -322,10 +330,54 @@ function DashboardPageContent() {
     }
   }, [goods?.leagueId, goods?.season?.id, confirm]);
 
+  /**
+   * Saves a winner pick from a Schedule-panel card.
+   *
+   * The write is followed by an in-place update rather than a full reload: a
+   * prediction does not move the standings, so only the two places this match can
+   * appear need the new pick.
+   *
+   * @param matchId - The matchup being predicted.
+   * @param teamId - The team the member picked to win.
+   */
+  const handlePredict = useCallback(async (matchId: string, teamId: string) => {
+    setPredictingMatchId(matchId);
+    setPredictionError(null);
+
+    try {
+      await setMatchPrediction(matchId, teamId);
+
+      setGoods((current) => {
+        if (!current) {
+          return current;
+        }
+
+        const withPick = (match: DashboardMatch): DashboardMatch =>
+          match.id === matchId
+            ? { ...match, my_prediction_team_id: teamId }
+            : match;
+
+        return {
+          ...current,
+          currentWeekMatches: current.currentWeekMatches.map(withPick),
+          nextMatch: current.nextMatch ? withPick(current.nextMatch) : null,
+        };
+      });
+    } catch (caughtError) {
+      setPredictionError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Your prediction could not be saved.",
+      );
+    } finally {
+      setPredictingMatchId(null);
+    }
+  }, []);
+
   /*
    * Live updates. A match changing status, time, or result changes the schedule,
    * the week, and the standings, so it reloads the page's data. The nav badges
-   * belong to the global sub-navigation and refresh there.
+   * belong to the global top navigation and refresh there.
    */
   useRealtimeInvalidation({
     leagueId: goods?.leagueId ?? null,
@@ -335,7 +387,7 @@ function DashboardPageContent() {
   if (isLoading || !sessionUser || !leagueName) {
     return (
       <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
-        <div className="mx-auto max-w-6xl rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
+        <div className="mx-auto max-w-[96rem] rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
           <LoadingGif label="Loading dashboard" />
         </div>
       </main>
@@ -354,7 +406,7 @@ function DashboardPageContent() {
 
   return (
     <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
-      <div className="mx-auto max-w-6xl">
+      <div className="mx-auto max-w-[96rem]">
         <CrownProvider crownedUserIds={goods.crownedMemberIds}>
           <DashboardShell
           displayName={sessionUser.displayName}
@@ -369,6 +421,9 @@ function DashboardPageContent() {
           isClearingNotifications={isClearingNotifications}
           notificationError={notificationError}
           notificationNotice={notice}
+          onPredict={(matchId, teamId) => void handlePredict(matchId, teamId)}
+          predictingMatchId={predictingMatchId}
+          predictionError={predictionError}
         />
         </CrownProvider>
       </div>

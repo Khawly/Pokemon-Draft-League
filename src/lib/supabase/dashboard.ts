@@ -159,6 +159,13 @@ export type DashboardMatch = {
   /** Each side's owner, so a champion's crown can follow them onto the card. */
   player_1_user_id: string | null;
   player_2_user_id: string | null;
+  /**
+   * Submitted games, carried only so the prediction lock can tell whether one
+   * has landed. The dashboard cards do not render results.
+   */
+  results: { id: string }[];
+  /** The team this member picked to win, or null when they have not picked. */
+  my_prediction_team_id: string | null;
 };
 
 /** A ranked standings row, already ordered by the database. */
@@ -168,6 +175,8 @@ export type DashboardStanding = {
   wins: number;
   losses: number;
   ko_diff: number;
+  /** Correct winner picks made by this team's owner, worth one point each. */
+  prediction_points: number;
 };
 
 /** One rostered Pokemon enriched with catalog display data. */
@@ -295,6 +304,11 @@ export type DashboardGoods = {
    */
   leagueId: string;
   /**
+   * Public URL of the league's uploaded image, or null when none was uploaded.
+   * The dashboard renders it beside the league name only when it exists.
+   */
+  leagueImageUrl: string | null;
+  /**
    * Whether the signed-in member owns this league.
    *
    * Carried because the rules panel words its empty state differently for the
@@ -330,6 +344,7 @@ standings: [],
     notifications: [],
     isOwner: false,
     leagueId: "",
+    leagueImageUrl: null,
     crownedMemberIds: [],
   };
 }
@@ -527,9 +542,9 @@ export async function loadDashboardData(
   }
 
   /*
-   * Two waves instead of one seven-query burst. Shared CPU and the connection
+   * Two waves instead of one eight-query burst. Shared CPU and the connection
    * pooler are the free-plan constraint, so a page load only holds three
-   * queries in flight at once; the remaining four run after the first group.
+   * queries in flight at once; the remaining five run after the first group.
    * The extra round-trip is a deliberate trade for lower peak concurrency.
    */
   const [settingsResult, teamResult, standingsResult] = await Promise.all([
@@ -553,16 +568,26 @@ export async function loadDashboardData(
     }),
   ]);
 
-  const [matchResult, rulesResult, leagueResult, crownResult] =
+  const [matchResult, predictionResult, rulesResult, leagueResult, crownResult] =
     await Promise.all([
       supabase
         .from("matches")
         .select(
-          "id, week_number, is_playoff, scheduled_at, status, player_1_team_id, player_2_team_id, player_1: player_1_team_id (team_name, owner_user_id, owner: owner_user_id (display_name, avatar_url, name_color, avatar_initials)), player_2: player_2_team_id (team_name, owner_user_id, owner: owner_user_id (display_name, avatar_url, name_color, avatar_initials))",
+          "id, week_number, is_playoff, scheduled_at, status, player_1_team_id, player_2_team_id, results:match_results (id), player_1: player_1_team_id (team_name, owner_user_id, owner: owner_user_id (display_name, avatar_url, name_color, avatar_initials)), player_2: player_2_team_id (team_name, owner_user_id, owner: owner_user_id (display_name, avatar_url, name_color, avatar_initials))",
         )
         .eq("league_id", leagueId)
         .eq("season_id", season.id)
         .order("week_number", { ascending: true }),
+      /*
+       * The member's winner picks for this season, matched to the schedule cards
+       * below. A failed read leaves the panel without picks rather than blanking
+       * the dashboard, which has a dozen other panels that do not depend on it.
+       */
+      supabase
+        .from("match_predictions")
+        .select("match_id, predicted_team_id")
+        .eq("season_id", season.id)
+        .eq("user_id", userId),
       /*
        * The rules for this season. A failure here is deliberately not fatal: the
        * dashboard has a dozen other panels, and a league whose rules row is
@@ -581,7 +606,7 @@ export async function loadDashboardData(
        */
       supabase
         .from("leagues")
-        .select("owner_id")
+        .select("owner_id, image_url")
         .eq("id", leagueId)
         .maybeSingle(),
       /*
@@ -599,9 +624,13 @@ export async function loadDashboardData(
     match_format?: "single" | "best_of_3" | null;
   } | null;
 
-  const isOwner =
-    (leagueResult.data as { owner_id?: string | null } | null)?.owner_id ===
-    userId;
+  const leagueRow = leagueResult.data as {
+    owner_id?: string | null;
+    image_url?: string | null;
+  } | null;
+
+  const isOwner = leagueRow?.owner_id === userId;
+  const leagueImageUrl = leagueRow?.image_url ?? null;
 
   const rulesRow = rulesResult.data as {
     content: string | null;
@@ -635,6 +664,15 @@ export async function loadDashboardData(
   const teamIds = teams.map((team) => team.id);
   const myTeam = teams.find((team) => team.owner_user_id === userId) ?? null;
 
+  const predictionsByMatch = predictionResult.error
+    ? new Map<string, string>()
+    : new Map(
+        ((predictionResult.data ?? []) as {
+          match_id: string;
+          predicted_team_id: string;
+        }[]).map((row) => [row.match_id, row.predicted_team_id]),
+      );
+
   const matches = ((matchResult.data ?? []) as {
     id: string;
     week_number: number;
@@ -643,6 +681,8 @@ export async function loadDashboardData(
     status: DashboardMatch["status"];
     player_1_team_id: string;
     player_2_team_id: string;
+    /** Submitted game ids, embedded by the schedule read. */
+    results?: { id: string }[] | null;
     player_1?: {
       team_name?: string | null;
       owner_user_id?: string;
@@ -682,6 +722,8 @@ export async function loadDashboardData(
     player_2_avatar_initials: row.player_2?.owner?.avatar_initials ?? null,
     player_1_user_id: row.player_1?.owner_user_id ?? null,
     player_2_user_id: row.player_2?.owner_user_id ?? null,
+    results: row.results ?? [],
+    my_prediction_team_id: predictionsByMatch.get(row.id) ?? null,
   }));
 
 
@@ -691,12 +733,14 @@ export async function loadDashboardData(
     wins: number | string | null;
     losses: number | string | null;
     ko_diff: number | string | null;
+    prediction_points: number | string | null;
   }[]).map<DashboardStanding>((row) => ({
     team_id: row.team_id,
     team_name: row.team_name,
     wins: Number(row.wins ?? 0),
     losses: Number(row.losses ?? 0),
     ko_diff: Number(row.ko_diff ?? 0),
+    prediction_points: Number(row.prediction_points ?? 0),
   }));
 
   /*
@@ -896,6 +940,7 @@ standings,
     myRoster,
     notifications,
     leagueId,
+    leagueImageUrl,
     isOwner,
     crownedMemberIds: crownResult.error
       ? []

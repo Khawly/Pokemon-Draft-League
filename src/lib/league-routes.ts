@@ -1,12 +1,12 @@
 /*
- * Route metadata for the league sub-navigation.
+ * Route metadata for the league page tabs in the top navigation.
  *
  * The tab labels and their slugs live here rather than inside a component so the
- * dashboard shell and the global sub-navigation agree on where each tab points,
- * and so adding a tab is one edit instead of two.
+ * dashboard shell and the top navigation agree on where each tab points, and so
+ * adding a tab is one edit instead of two.
  */
 
-/** A tab rendered in the league sub-navigation. */
+/** A tab rendered in the top navigation. */
 export type LeagueTab = {
   /** Visible label. */
   label: string;
@@ -15,7 +15,7 @@ export type LeagueTab = {
 };
 
 /**
- * Tabs shown under the top navigation once a league is selected.
+ * Tabs shown in the top navigation once a league is selected.
  *
  * Dashboard is first and is the only entry whose route is not derived from a
  * sibling page name.

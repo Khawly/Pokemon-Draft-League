@@ -90,6 +90,7 @@ player_1_name: "Player One",
     player_2_user_id: "user-2",
     results,
     pending_proposal: null,
+    my_prediction_team_id: null,
   };
 }
 

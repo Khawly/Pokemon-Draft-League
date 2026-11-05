@@ -1373,6 +1373,15 @@ const PoolPanel = memo(function PoolPanel({
       .sort((a, b) => a.type.localeCompare(b.type));
   }, [goods.poolRows, goods.picks]);
 
+  /*
+   * Split the type chips into two even rows, matching the Pokemon page. The All
+   * chip leads the first row so the type chips themselves stay balanced.
+   */
+  const typeRows = useMemo(() => {
+    const splitAt = Math.ceil(typeOptions.length / 2);
+    return [typeOptions.slice(0, splitAt), typeOptions.slice(splitAt)];
+  }, [typeOptions]);
+
   const picked = useMemo(
     () => new Set(goods.picks.map((pick) => pick.pokemon_id)),
     [goods.picks],
@@ -1525,56 +1534,67 @@ const PoolPanel = memo(function PoolPanel({
           aria-label="Search the draft pool"
           className="w-56 rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-2 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-amber-400"
         />
-        <div className="flex flex-wrap items-center gap-1.5">
-          <button
-            type="button"
-            onClick={() => {
-              setTypeFilter(null);
-              setPage(1);
-            }}
-            className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
-              typeFilter == null
-                ? "bg-amber-500/15 text-amber-300"
-                : "bg-slate-800 text-slate-400 hover:bg-slate-700"
-            }`}
-          >
-            All
-          </button>
-          {typeOptions.map(({ type, count }) => (
-            <button
-              key={type}
-              type="button"
-              onClick={() => {
-                setTypeFilter((current) => (current === type ? null : type));
-                setPage(1);
-              }}
-              title={`${count} ${type}-type Pokémon left in the pool`}
-              className={`rounded-full px-2.5 py-1 text-xs font-semibold transition ${
-                TYPE_STYLES[type] ?? "bg-slate-700 text-slate-200"
-              } ${
-                typeFilter === type
-                  ? "ring-2 ring-amber-400 ring-offset-2 ring-offset-slate-950"
-                  : typeFilter == null
-                    ? "hover:brightness-110"
-                    : "opacity-50 hover:opacity-100"
-              }`}
+        <div className="flex flex-col gap-1.5">
+          {typeRows.map((row, rowIndex) => (
+            <div
+              key={rowIndex}
+              className="flex flex-wrap items-center gap-1.5"
             >
-              <span className="flex items-center gap-1.5">
-                {type.charAt(0).toUpperCase() + type.slice(1)}
-                {/*
-                  Remaining count for the type. Dimmed to 0 once the type is
-                  exhausted, so a chip reads as spent rather than as data the
-                  page forgot to load.
-                */}
-                <span
-                  className={`rounded-full bg-slate-900/70 px-1.5 text-[10px] font-bold tabular-nums ${
-                    count === 0 ? "text-slate-500" : "text-slate-300"
+              {rowIndex === 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTypeFilter(null);
+                    setPage(1);
+                  }}
+                  className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                    typeFilter == null
+                      ? "bg-amber-500/15 text-amber-300"
+                      : "bg-slate-800 text-slate-400 hover:bg-slate-700"
                   }`}
                 >
-                  {count}
-                </span>
-              </span>
-            </button>
+                  All
+                </button>
+              )}
+              {row.map(({ type, count }) => (
+                <button
+                  key={type}
+                  type="button"
+                  onClick={() => {
+                    setTypeFilter((current) =>
+                      current === type ? null : type,
+                    );
+                    setPage(1);
+                  }}
+                  title={`${count} ${type}-type Pokémon left in the pool`}
+                  className={`rounded-full px-2.5 py-1 text-xs font-semibold transition ${
+                    TYPE_STYLES[type] ?? "bg-slate-700 text-slate-200"
+                  } ${
+                    typeFilter === type
+                      ? "ring-2 ring-amber-400 ring-offset-2 ring-offset-slate-950"
+                      : typeFilter == null
+                        ? "hover:brightness-110"
+                        : "opacity-50 hover:opacity-100"
+                  }`}
+                >
+                  <span className="flex items-center gap-1.5">
+                    {type.charAt(0).toUpperCase() + type.slice(1)}
+                    {/*
+                      Remaining count for the type. Dimmed to 0 once the type is
+                      exhausted, so a chip reads as spent rather than as data the
+                      page forgot to load.
+                    */}
+                    <span
+                      className={`rounded-full bg-slate-900/70 px-1.5 text-[10px] font-bold tabular-nums ${
+                        count === 0 ? "text-slate-500" : "text-slate-300"
+                      }`}
+                    >
+                      {count}
+                    </span>
+                  </span>
+                </button>
+              ))}
+            </div>
           ))}
         </div>
       </div>
@@ -2979,7 +2999,7 @@ function DraftArena({ leagueId }: { leagueId: string }) {
   if (!goods) {
     return (
       <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
-        <div className="mx-auto max-w-6xl space-y-6">
+        <div className="mx-auto max-w-[96rem] space-y-6">
           <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 text-sm text-slate-400">
             {error ? error : <LoadingGif label="Loading draft" />}
           </div>
@@ -2991,7 +3011,7 @@ function DraftArena({ leagueId }: { leagueId: string }) {
   if (!goods.season) {
     return (
       <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
-        <div className="mx-auto max-w-6xl">
+        <div className="mx-auto max-w-[96rem]">
           <EmptyDraft leagueName={goods.league.name} />
         </div>
       </main>
@@ -3000,7 +3020,7 @@ function DraftArena({ leagueId }: { leagueId: string }) {
 
   return (
     <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
-      <div className="mx-auto flex max-w-6xl flex-col gap-6">
+      <div className="mx-auto flex max-w-[96rem] flex-col gap-6">
         <DraftHeader
           goods={goods}
           now={now}
@@ -3126,7 +3146,7 @@ export default function DraftPage() {
     <Suspense
       fallback={
         <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
-          <div className="mx-auto max-w-6xl rounded-2xl border border-slate-800 bg-slate-900/80 p-6 text-sm text-slate-400">
+          <div className="mx-auto max-w-[96rem] rounded-2xl border border-slate-800 bg-slate-900/80 p-6 text-sm text-slate-400">
             <LoadingGif label="Loading draft arena" />
           </div>
         </main>

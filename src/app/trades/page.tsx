@@ -42,6 +42,7 @@ import { NavAlertBadge, TabNotification } from "@/components/nav-alert-badge";
 import { formatSeasonLabel } from "@/lib/supabase/seasons";
 import { formatDateTimeInZone, formatTimeZoneLabel } from "@/lib/datetime";
 import { useUserTimeZone } from "@/lib/user-timezone";
+import { isDeadlinePassed } from "@/lib/deadlines";
 import { useRealtimeInvalidation } from "@/lib/use-realtime-invalidation";
 import {
   approvalProgress,
@@ -122,7 +123,7 @@ export default function TradesPage() {
     <Suspense
       fallback={
         <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
-          <div className="mx-auto max-w-6xl rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
+          <div className="mx-auto max-w-[96rem] rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
             <LoadingGif label="Loading trades" />
           </div>
         </main>
@@ -413,6 +414,12 @@ interface TradeCardProps {
    * would be applied to the current season rather than the one being read.
    */
   readOnly?: boolean;
+  /**
+   * True once the season's trade deadline has passed. Accepting, approving, and
+   * overriding are disabled; declining and withdrawing remain available so a
+   * member can clear a stale card.
+   */
+  deadlinePassed?: boolean;
 }
 
 /** The actions a {@link TradeCard} can offer. */
@@ -446,6 +453,7 @@ function TradeCard({
   isOwner,
   onAction,
   readOnly = false,
+  deadlinePassed = false,
 }: TradeCardProps) {
   const labels = tradeSideLabels(trade, goods.currentUserId);
   const readerIsProposer = isProposer(trade, goods.currentUserId);
@@ -687,7 +695,7 @@ function TradeCard({
           <>
             <button
               type="button"
-              disabled={busy}
+              disabled={busy || deadlinePassed}
               onClick={() => onAction("accept", trade)}
               className="rounded-xl bg-amber-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-amber-400 disabled:opacity-50"
             >
@@ -719,7 +727,7 @@ function TradeCard({
           <>
             <button
               type="button"
-              disabled={busy}
+              disabled={busy || deadlinePassed}
               onClick={() => onAction("approve", trade)}
               className="rounded-xl bg-amber-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-amber-400 disabled:opacity-50"
             >
@@ -728,7 +736,7 @@ function TradeCard({
             {isOwner && (
               <button
                 type="button"
-                disabled={busy}
+                disabled={busy || deadlinePassed}
                 onClick={() => onAction("override", trade)}
                 className="rounded-xl border border-amber-700 bg-amber-500/10 px-4 py-2 text-sm font-semibold text-amber-200 transition hover:bg-amber-500/20 disabled:opacity-50"
               >
@@ -1538,6 +1546,9 @@ function TradesPageContent({
   }, [goods]);
 
   const requiresApproval = goods?.settings?.admins_approve_trades === true;
+  const tradeDeadlinePassed = isDeadlinePassed(
+    goods?.settings?.trade_deadline_at,
+  );
   const approverTotal = goods?.approverIds.length ?? 0;
   const approverRequired = requiredApprovals(approverTotal);
 
@@ -1633,6 +1644,14 @@ function TradesPageContent({
    */
   async function handleAction(action: TradeAction, trade: Trade) {
     if (!goods) {
+      return;
+    }
+
+    if (
+      tradeDeadlinePassed &&
+      (action === "accept" || action === "approve" || action === "override")
+    ) {
+      setError("The trade deadline has passed. Trading is closed.");
       return;
     }
 
@@ -1799,6 +1818,11 @@ function TradesPageContent({
       return;
     }
 
+    if (tradeDeadlinePassed) {
+      setError("The trade deadline has passed. Trading is closed.");
+      return;
+    }
+
     const recipient = findTeamByOwner(goods.teams, recipientUserId);
     const other = recipient?.owner_name?.trim() || recipient?.team_name || "them";
 
@@ -1841,7 +1865,7 @@ function TradesPageContent({
   if (isLoading && !goods) {
     return (
       <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
-        <div className="mx-auto max-w-6xl rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
+        <div className="mx-auto max-w-[96rem] rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
           <LoadingGif label="Loading trades" />
         </div>
       </main>
@@ -1851,7 +1875,7 @@ function TradesPageContent({
   if (error && !goods) {
     return (
       <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
-        <div className="mx-auto max-w-6xl rounded-2xl border border-red-800 bg-red-950/40 p-8 text-sm text-red-200 shadow-xl shadow-slate-950/40">
+        <div className="mx-auto max-w-[96rem] rounded-2xl border border-red-800 bg-red-950/40 p-8 text-sm text-red-200 shadow-xl shadow-slate-950/40">
           {error}
         </div>
       </main>
@@ -1864,7 +1888,7 @@ function TradesPageContent({
 
   return (
     <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
-      <div className="mx-auto max-w-6xl space-y-6">
+      <div className="mx-auto max-w-[96rem] space-y-6">
         <header className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-2xl shadow-slate-950/40">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
@@ -1919,6 +1943,36 @@ function TradesPageContent({
               : "Accepted trades complete immediately — this league does not require approval."}
           </p>
 
+          {goods.settings?.trade_deadline_at && (
+            <p
+              className={`mt-3 rounded-xl border px-4 py-3 text-sm ${
+                tradeDeadlinePassed
+                  ? "border-rose-800 bg-rose-950/40 text-rose-200"
+                  : "border-amber-800 bg-amber-950/40 text-amber-200"
+              }`}
+            >
+              {tradeDeadlinePassed ? (
+                <>
+                  The trade deadline passed on{" "}
+                  {formatDateTimeInZone(
+                    goods.settings.trade_deadline_at,
+                    timeZone,
+                  )}
+                  . Trades can no longer be proposed, accepted, or approved.
+                </>
+              ) : (
+                <>
+                  Trades close on{" "}
+                  {formatDateTimeInZone(
+                    goods.settings.trade_deadline_at,
+                    timeZone,
+                  )}
+                  .
+                </>
+              )}
+            </p>
+          )}
+
           <div className="mt-5 flex flex-wrap gap-2 border-t border-slate-700 pt-4">
             {tabsFor().map((entry) => (
               <button
@@ -1965,12 +2019,18 @@ function TradesPageContent({
           </div>
         )}
 
-        {tab === "new" && goods.isCurrentSeason && (
+        {tab === "new" && goods.isCurrentSeason && !tradeDeadlinePassed && (
           <ProposalBuilder
             goods={goods}
             busy={Boolean(busyTradeId)}
             onSubmit={handlePropose}
           />
+        )}
+
+        {tab === "new" && goods.isCurrentSeason && tradeDeadlinePassed && (
+          <p className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 text-sm text-slate-400">
+            The trade deadline has passed, so no new proposals can be sent.
+          </p>
         )}
 
         {tab === "new" && !goods.isCurrentSeason && (
@@ -2003,6 +2063,7 @@ function TradesPageContent({
                   isOwner={goods.userRole === "owner"}
                   onAction={handleAction}
                   readOnly={!goods.isCurrentSeason}
+                  deadlinePassed={tradeDeadlinePassed}
                 />
               ))
             )}
@@ -2027,6 +2088,7 @@ function TradesPageContent({
                   isOwner={goods.userRole === "owner"}
                   onAction={handleAction}
                   readOnly={!goods.isCurrentSeason}
+                  deadlinePassed={tradeDeadlinePassed}
                 />
               ))
             )}

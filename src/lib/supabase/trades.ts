@@ -72,6 +72,11 @@ export type TradeSettings = {
    * token amount to be measured against.
    */
   allow_token_trades: boolean;
+  /**
+   * When trading closes for the season, or null/absent when no deadline is set.
+   * After this instant no trade may be proposed, accepted, or approved.
+   */
+  trade_deadline_at?: string | null;
 };
 
 /** A team slot in the season with its owner's resolved display info. */
@@ -401,7 +406,7 @@ export async function loadTradesPageData(
     supabase
       .from("league_settings")
       .select(
-        "enable_pokemon_costs, total_token_salary, allow_per_team_salary, admins_approve_trades, owners_admins_vote_on_trades, allow_token_trades",
+        "enable_pokemon_costs, total_token_salary, allow_per_team_salary, admins_approve_trades, owners_admins_vote_on_trades, allow_token_trades, trade_deadline_at",
       )
       .eq("season_id", season.id)
       .maybeSingle(),
@@ -431,6 +436,7 @@ export async function loadTradesPageData(
     admins_approve_trades: boolean;
     owners_admins_vote_on_trades: boolean;
     allow_token_trades: boolean;
+    trade_deadline_at: string | null;
   } | null;
 
   const settings: TradeSettings | null = settingsRow
@@ -441,6 +447,7 @@ export async function loadTradesPageData(
         admins_approve_trades: settingsRow.admins_approve_trades,
         owners_admins_vote_on_trades: settingsRow.owners_admins_vote_on_trades,
         allow_token_trades: settingsRow.allow_token_trades,
+        trade_deadline_at: settingsRow.trade_deadline_at ?? null,
       }
     : null;
 

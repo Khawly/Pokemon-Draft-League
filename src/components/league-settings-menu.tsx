@@ -1,7 +1,7 @@
 /*
  * League settings menu for the Pokemon Draft League.
  *
- * The gear beside the season selector in the global league sub-navigation. Its
+ * The gear in the global top navigation, after the league page tabs. Its
  * entries carry the league and season currently on screen, so opening League or
  * Draft Settings lands on the season the member is looking at rather than
  * resolving the newest one for itself.

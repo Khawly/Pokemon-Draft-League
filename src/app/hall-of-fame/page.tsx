@@ -17,7 +17,7 @@ import { useSearchParams } from "next/navigation";
 import { GymBadge } from "@/components/gym-badge";
 import { MemberAvatar } from "@/components/member-avatar";
 import { MemberName } from "@/components/member-name";
-import { PokeballSprite } from "@/components/pokeball-sprite";
+import { SpriteTile } from "@/components/sprite-tile";
 import { badgeForSeason } from "@/lib/hall-of-fame";
 import {
   getSelectedLeague,
@@ -42,7 +42,7 @@ export default function HallOfFamePage() {
     <Suspense
       fallback={
         <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
-          <div className="mx-auto max-w-6xl rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
+          <div className="mx-auto max-w-[96rem] rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
             <LoadingGif label="Loading the Hall of Fame" />
           </div>
         </main>
@@ -115,7 +115,7 @@ function ChampionCard({ entry }: { entry: HallOfFameEntry }) {
                     one: large enough to read the artwork, small enough that a six-Pokemon
                     roster still fits.
                   */}
-                  <PokeballSprite
+                  <SpriteTile
                     spriteId={pokemon.spriteId}
                     name={pokemon.name}
                     size={75}
@@ -212,7 +212,7 @@ function HallOfFameContent() {
 
   return (
     <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
-      <div className="mx-auto max-w-6xl space-y-6">
+      <div className="mx-auto max-w-[96rem] space-y-6">
         <header className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-2xl shadow-slate-950/40">
           <h1 className="text-3xl font-bold text-white">Hall of Fame</h1>
           <p className="mt-1 text-sm text-slate-400">

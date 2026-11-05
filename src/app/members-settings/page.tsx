@@ -19,6 +19,8 @@ import { useConfirm } from "@/components/confirm-dialog";
 import { MemberName } from "@/components/member-name";
 import { MemberAvatar } from "@/components/member-avatar";
 import { LoadingGif } from "@/components/loading-gif";
+import { getSelectedSeason } from "@/lib/season-selection";
+import { formatSeasonLabel, loadSeason } from "@/lib/supabase/seasons";
 
 /** Normalized representation of an active league member for display and mutation. */
 type MemberRow = {
@@ -39,7 +41,10 @@ type MemberRow = {
   avatar_initials: string | null;
   /** The member's stored name colour, raw, or null when they have not chosen one. */
   name_color: string | null;
-  /** Per-member token salary override, or null to use the league default. */
+  /**
+   * The member's token salary for the selected season: their team override when
+   * one is set, otherwise that season's league default.
+   */
   total_token_salary: number | null;
 };
 
@@ -52,7 +57,7 @@ export default function MembersSettingsPage() {
     <Suspense
       fallback={
         <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
-          <div className="mx-auto max-w-6xl rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
+          <div className="mx-auto max-w-[96rem] rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
             <LoadingGif label="Loading members settings" />
           </div>
         </main>
@@ -80,6 +85,12 @@ function MembersSettingsPageContent() {
   const [ownerUserId, setOwnerUserId] = useState<string | null>(null);
   const [allowPerTeamSalary, setAllowPerTeamSalary] = useState(false);
   const [defaultTotalTokenSalary, setDefaultTotalTokenSalary] = useState(0);
+  /** The season whose team salaries this page is showing. */
+  const [season, setSeason] = useState<{
+    id: string;
+    season_number: number;
+    name: string | null;
+  } | null>(null);
   const [hasMemberSalaryChanges, setHasMemberSalaryChanges] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isBusy, setIsBusy] = useState(false);
@@ -145,37 +156,70 @@ function MembersSettingsPageContent() {
         setLeagueName(league.name || "");
         setOwnerUserId(league.owner_id);
 
-        const { data: activeSeason, error: seasonError } = await supabase
-          .from("seasons")
-          .select("id")
+        const { data: seasonData, error: seasonError } = await loadSeason<{
+          id: string;
+          season_number: number;
+          name: string | null;
+        }>(
+          league.id,
+          "id, season_number, name",
+          // The settings menu carries the season on screen; a direct visit falls
+          // back to the last season the member chose, then to the newest.
+          searchParams.get("seasonId") ?? getSelectedSeason(league.id),
+        );
+
+        if (seasonError || !seasonData) {
+          setError("This league's season could not be loaded.");
+          return;
+        }
+
+        setSeason(seasonData);
+
+        const { data: settingsData, error: settingsError } = await supabase
+          .from("league_settings")
+          .select("total_token_salary, allow_per_team_salary")
           .eq("league_id", league.id)
-          .order("season_number", { ascending: false })
-          .limit(1)
+          .eq("season_id", seasonData.id)
           .maybeSingle();
 
-        const { data: settingsData, error: settingsError } = activeSeason
-          ? await supabase
-              .from("league_settings")
-              .select("total_token_salary, allow_per_team_salary")
-              .eq("league_id", league.id)
-              .eq("season_id", activeSeason.id)
-              .maybeSingle()
-          : { data: null, error: null };
+        const seasonDefaultSalary = Number(
+          settingsData?.total_token_salary ?? 0,
+        );
 
         if (!settingsError && settingsData) {
           setAllowPerTeamSalary(Boolean(settingsData.allow_per_team_salary));
-          setDefaultTotalTokenSalary(
-            Number(settingsData.total_token_salary ?? 0),
-          );
+          setDefaultTotalTokenSalary(seasonDefaultSalary);
         } else {
           setAllowPerTeamSalary(false);
           setDefaultTotalTokenSalary(0);
         }
 
+        /*
+         * Salaries are stored per team and season, so read the selected season's
+         * team rows. league_members.total_token_salary is only a league-wide
+         * template and would show a newer season's value while looking back.
+         */
+        const { data: teamSalaryRows, error: teamSalaryError } = await supabase
+          .from("teams")
+          .select("owner_user_id, total_salary_override")
+          .eq("league_id", league.id)
+          .eq("season_id", seasonData.id);
+
+        if (teamSalaryError) {
+          throw teamSalaryError;
+        }
+
+        const salaryByOwner = new Map(
+          ((teamSalaryRows ?? []) as {
+            owner_user_id: string;
+            total_salary_override: number | null;
+          }[]).map((row) => [row.owner_user_id, row.total_salary_override]),
+        );
+
         const { data: memberships, error: membershipsError } = await supabase
           .from("league_members")
           .select(
-            "user_id, role, joined_at, is_active, total_token_salary, profiles: user_id (display_name, avatar_url, avatar_initials, name_color)",
+            "user_id, role, joined_at, is_active, profiles: user_id (display_name, avatar_url, avatar_initials, name_color)",
           )
           .eq("league_id", league.id)
           .eq("is_active", true)
@@ -193,6 +237,8 @@ function MembersSettingsPageContent() {
             name_color?: string | null;
           } | null;
 
+          const seasonOverride = salaryByOwner.get(member.user_id);
+
           return {
             user_id: member.user_id,
             role:
@@ -203,9 +249,11 @@ function MembersSettingsPageContent() {
             avatar_initials: profile?.avatar_initials ?? null,
             name_color: profile?.name_color ?? null,
             total_token_salary:
-              typeof member.total_token_salary === "number"
-                ? member.total_token_salary
-                : null,
+              typeof seasonOverride === "number"
+                ? seasonOverride
+                : settingsData?.allow_per_team_salary
+                  ? seasonDefaultSalary
+                  : null,
           } satisfies MemberRow;
         });
 
@@ -322,9 +370,9 @@ function MembersSettingsPageContent() {
     setHasMemberSalaryChanges(true);
   }
 
-  /** Saves all member salary overrides to the database in parallel. */
+  /** Saves all member salary overrides for the selected season in parallel. */
   async function saveMemberSalaryChanges() {
-    if (!leagueId || !isOwner || !allowPerTeamSalary) {
+    if (!leagueId || !season?.id || !isOwner || !allowPerTeamSalary) {
       return;
     }
 
@@ -334,16 +382,17 @@ function MembersSettingsPageContent() {
 
     try {
       // Fire all salary update requests in parallel and check for the first failure.
-      // The RPC updates league_members and mirrors the value onto the member's
-      // team rows so every page (Teams, Pokemon, Draft) reflects the change.
+      // The RPC writes the selected season's team rows; it does not touch another
+      // season's budgets.
       const updatePromises = members.map((member) => {
         const nextValue =
           typeof member.total_token_salary === "number"
             ? member.total_token_salary
             : defaultTotalTokenSalary;
 
-        return supabase.rpc("update_league_member_salary", {
+        return supabase.rpc("update_team_salary_for_season", {
           p_league_id: leagueId,
+          p_season_id: season.id,
           p_user_id: member.user_id,
           p_total_token_salary: nextValue,
         });
@@ -626,7 +675,7 @@ function MembersSettingsPageContent() {
   if (isLoading) {
     return (
       <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
-        <div className="mx-auto max-w-6xl rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
+        <div className="mx-auto max-w-[96rem] rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
           <LoadingGif label="Loading members settings" />
         </div>
       </main>
@@ -635,7 +684,7 @@ function MembersSettingsPageContent() {
 
   return (
     <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
-      <div className="mx-auto max-w-6xl space-y-6">
+      <div className="mx-auto max-w-[96rem] space-y-6">
         <header className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-2xl shadow-slate-950/40">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
@@ -644,6 +693,7 @@ function MembersSettingsPageContent() {
               </h1>
               <p className="mt-2 text-sm text-slate-400">
                 {leagueName || "League members"}
+                {season ? ` • ${formatSeasonLabel(season)}` : ""}
               </p>
             </div>
 

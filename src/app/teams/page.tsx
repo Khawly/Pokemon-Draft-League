@@ -114,7 +114,7 @@ export default function TeamsPage() {
     <Suspense
       fallback={
         <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
-          <div className="mx-auto max-w-6xl rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
+          <div className="mx-auto max-w-[96rem] rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
             <LoadingGif label="Loading teams" />
           </div>
         </main>
@@ -741,7 +741,7 @@ function MatchHistory({
    * rendered in the colour its owner picked.
    */
   teamName: ReactNode;
-  /** The selected player's matches, oldest first. */
+  /** The selected player's played or decided matches, oldest first in the payload. */
   matches: TeamMatch[];
   /** True when the signed-in user is a league owner or admin. */
   isStaff: boolean;
@@ -749,6 +749,15 @@ function MatchHistory({
   onDelete: (match: TeamMatch) => void;
 }) {
   const timeZone = useUserTimeZone();
+  /*
+   * The table reads newest week first. The payload arrives oldest first so the
+   * rest of the page can keep its own ordering; sorting a copy here leaves that
+   * input untouched and pins the rule to the panel that displays it.
+   */
+  const weekDescending = useMemo(
+    () => [...matches].sort((a, b) => b.week_number - a.week_number),
+    [matches],
+  );
 
   return (
     <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-lg shadow-slate-950/30">
@@ -785,7 +794,7 @@ function MatchHistory({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800 bg-slate-900">
-              {matches.map((match) => (
+              {weekDescending.map((match) => (
                 <tr key={match.id} className="hover:bg-slate-800/80">
                   <td className="whitespace-nowrap px-4 py-3 font-medium text-slate-200">
                     Week {match.week_number}
@@ -888,10 +897,20 @@ function TeamsPageContent({
   const [error, setError] = useState<string | null>(null);
 
   const requestedLeagueId = searchParams?.get("leagueId") ?? null;
+  /*
+   * The selected season travels in the URL when the shell's season selector
+   * changes it. Fall back to the stored choice for a page opened without a
+   * season parameter. Passing it explicitly keeps the Teams page -- and the
+   * match history panel in particular -- on the season the header is showing.
+   */
+  const requestedSeasonId = searchParams?.get("seasonId") ?? null;
 
   const refresh = useCallback(
-    async (leagueId: string) => {
-      const next = await loadTeamPageData(leagueId, getSelectedSeason(leagueId));
+    async (leagueId: string, seasonId?: string | null) => {
+      const next = await loadTeamPageData(
+        leagueId,
+        seasonId ?? getSelectedSeason(leagueId),
+      );
       setGoods(next);
       setSelectedTeamId((current) => current ?? next.myTeamId ?? next.teams[0]?.id ?? null);
       return next;
@@ -950,7 +969,10 @@ function TeamsPageContent({
           return;
         }
 
-        const next = await loadTeamPageData(selectedLeagueId, getSelectedSeason(selectedLeagueId));
+        const next = await loadTeamPageData(
+          selectedLeagueId,
+          requestedSeasonId ?? getSelectedSeason(selectedLeagueId),
+        );
         if (!cancelled) {
           setGoods(next);
           setSelectedTeamId(
@@ -977,7 +999,7 @@ function TeamsPageContent({
     return () => {
       cancelled = true;
     };
-  }, [router, requestedLeagueId]);
+  }, [router, requestedLeagueId, requestedSeasonId]);
 
   const selectedTeam = useMemo(
     () => goods?.teams.find((team) => team.id === selectedTeamId) ?? null,
@@ -1031,10 +1053,18 @@ function TeamsPageContent({
     if (!goods || !selectedTeamId) {
       return [];
     }
+    /*
+     * Only decided or already-played matches belong in the history panel. The
+     * season's fixture list includes future weeks with no submitted game, and
+     * listing those there read as results that had already happened.
+     */
     return goods.matches.filter(
       (match) =>
-        match.player_1_team_id === selectedTeamId ||
-        match.player_2_team_id === selectedTeamId,
+        (match.player_1_team_id === selectedTeamId ||
+          match.player_2_team_id === selectedTeamId) &&
+        (match.results.length > 0 ||
+          match.status === "completed" ||
+          match.status === "forfeit"),
     );
   }, [goods, selectedTeamId]);
 
@@ -1079,7 +1109,7 @@ function TeamsPageContent({
       await dropRosterPokemon(goods.league.id, pokemon.pokemon_id, {
         teamId: droppingOtherTeam ? selectedTeamId : undefined,
       });
-      await refresh(goods.league.id);
+      await refresh(goods.league.id, goods.season?.id);
     } catch (caughtError) {
       setError(
         caughtError instanceof Error
@@ -1106,7 +1136,7 @@ function TeamsPageContent({
     try {
       if (goods) {
         await deleteMatch(match.id);
-        await refresh(goods.league.id);
+        await refresh(goods.league.id, goods.season?.id);
       }
     } catch (caughtError) {
       setError(
@@ -1122,7 +1152,7 @@ function TeamsPageContent({
   if (isLoading && !goods) {
     return (
       <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
-        <div className="mx-auto max-w-6xl rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
+        <div className="mx-auto max-w-[96rem] rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
           <LoadingGif label="Loading teams" />
         </div>
       </main>
@@ -1132,7 +1162,7 @@ function TeamsPageContent({
   if (error) {
     return (
       <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
-        <div className="mx-auto max-w-6xl rounded-2xl border border-red-800 bg-red-950/40 p-8 text-sm text-red-200 shadow-xl shadow-slate-950/40">
+        <div className="mx-auto max-w-[96rem] rounded-2xl border border-red-800 bg-red-950/40 p-8 text-sm text-red-200 shadow-xl shadow-slate-950/40">
           {error}
         </div>
       </main>
@@ -1186,7 +1216,7 @@ function TeamsPageContent({
 
   return (
     <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
-      <div className="mx-auto max-w-6xl space-y-6">
+      <div className="mx-auto max-w-[96rem] space-y-6">
         <header className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-2xl shadow-slate-950/40">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>

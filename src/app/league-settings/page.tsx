@@ -1,11 +1,12 @@
 /*
  * League settings page for the Pokemon Draft League.
  *
- * Lets an authorized user edit league metadata (name, player count), the league
- * format (6v6/4v4), and transaction/trade rules for the active season, plus the
- * recurring weekly deadline that automatically closes each week and moves the
- * league to the next week or the playoffs. Everything persists through Supabase
- * (direct writes for the metadata, owner RPCs for the deadline).
+ * Lets an authorized user edit league metadata (name, image, player count), the
+ * league format (6v6/4v4), transaction/trade rules, optional trade and free
+ * agency deadlines for the active season, plus the recurring weekly deadline
+ * that automatically closes each week and moves the league to the next week or
+ * the playoffs. Everything persists through Supabase (direct writes for the
+ * metadata and image URL, owner RPCs for the deadline).
  */
 "use client";
 
@@ -23,8 +24,10 @@ import { useConfirm } from "@/components/confirm-dialog";
 import {
   browserTimeZone,
   formatInTimeZone,
+  fromZonedInputValue,
   listTimeZones,
   formatTimeZoneLabel,
+  toZonedInputValue,
   toZonedParts,
   zonedTimeToInstant,
 } from "@/lib/datetime";
@@ -46,6 +49,7 @@ import {
 import { loadLatestSeason, saveSeasonName } from "@/lib/supabase/seasons";
 import { deleteLeague } from "@/lib/supabase/leagues";
 import { LoadingGif } from "@/components/loading-gif";
+import { compressImageFile } from "@/lib/image-upload";
 import { clearSelectedSeason, getSelectedSeason } from "@/lib/season-selection";
 import { clearSelectedLeague } from "@/lib/league-selection";
 import {
@@ -73,6 +77,23 @@ function defaultFirstDeadlineDate(time: string, timeZone: string): string {
 
   return (
     toZonedParts(new Date(now.getTime() + 86_400_000), timeZone)?.date ?? today
+  );
+}
+
+/** Storage bucket holding uploaded league images. */
+const LEAGUE_IMAGE_BUCKET = "league-images";
+
+/**
+ * Default value for a newly enabled trade or free agency deadline: one week
+ * from now, in the owner's browser zone, so switching a deadline on never closes
+ * the window in the same instant.
+ *
+ * @returns A `datetime-local` value in the browser's time zone.
+ */
+function defaultDeadlineInput(): string {
+  return toZonedInputValue(
+    new Date(Date.now() + 7 * 86_400_000).toISOString(),
+    browserTimeZone(),
   );
 }
 
@@ -126,7 +147,7 @@ export default function LeagueSettingsPage() {
     <Suspense
       fallback={
         <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
-          <div className="mx-auto max-w-6xl rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
+          <div className="mx-auto max-w-[96rem] rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
             <LoadingGif label="Loading league settings" />
           </div>
         </main>
@@ -189,6 +210,21 @@ function LeagueSettingsPageContent() {
   const [isDeadlineSaving, setIsDeadlineSaving] = useState(false);
   const [isStartingSeason, setIsStartingSeason] = useState(false);
   const [isDeletingLeague, setIsDeletingLeague] = useState(false);
+  const [leagueImageUrl, setLeagueImageUrl] = useState<string | null>(null);
+  const [leagueImagePreview, setLeagueImagePreview] = useState<string | null>(
+    null,
+  );
+  const [isUploadingLeagueImage, setIsUploadingLeagueImage] = useState(false);
+  const leagueImageFileRef = useRef<File | null>(null);
+  const leagueImageActionRef = useRef<"none" | "upload" | "remove">("none");
+  const leagueImageInputRef = useRef<HTMLInputElement>(null);
+  const [tradeDeadlineEnabled, setTradeDeadlineEnabled] = useState(false);
+  const [tradeDeadlineInput, setTradeDeadlineInput] = useState("");
+  const [freeAgencyDeadlineEnabled, setFreeAgencyDeadlineEnabled] =
+    useState(false);
+  const [freeAgencyDeadlineInput, setFreeAgencyDeadlineInput] = useState("");
+  /** Zone the deadline inputs are expressed in, shown beside the fields. */
+  const [deadlineEntryZone, setDeadlineEntryZone] = useState("UTC");
   const [isProgressing, setIsProgressing] = useState(false);
   const [progressState, setProgressState] = useState<WeekProgressState | null>(
     null,
@@ -316,7 +352,7 @@ function LeagueSettingsPageContent() {
           // Optional column: probe for number_of_players and fall back to a default if absent.
           const { data: detailedLeagueData } = await supabase
             .from("leagues")
-            .select("number_of_players")
+            .select("number_of_players, image_url")
             .eq("id", activeLeagueId)
             .maybeSingle();
 
@@ -327,6 +363,12 @@ function LeagueSettingsPageContent() {
           ) {
             resolvedNumberOfPlayers = detailedLeagueData.number_of_players;
           }
+
+          const loadedImageUrl =
+            (detailedLeagueData as { image_url?: string | null } | null)
+              ?.image_url ?? null;
+          setLeagueImageUrl(loadedImageUrl);
+          setLeagueImagePreview(loadedImageUrl);
         } catch {
           setSupportsNumberOfPlayers(false);
         }
@@ -388,6 +430,7 @@ function LeagueSettingsPageContent() {
           loadedDeadline?.week_deadline_timezone ?? browserTimeZone();
         const initialTime = loadedDeadline?.week_deadline_time ?? "20:00";
         setDeadlineTimeZone(initialTimeZone);
+        setDeadlineEntryZone(browserTimeZone());
         setDeadlineDate(
           loadedDeadline?.week_deadline_anchor_date ??
             defaultFirstDeadlineDate(initialTime, initialTimeZone),
@@ -401,6 +444,8 @@ function LeagueSettingsPageContent() {
           owners_admins_vote_on_trades?: boolean | null;
           allow_token_trades?: boolean | null;
           enable_pokemon_costs?: boolean | null;
+          trade_deadline_at?: string | null;
+          free_agency_deadline_at?: string | null;
         } | null = null;
 
         try {
@@ -408,7 +453,7 @@ function LeagueSettingsPageContent() {
           const response = await supabase
             .from("league_settings")
             .select(
-              "enable_transaction_costs, transaction_cost, admins_approve_trades, owners_admins_vote_on_trades, allow_token_trades, enable_pokemon_costs, admins_edit_matchups",
+              "enable_transaction_costs, transaction_cost, admins_approve_trades, owners_admins_vote_on_trades, allow_token_trades, enable_pokemon_costs, admins_edit_matchups, trade_deadline_at, free_agency_deadline_at",
             )
             .eq("league_id", activeLeagueId)
             .eq("season_id", seasonData.id)
@@ -441,6 +486,10 @@ function LeagueSettingsPageContent() {
           setAllowTokenTrades(false);
           setAdminsEditMatchups(false);
           setPokemonCostsEnabled(false);
+          setTradeDeadlineEnabled(false);
+          setTradeDeadlineInput("");
+          setFreeAgencyDeadlineEnabled(false);
+          setFreeAgencyDeadlineInput("");
           setHasUnsavedChanges(false);
           return;
         }
@@ -470,6 +519,20 @@ function LeagueSettingsPageContent() {
         setAllowTokenTrades(nextSettings.allowTokenTrades);
         setAdminsEditMatchups(nextSettings.adminsEditMatchups);
         setPokemonCostsEnabled(Boolean(settingsData.enable_pokemon_costs));
+
+        const deadlineZone = browserTimeZone();
+        const tradeDeadlineAt = settingsData.trade_deadline_at ?? null;
+        const freeAgencyDeadlineAt =
+          settingsData.free_agency_deadline_at ?? null;
+
+        setTradeDeadlineEnabled(Boolean(tradeDeadlineAt));
+        setTradeDeadlineInput(
+          toZonedInputValue(tradeDeadlineAt, deadlineZone),
+        );
+        setFreeAgencyDeadlineEnabled(Boolean(freeAgencyDeadlineAt));
+        setFreeAgencyDeadlineInput(
+          toZonedInputValue(freeAgencyDeadlineAt, deadlineZone),
+        );
         setHasUnsavedChanges(false);
       } finally {
         setIsLoading(false);
@@ -847,6 +910,54 @@ function LeagueSettingsPageContent() {
   }
 
   /**
+   * Validates, compresses, and stages a league image for upload.
+   *
+   * @param event - The file input change event.
+   */
+  async function handleLeagueImageUpload(
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) {
+    const file = event.target.files?.[0];
+
+    if (!file) {
+      return;
+    }
+
+    setIsUploadingLeagueImage(true);
+    setError(null);
+    setSuccessMessage(null);
+
+    try {
+      const normalizedFile = await compressImageFile(file, "league");
+      leagueImageActionRef.current = "upload";
+      leagueImageFileRef.current = normalizedFile;
+      setLeagueImagePreview(URL.createObjectURL(normalizedFile));
+      setHasUnsavedChanges(true);
+      setSuccessMessage("League image selected. Save changes to confirm.");
+    } catch (caughtError) {
+      setError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Unable to upload league image.",
+      );
+    } finally {
+      setIsUploadingLeagueImage(false);
+      if (event.target) {
+        event.target.value = "";
+      }
+    }
+  }
+
+  /** Stages the current league image for removal; the delete happens on save. */
+  function removeLeagueImage() {
+    leagueImageActionRef.current = "remove";
+    leagueImageFileRef.current = null;
+    setLeagueImagePreview(null);
+    setHasUnsavedChanges(true);
+    setSuccessMessage("League image removed. Save changes to confirm.");
+  }
+
+  /**
    * Saves league metadata to the leagues table and settings to the league_settings table.
    * Re-probes schema support before saving and throws if required columns are missing.
    */
@@ -879,6 +990,24 @@ function LeagueSettingsPageContent() {
       : null;
     const normalizedOwnersAdminsVoteOnTrades =
       adminsApproveTrades && ownersAdminsVoteOnTrades;
+
+    const deadlineZone = deadlineEntryZone;
+    const tradeDeadlineAt = tradeDeadlineEnabled
+      ? fromZonedInputValue(tradeDeadlineInput, deadlineZone)
+      : null;
+    const freeAgencyDeadlineAt = freeAgencyDeadlineEnabled
+      ? fromZonedInputValue(freeAgencyDeadlineInput, deadlineZone)
+      : null;
+
+    if (tradeDeadlineEnabled && !tradeDeadlineAt) {
+      setError("Choose a valid date and time for the trade deadline.");
+      return;
+    }
+
+    if (freeAgencyDeadlineEnabled && !freeAgencyDeadlineAt) {
+      setError("Choose a valid date and time for the free agency deadline.");
+      return;
+    }
 
     setIsSaving(true);
     setError(null);
@@ -923,7 +1052,7 @@ function LeagueSettingsPageContent() {
           await supabase
             .from("league_settings")
             .select(
-              "enable_transaction_costs, transaction_cost, admins_approve_trades, owners_admins_vote_on_trades, allow_token_trades, admins_edit_matchups",
+              "enable_transaction_costs, transaction_cost, admins_approve_trades, owners_admins_vote_on_trades, allow_token_trades, admins_edit_matchups, trade_deadline_at, free_agency_deadline_at",
             )
             .eq("league_id", leagueId)
             .eq("season_id", seasonId)
@@ -950,12 +1079,65 @@ function LeagueSettingsPageContent() {
         );
       }
 
+      /*
+       * Storage runs before the database write so a failed upload leaves the
+       * league's previous image in place rather than a URL that points nowhere.
+       */
+      let nextLeagueImageUrl = leagueImageUrl;
+
+      if (leagueImageActionRef.current === "remove") {
+        const { error: removeImageError } = await supabase.storage
+          .from(LEAGUE_IMAGE_BUCKET)
+          .remove([`${leagueId}/image.webp`]);
+
+        if (removeImageError) {
+          throw new Error(removeImageError.message);
+        }
+
+        nextLeagueImageUrl = null;
+      }
+
+      if (leagueImageActionRef.current === "upload") {
+        const fileToPersist = leagueImageFileRef.current;
+
+        if (!fileToPersist) {
+          throw new Error("No pending league image upload found.");
+        }
+
+        const filePath = `${leagueId}/image.webp`;
+        const { error: uploadImageError } = await supabase.storage
+          .from(LEAGUE_IMAGE_BUCKET)
+          .upload(filePath, fileToPersist, {
+            cacheControl: "0",
+            upsert: true,
+          });
+
+        if (uploadImageError) {
+          throw new Error(uploadImageError.message);
+        }
+
+        const { data } = supabase.storage
+          .from(LEAGUE_IMAGE_BUCKET)
+          .getPublicUrl(filePath);
+        nextLeagueImageUrl = `${data.publicUrl}?t=${Date.now()}`;
+      }
+
       const leagueUpdatePayload: {
         name: string;
         number_of_players?: number;
+        image_url?: string | null;
       } = {
         name: trimmedLeagueName,
       };
+
+      /*
+       * Only write image_url when there is an image to preserve or a pending
+       * change. A transient failure to read the existing image must not clear it
+       * as a side effect of saving an unrelated setting.
+       */
+      if (leagueImageActionRef.current !== "none" || leagueImageUrl !== null) {
+        leagueUpdatePayload.image_url = nextLeagueImageUrl;
+      }
 
       if (latestSupportsNumberOfPlayers) {
         leagueUpdatePayload.number_of_players = normalizedPlayers;
@@ -979,6 +1161,8 @@ function LeagueSettingsPageContent() {
         owners_admins_vote_on_trades?: boolean;
         allow_token_trades?: boolean;
         admins_edit_matchups?: boolean;
+        trade_deadline_at?: string | null;
+        free_agency_deadline_at?: string | null;
       } = {
         league_id: leagueId,
         season_id: seasonId,
@@ -997,6 +1181,8 @@ function LeagueSettingsPageContent() {
         settingsPayload.allow_token_trades =
           pokemonCostsEnabled && allowTokenTrades;
         settingsPayload.admins_edit_matchups = adminsEditMatchups;
+        settingsPayload.trade_deadline_at = tradeDeadlineAt;
+        settingsPayload.free_agency_deadline_at = freeAgencyDeadlineAt;
       } else {
         throw new Error(
           "League settings columns are not present in the live database. Please apply the required schema migration first.",
@@ -1030,6 +1216,10 @@ function LeagueSettingsPageContent() {
       // Kept in step with what was actually written, so a save that forced the flag
       // off does not leave the checkbox showing the state that was refused.
       setAllowTokenTrades(pokemonCostsEnabled && allowTokenTrades);
+      leagueImageActionRef.current = "none";
+      leagueImageFileRef.current = null;
+      setLeagueImageUrl(nextLeagueImageUrl);
+      setLeagueImagePreview(nextLeagueImageUrl);
       setSuccessMessage("League settings saved successfully.");
     } catch (caughtError) {
       const message =
@@ -1046,7 +1236,7 @@ function LeagueSettingsPageContent() {
   if (isLoading) {
     return (
       <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
-        <div className="mx-auto max-w-6xl rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
+        <div className="mx-auto max-w-[96rem] rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
           <LoadingGif label="Loading league settings" />
         </div>
       </main>
@@ -1056,7 +1246,7 @@ function LeagueSettingsPageContent() {
   if (accessAllowed === false) {
     return (
       <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
-        <div className="mx-auto max-w-6xl rounded-2xl border border-red-800 bg-red-950/30 p-8 text-sm text-red-200 shadow-xl shadow-slate-950/40">
+        <div className="mx-auto max-w-[96rem] rounded-2xl border border-red-800 bg-red-950/30 p-8 text-sm text-red-200 shadow-xl shadow-slate-950/40">
           <h1 className="mb-2 text-2xl font-bold text-white">Access Denied</h1>
           <p>
             Only the league owner can manage league settings. Returning to your
@@ -1170,7 +1360,7 @@ function LeagueSettingsPageContent() {
 
   return (
     <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
-      <div className="mx-auto max-w-6xl space-y-6">
+      <div className="mx-auto max-w-[96rem] space-y-6">
         <header className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-2xl shadow-slate-950/40">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
@@ -1257,6 +1447,54 @@ function LeagueSettingsPageContent() {
                   }}
                   className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-slate-100 outline-none transition focus:border-amber-400"
                 />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-medium text-slate-300">
+                  League image
+                </label>
+                <div className="flex flex-wrap items-center gap-4">
+                  <input
+                    ref={leagueImageInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    className="hidden"
+                    onChange={handleLeagueImageUpload}
+                  />
+                  {leagueImagePreview ? (
+                    <img
+                      src={leagueImagePreview}
+                      alt="League"
+                      className="h-16 w-16 rounded-xl border border-slate-700 object-cover"
+                    />
+                  ) : (
+                    <p className="text-sm text-slate-500">
+                      No league image uploaded.
+                    </p>
+                  )}
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => leagueImageInputRef.current?.click()}
+                      disabled={isUploadingLeagueImage}
+                      className="rounded-xl border border-slate-700 bg-slate-800 px-4 py-2 text-sm font-medium text-slate-100 transition hover:border-slate-500 hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {isUploadingLeagueImage ? "Uploading..." : "Upload image"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={removeLeagueImage}
+                      disabled={isUploadingLeagueImage || !leagueImagePreview}
+                      className="rounded-xl border border-red-800 bg-red-950/60 px-4 py-2 text-sm font-medium text-red-200 transition hover:bg-red-900/80 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </div>
+                <p className="mt-2 text-xs text-slate-500">
+                  PNG, JPG, or WebP, 100 KB max. Shown to the left of the league
+                  name on the dashboard.
+                </p>
               </div>
 
               {supportsSeasonName && (
@@ -1419,6 +1657,106 @@ function LeagueSettingsPageContent() {
               </div>
             </div>
           </div>
+        </section>
+
+        <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-lg shadow-slate-950/30">
+          <div>
+            <h2 className="text-xl font-bold text-white">Season deadlines</h2>
+            <p className="mt-1 text-sm text-slate-400">
+              Optional cut-off times for trading and free agent pickups. Leave a
+              checkbox off to keep that window open for the season. These are
+              saved with the Save Changes button at the top of the page.
+            </p>
+          </div>
+
+          <div className="mt-5 grid gap-6 lg:grid-cols-2">
+            <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-4">
+              <label className="flex items-center justify-between gap-3 text-sm text-slate-200">
+                <span>Trade deadline</span>
+                <input
+                  type="checkbox"
+                  checked={tradeDeadlineEnabled}
+                  onChange={(event) => {
+                    const next = event.target.checked;
+                    setTradeDeadlineEnabled(next);
+                    if (next && !tradeDeadlineInput) {
+                      setTradeDeadlineInput(defaultDeadlineInput());
+                    }
+                    setHasUnsavedChanges(true);
+                  }}
+                  className="h-4 w-4 accent-amber-500"
+                />
+              </label>
+
+              {tradeDeadlineEnabled && (
+                <div className="mt-3">
+                  <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.15em] text-slate-400">
+                    Trades close
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={tradeDeadlineInput}
+                    onChange={(event) => {
+                      setTradeDeadlineInput(event.target.value);
+                      setHasUnsavedChanges(true);
+                    }}
+                    className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-slate-100 outline-none transition focus:border-amber-400"
+                  />
+                </div>
+              )}
+
+              <p className="mt-3 text-xs text-slate-500">
+                After this time, members cannot propose, accept, or approve
+                trades.
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-4">
+              <label className="flex items-center justify-between gap-3 text-sm text-slate-200">
+                <span>Free agency deadline</span>
+                <input
+                  type="checkbox"
+                  checked={freeAgencyDeadlineEnabled}
+                  onChange={(event) => {
+                    const next = event.target.checked;
+                    setFreeAgencyDeadlineEnabled(next);
+                    if (next && !freeAgencyDeadlineInput) {
+                      setFreeAgencyDeadlineInput(defaultDeadlineInput());
+                    }
+                    setHasUnsavedChanges(true);
+                  }}
+                  className="h-4 w-4 accent-amber-500"
+                />
+              </label>
+
+              {freeAgencyDeadlineEnabled && (
+                <div className="mt-3">
+                  <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.15em] text-slate-400">
+                    Pickups close
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={freeAgencyDeadlineInput}
+                    onChange={(event) => {
+                      setFreeAgencyDeadlineInput(event.target.value);
+                      setHasUnsavedChanges(true);
+                    }}
+                    className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-slate-100 outline-none transition focus:border-amber-400"
+                  />
+                </div>
+              )}
+
+              <p className="mt-3 text-xs text-slate-500">
+                After this time, members cannot pick up free agents. The league
+                owner can still add or drop Pokémon on any team.
+              </p>
+            </div>
+          </div>
+
+          <p className="mt-4 text-xs text-slate-500">
+            Deadline times are entered in your device time zone (
+            {formatTimeZoneLabel(deadlineEntryZone)}).
+          </p>
         </section>
 
         <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-lg shadow-slate-950/30">

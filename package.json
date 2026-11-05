@@ -1,43 +1,43 @@
 {
-    "name":  "pokemon-draft-league",
-    "version":  "0.1.0",
-    "private":  true,
-    "scripts":  {
-                    "dev":  "next dev",
-                    "build":  "next build",
-                    "start":  "next start",
-                    "lint":  "eslint",
-                    "typecheck":  "tsc --noEmit",
-                    "test":  "vitest run",
-                    "test:watch":  "vitest",
-                    "test:coverage":  "vitest run --coverage",
-                    "db:login":  "supabase login",
-                    "db:link":  "supabase link",
-                    "db:push":  "supabase db push",
-                    "seed:bots":  "node scripts/seed-test-bots.mjs",
-                    "seed:standings":  "node scripts/seed-standings-results.mjs",
-                    "test:playoffs":  "node scripts/simulate-playoff-bracket.mjs"
-                },
-    "dependencies":  {
-                         "@supabase/server":  "^1.6.0",
-                         "@supabase/ssr":  "^0.12.7",
-                         "@supabase/supabase-js":  "^2.116.0",
-                         "next":  "^16.3.4",
-                         "react":  "19.2.8",
-                         "react-dom":  "19.2.8"
-                     },
-    "devDependencies":  {
-                            "@tailwindcss/postcss":  "^4",
-                            "@types/node":  "^20",
-                            "@types/react":  "^19",
-                            "@types/react-dom":  "^19",
-                            "@vitest/coverage-v8":  "^4.1.11",
-                            "babel-plugin-react-compiler":  "1.0.0",
-                            "eslint":  "^9",
-                            "eslint-config-next":  "16.3.1",
-                            "supabase":  "^2.117.0",
-                            "tailwindcss":  "^4",
-                            "typescript":  "^5",
-                            "vitest":  "^4.1.11"
-                        }
+    "name": "pokemon-draft-league",
+    "version": "0.1.0",
+    "private": true,
+    "scripts": {
+        "dev": "next dev",
+        "build": "next build",
+        "start": "next start",
+        "lint": "eslint",
+        "typecheck": "tsc --noEmit",
+        "test": "vitest run",
+        "test:watch": "vitest",
+        "test:coverage": "vitest run --coverage",
+        "db:login": "supabase login",
+        "db:link": "supabase link",
+        "db:push": "supabase db push",
+        "seed:bots": "node scripts/seed-test-bots.mjs",
+        "seed:standings": "node scripts/seed-standings-results.mjs",
+        "test:playoffs": "node scripts/simulate-playoff-bracket.mjs"
+    },
+    "dependencies": {
+        "@supabase/server": "^1.6.0",
+        "@supabase/ssr": "^0.12.7",
+        "@supabase/supabase-js": "^2.116.0",
+        "next": "^16.3.4",
+        "react": "19.2.8",
+        "react-dom": "19.2.8"
+    },
+    "devDependencies": {
+        "@tailwindcss/postcss": "^4",
+        "@types/node": "^20",
+        "@types/react": "^19",
+        "@types/react-dom": "^19",
+        "@vitest/coverage-v8": "^4.1.11",
+        "babel-plugin-react-compiler": "1.0.0",
+        "eslint": "^9",
+        "eslint-config-next": "16.3.1",
+        "supabase": "^3.0.0",
+        "tailwindcss": "^4",
+        "typescript": "^5",
+        "vitest": "^4.1.11"
+    }
 }

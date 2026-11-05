@@ -40,6 +40,11 @@ export type PokemonSettings = {
   allow_per_team_salary: boolean;
   enable_transaction_costs: boolean;
   transaction_cost: number | null;
+  /**
+   * When free agent pickups close for the season, or null/absent when the owner
+   * has not set a deadline. Owners keep their add override after this instant.
+   */
+  free_agency_deadline_at?: string | null;
 };
 
 /** The signed-in user's team slot in the current season. */
@@ -343,7 +348,7 @@ export async function loadPokemonPageData(
     supabase
       .from("league_settings")
       .select(
-        "enable_pokemon_costs, total_token_salary, allow_per_team_salary, enable_transaction_costs, transaction_cost",
+        "enable_pokemon_costs, total_token_salary, allow_per_team_salary, enable_transaction_costs, transaction_cost, free_agency_deadline_at",
       )
       .eq("season_id", season.id)
       .maybeSingle(),
@@ -371,6 +376,7 @@ export async function loadPokemonPageData(
     allow_per_team_salary: boolean;
     enable_transaction_costs: boolean;
     transaction_cost: number | null;
+    free_agency_deadline_at: string | null;
   } | null;
 
   const settings: PokemonSettings | null = settingsRow
@@ -380,6 +386,7 @@ export async function loadPokemonPageData(
         allow_per_team_salary: settingsRow.allow_per_team_salary,
         enable_transaction_costs: settingsRow.enable_transaction_costs,
         transaction_cost: settingsRow.transaction_cost,
+        free_agency_deadline_at: settingsRow.free_agency_deadline_at ?? null,
       }
     : null;
 
@@ -796,12 +803,11 @@ export function transactionNamesTeam(
 export const ALL_POKEMON_TYPES = "all";
 
 /**
- * Counts how many rows carry each type, for the type dropdown's option labels.
+ * Counts how many rows carry each type, for the type filter chips' labels.
  *
  * A member picking a type wants to know whether the pool has any before they
  * select it. Without a count, choosing a type with no rows in the pool silently
- * reorders the table into "everything else, by tier" and reads as a control that
- * did nothing.
+ * empties the table and reads as a control that did nothing.
  *
  * Types are matched case-insensitively and a dual-typed Pokémon counts once per
  * type it carries, which is what a member scanning for a Water Pokémon expects

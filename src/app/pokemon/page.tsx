@@ -3,7 +3,8 @@
  *
  * Implements spec section 11. Lists every free agent (each Pokémon in the
  * season's draft pool that is not currently on any team) with a Table/Tiers
- * tab, a "Find Pokemon" search box, and a per-row pickup control: `+` starts a
+ * tab, a "Find Pokemon" search box, type filter chips, and a per-row pickup
+ * control: `+` starts a
  * pending add that confirms the Pokémon's cost (tier plus transaction cost when
  * enabled) and the projected balance after the purchase before the
  * `pickup_roster_pokemon` RPC claims it; `-` cancels the pending add. A league
@@ -30,10 +31,10 @@ import { AbilityTooltip } from "@/components/ability-tooltip";
 import { MemberName } from "@/components/member-name";
 import { getSpriteUrl } from "@/lib/pokeapi";
 import { formatSeasonLabel, rosterChangesOpen } from "@/lib/supabase/seasons";
-import { formatDateTimeInZone } from "@/lib/datetime";
+import { formatDateTimeInZone, formatTimeZoneLabel } from "@/lib/datetime";
 import { useUserTimeZone } from "@/lib/user-timezone";
+import { isDeadlinePassed } from "@/lib/deadlines";
 import {
-  ALL_POKEMON_TYPES,
   getPickupCost,
   getPokemonSalary,
   getTeamSalary,
@@ -41,14 +42,12 @@ import {
   loadPokemonPageData,
   pickupRosterPokemon,
   poolTypeCounts,
-  sortPoolByType,
   transactionNamesTeam,
   type PokemonGoods,
   type PokemonPoolRow,
   type PokemonTeam,
   type PokemonTeamOption,
 } from "@/lib/supabase/pokemon";
-import { TYPE_LIST } from "@/lib/typechart";
 import { LoadingGif } from "@/components/loading-gif";
 import { TablePagination } from "@/components/table-pagination";
 
@@ -88,7 +87,7 @@ export default function PokemonPage() {
     <Suspense
       fallback={
         <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
-          <div className="mx-auto max-w-6xl rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
+          <div className="mx-auto max-w-[96rem] rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
             <LoadingGif label="Loading free agents" />
           </div>
         </main>
@@ -1086,6 +1085,7 @@ function PokemonPageContent({
   searchParams: URLSearchParams | null;
 }) {
   const router = useRouter();
+  const timeZone = useUserTimeZone();
   const requestedLeagueId = searchParams?.get("leagueId") ?? null;
 
   const [goods, setGoods] = useState<PokemonGoods | null>(null);
@@ -1097,12 +1097,11 @@ function PokemonPageContent({
   const [sortKey, setSortKey] = useState<PokemonSortKey>("tier");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   /*
-   * The type the table is grouped by, or ALL_POKEMON_TYPES. Held apart from
-   * `sortKey` because it is a grouping rather than a column order: it leads the
-   * table when set and steps aside when a column header is sorted, instead of
-   * fighting the header for control of the order.
+   * The type the pool is filtered to, or null for every type. The chip bar owns
+   * this, and it filters rather than reorders so the row count means what the
+   * chip says.
    */
-  const [typeSort, setTypeSort] = useState<string>(ALL_POKEMON_TYPES);
+  const [typeFilter, setTypeFilter] = useState<string | null>(null);
   const [pendingPokemonId, setPendingPokemonId] = useState<string | null>(null);
   const [confirmTarget, setConfirmTarget] = useState<PokemonPoolRow | null>(null);
   /*
@@ -1208,14 +1207,39 @@ function PokemonPageContent({
   }, [router, requestedLeagueId]);
 
   /*
-   * How many free agents carry each type, so the dropdown can label its options
-   * with the count. Recomputed with the payload rather than on every keystroke,
-   * since the pool only changes when the league's data is reloaded.
+   * How many free agents carry each type, so the filter chips can label
+   * themselves with the count. Recomputed with the payload rather than on every
+   * keystroke, since the pool only changes when the league's data is reloaded.
    */
   const typeCounts = useMemo(
     () => poolTypeCounts(goods?.pool ?? []),
     [goods?.pool],
   );
+
+  /*
+   * The type chips, in the same alphabetical order the draft page uses. Only
+   * types currently present in the pool are shown; a chip whose count is zero
+   * would offer a filter that cannot produce a row.
+   */
+  const typeOptions = useMemo(
+    () =>
+      [...typeCounts.entries()]
+        .map(([type, count]) => ({ type, count }))
+        .sort((a, b) => a.type.localeCompare(b.type)),
+    [typeCounts],
+  );
+
+  /*
+   * Split the type chips into two even rows. The All chip is prepended to the
+   * first row so the type chips themselves stay balanced (9 + 9 for a full pool).
+   */
+  const typeRows = useMemo(() => {
+    const splitAt = Math.ceil(typeOptions.length / 2);
+    return [
+      typeOptions.slice(0, splitAt),
+      typeOptions.slice(splitAt),
+    ];
+  }, [typeOptions]);
 
   const filtered = useMemo(() => {
     if (!goods) {
@@ -1223,21 +1247,23 @@ function PokemonPageContent({
     }
     const query = search.trim().toLowerCase();
     const matches = goods.pool.filter((row) => {
-      if (!query) {
-        return true;
+      if (query) {
+        const haystack =
+          `${row.name} ${row.species_name} ${row.pokemon_id}`.toLowerCase();
+        if (!haystack.includes(query)) {
+          return false;
+        }
       }
-      const haystack = `${row.name} ${row.species_name} ${row.pokemon_id}`.toLowerCase();
-      return haystack.includes(query);
-    });
 
-    /*
-     * A selected type leads the table and the column headers then order within
-     * it, so the type stays the primary grouping the member asked for. With no
-     * type selected the column sort owns the order on its own.
-     */
-    if (typeSort !== ALL_POKEMON_TYPES) {
-      return sortPoolByType(matches, typeSort);
-    }
+      if (
+        typeFilter &&
+        !row.types.some((type) => type.toLowerCase() === typeFilter)
+      ) {
+        return false;
+      }
+
+      return true;
+    });
 
     return matches
       .slice()
@@ -1245,7 +1271,7 @@ function PokemonPageContent({
         (a, b) =>
           compareRows(a, b, sortKey, sortDir) || a.name.localeCompare(b.name),
       );
-  }, [goods, search, sortKey, sortDir, typeSort]);
+  }, [goods, search, sortKey, sortDir, typeFilter]);
 
   /*
    * Clamp rather than store the page: a pickup removes a free agent, which can
@@ -1286,9 +1312,14 @@ function PokemonPageContent({
     goods && goods.league.owner_id === goods.currentUserId,
   );
 
+  const freeAgencyDeadlinePassed = isDeadlinePassed(
+    goods?.settings?.free_agency_deadline_at,
+  );
+
   const canPickup = Boolean(
     goods &&
       goods.isCurrentSeason &&
+      (isOwner || !freeAgencyDeadlinePassed) &&
       rosterChangesOpen(goods.season?.status, isOwner) &&
       (goods.myTeam != null || isOwner),
   );
@@ -1299,11 +1330,13 @@ function PokemonPageContent({
       ? "This is a past season, so its rosters are read-only. Switch to the current season from the dashboard to make changes."
       : !goods.myTeam && !isOwner
         ? "You do not own a team in this season, so you cannot pick up free agents."
-        : !rosterChangesOpen(goods.season?.status, isOwner)
-          ? goods.season?.status === "draft_active"
-            ? "Free agent pickups are unavailable while the draft is in progress. They unlock again once the draft is complete."
-            : "Free agent pickups unlock once the draft is complete."
-          : "";
+        : !isOwner && freeAgencyDeadlinePassed
+          ? "The free agency deadline has passed. Only the league owner can add free agents now."
+          : !rosterChangesOpen(goods.season?.status, isOwner)
+            ? goods.season?.status === "draft_active"
+              ? "Free agent pickups are unavailable while the draft is in progress. They unlock again once the draft is complete."
+              : "Free agent pickups unlock once the draft is complete."
+            : "";
 
   function handleSort(column: PokemonSortKey) {
     setPage(1);
@@ -1437,7 +1470,7 @@ function PokemonPageContent({
   if (isLoading && !goods) {
     return (
       <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
-        <div className="mx-auto max-w-6xl rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
+        <div className="mx-auto max-w-[96rem] rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
           <LoadingGif label="Loading free agents" />
         </div>
       </main>
@@ -1447,7 +1480,7 @@ function PokemonPageContent({
   if (error && !goods) {
     return (
       <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
-        <div className="mx-auto max-w-6xl rounded-2xl border border-red-800 bg-red-950/40 p-8 text-sm text-red-200 shadow-xl shadow-slate-950/40">
+        <div className="mx-auto max-w-[96rem] rounded-2xl border border-red-800 bg-red-950/40 p-8 text-sm text-red-200 shadow-xl shadow-slate-950/40">
           {error}
         </div>
       </main>
@@ -1460,7 +1493,7 @@ function PokemonPageContent({
 
   return (
     <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
-      <div className="mx-auto max-w-6xl space-y-6">
+      <div className="mx-auto max-w-[96rem] space-y-6">
         <header className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-2xl shadow-slate-950/40">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
@@ -1529,7 +1562,40 @@ function PokemonPageContent({
             </div>
           </div>
 
-          <div className="mt-5 flex flex-wrap items-center justify-between gap-4 border-t border-slate-700 pt-4">
+          {goods.settings?.free_agency_deadline_at && (
+            <p
+              className={`mt-4 rounded-xl border px-4 py-3 text-sm ${
+                freeAgencyDeadlinePassed
+                  ? "border-rose-800 bg-rose-950/40 text-rose-200"
+                  : "border-amber-800 bg-amber-950/40 text-amber-200"
+              }`}
+            >
+              {freeAgencyDeadlinePassed ? (
+                <>
+                  The free agency deadline passed on{" "}
+                  {formatDateTimeInZone(
+                    goods.settings.free_agency_deadline_at,
+                    timeZone,
+                  )}{" "}
+                  ({formatTimeZoneLabel(timeZone)}).{" "}
+                  {isOwner
+                    ? "Member pickups are closed, but as league owner you can still add players."
+                    : "Member pickups are closed."}
+                </>
+              ) : (
+                <>
+                  Free agent pickups close on{" "}
+                  {formatDateTimeInZone(
+                    goods.settings.free_agency_deadline_at,
+                    timeZone,
+                  )}{" "}
+                  ({formatTimeZoneLabel(timeZone)}).
+                </>
+              )}
+            </p>
+          )}
+
+          <div className="mt-5 flex flex-wrap items-center gap-4 border-t border-slate-700 pt-4">
             <div className="flex gap-2">
               <button
                 type="button"
@@ -1555,46 +1621,82 @@ function PokemonPageContent({
               </button>
             </div>
 
-            <div className="flex w-full max-w-xl flex-col gap-3 sm:flex-row sm:items-center">
-              <input
-                type="text"
-                value={search}
-                onChange={(event) => {
-                  setSearch(event.target.value);
-                  setPage(1);
-                }}
-                placeholder="Find Pokemon"
-                aria-label="Find Pokemon"
-                className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none transition focus:border-amber-400"
-              />
-              {/*
-               * Sorts rather than filters, so the label says so: the row count
-               * never changes, the chosen type just leads the table. Option labels
-               * carry the count so a type the pool has none of is visibly empty
-               * before it is picked, instead of looking like a control that did
-               * nothing once it was.
-               */}
-              <label className="flex shrink-0 items-center gap-2">
-                <span className="text-xs font-semibold uppercase tracking-[0.15em] text-slate-400">
-                  Sort by type
-                </span>
-                <select
-                  value={typeSort}
-                  onChange={(event) => {
-                    setTypeSort(event.target.value);
-                    setPage(1);
-                  }}
-                  aria-label="Sort the free agent table by type"
-                  className="rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm capitalize text-slate-100 outline-none transition focus:border-amber-400"
+            <input
+              type="text"
+              value={search}
+              onChange={(event) => {
+                setSearch(event.target.value);
+                setPage(1);
+              }}
+              placeholder="Find Pokemon"
+              aria-label="Find Pokemon"
+              className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none transition focus:border-amber-400 sm:w-56"
+            />
+
+            {/*
+             * Type chips mirror the draft page: they filter rather than sort,
+             * and each one carries how many free agents it would show. The
+             * selected chip is marked with the same amber ring the draft pool
+             * uses, so the two pages read as the same control. The chips are
+             * split into two even rows, with All leading the first.
+             */}
+            <div className="flex flex-col gap-1.5">
+              {typeRows.map((row, rowIndex) => (
+                <div
+                  key={rowIndex}
+                  className="flex flex-wrap items-center gap-1.5"
                 >
-                  <option value={ALL_POKEMON_TYPES}>All types</option>
-                  {TYPE_LIST.map((type) => (
-                    <option key={type} value={type} className="capitalize">
-                      {type} ({typeCounts.get(type) ?? 0})
-                    </option>
+                  {rowIndex === 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTypeFilter(null);
+                        setPage(1);
+                      }}
+                      className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                        typeFilter == null
+                          ? "bg-amber-500/15 text-amber-300"
+                          : "bg-slate-800 text-slate-400 hover:bg-slate-700"
+                      }`}
+                    >
+                      All
+                    </button>
+                  )}
+                  {row.map(({ type, count }) => (
+                    <button
+                      key={type}
+                      type="button"
+                      onClick={() => {
+                        setTypeFilter((current) =>
+                          current === type ? null : type,
+                        );
+                        setPage(1);
+                      }}
+                      title={`${count} ${type}-type Pokémon in the pool`}
+                      className={`rounded-full px-2.5 py-1 text-xs font-semibold transition ${
+                        TYPE_STYLES[type] ?? "bg-slate-700 text-slate-200"
+                      } ${
+                        typeFilter === type
+                          ? "ring-2 ring-amber-400 ring-offset-2 ring-offset-slate-950"
+                          : typeFilter == null
+                            ? "hover:brightness-110"
+                            : "opacity-50 hover:opacity-100"
+                      }`}
+                    >
+                      <span className="flex items-center gap-1.5">
+                        {type.charAt(0).toUpperCase() + type.slice(1)}
+                        <span
+                          className={`rounded-full bg-slate-900/70 px-1.5 text-[10px] font-bold tabular-nums ${
+                            count === 0 ? "text-slate-500" : "text-slate-300"
+                          }`}
+                        >
+                          {count}
+                        </span>
+                      </span>
+                    </button>
                   ))}
-                </select>
-              </label>
+                </div>
+              ))}
             </div>
           </div>
         </header>

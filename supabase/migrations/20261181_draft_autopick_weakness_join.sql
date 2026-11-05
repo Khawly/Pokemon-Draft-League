@@ -520,7 +520,8 @@ BEGIN
   END IF;
   RETURN;
 END;
-$function$
+$function$;
+
 -- Keep the resolver callable only by signed-in users, as before; the grants are
 -- unchanged by CREATE OR REPLACE but restating them keeps a fresh apply correct.
 REVOKE ALL ON FUNCTION public.resolve_draft_timeout(UUID, BOOLEAN) FROM PUBLIC;

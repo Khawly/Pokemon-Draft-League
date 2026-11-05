@@ -19,6 +19,7 @@ import {
   formatTimeZoneLabel,
 } from "@/lib/datetime";
 import { cacheUserTimeZone } from "@/lib/user-timezone";
+import { compressImageFile } from "@/lib/image-upload";
 import {
   availabilityWeeksEqual,
   defaultAvailabilityWeek,
@@ -100,106 +101,11 @@ export default function SettingsPage() {
   const pendingAvatarActionRef = useRef<"none" | "upload" | "remove">("none");
   const pendingAvatarFileRef = useRef<File | null>(null);
 
-  const MAX_AVATAR_SIZE_BYTES = 100 * 1024;
-  const ALLOWED_AVATAR_TYPES = new Set([
-    "image/png",
-    "image/jpeg",
-    "image/webp",
-  ]);
-
-  /*
+  /**
    * The zone list only depends on the runtime's ICU data, so it is built once
    * rather than on every render of a page that re-renders on each keystroke.
    */
   const timeZoneOptions = useMemo(() => listTimeZones(), []);
-
-  /**
-   * Reads a file and returns its data URL string.
-   * @param file - The file to read.
-   * @returns A promise that resolves with the file's data URL.
-   */
-  function fileToDataUrl(file: File) {
-    return new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result));
-      reader.onerror = () => reject(new Error("Failed to read image file."));
-      reader.readAsDataURL(file);
-    });
-  }
-
-  /**
-   * Loads an HTMLImageElement from a data URL string.
-   * @param dataUrl - The data URL of the image.
-   * @returns A promise that resolves with the loaded image element.
-   */
-  function loadImageFromDataUrl(dataUrl: string) {
-    return new Promise<HTMLImageElement>((resolve, reject) => {
-      const image = new window.Image();
-      image.onload = () => resolve(image);
-      image.onerror = () => reject(new Error("Invalid image file."));
-      image.src = dataUrl;
-    });
-  }
-
-  /**
-   * Validates and compresses an avatar file to WebP format.
-   * Rejects files exceeding 100 KB or of an unsupported type.
-   * Scales images down to a max dimension of 512px before encoding at 75% quality.
-   * @param file - The original image file to compress.
-   * @returns A promise resolving to a compressed WebP File.
-   */
-  async function compressAvatarFile(file: File) {
-    if (!ALLOWED_AVATAR_TYPES.has(file.type)) {
-      throw new Error("Only PNG, JPG, and WebP images are allowed.");
-    }
-
-    if (file.size > MAX_AVATAR_SIZE_BYTES) {
-      throw new Error("Avatar must be 100 KB or smaller.");
-    }
-
-    const dataUrl = await fileToDataUrl(file);
-    const image = await loadImageFromDataUrl(dataUrl);
-    const maxDimension = 512;
-    let width = image.width;
-    let height = image.height;
-
-    if (width > maxDimension || height > maxDimension) {
-      const scale = Math.min(maxDimension / width, maxDimension / height, 1);
-      width = Math.max(1, Math.round(width * scale));
-      height = Math.max(1, Math.round(height * scale));
-    }
-
-    const canvas = document.createElement("canvas");
-    canvas.width = width;
-    canvas.height = height;
-
-    const context = canvas.getContext("2d");
-    if (!context) {
-      throw new Error("Unable to process image data in this browser.");
-    }
-
-    context.drawImage(image, 0, 0, width, height);
-
-    const outputType = "image/webp";
-    const compressedBlob = await new Promise<Blob>((resolve, reject) => {
-      canvas.toBlob(
-        (blob) => {
-          if (!blob) {
-            reject(new Error("Image compression failed."));
-            return;
-          }
-          resolve(blob);
-        },
-        outputType,
-        0.75,
-      );
-    });
-
-    return new File([compressedBlob], `avatar-${Date.now()}.webp`, {
-      type: outputType,
-      lastModified: Date.now(),
-    });
-  }
 
   useEffect(() => {
     async function loadProfile() {
@@ -597,7 +503,7 @@ export default function SettingsPage() {
     setSuccessMessage(null);
 
     try {
-      const normalizedFile = await compressAvatarFile(file);
+      const normalizedFile = await compressImageFile(file, "avatar");
       pendingAvatarActionRef.current = "upload";
       pendingAvatarFileRef.current = normalizedFile;
 
@@ -633,7 +539,7 @@ export default function SettingsPage() {
   if (isLoading) {
     return (
       <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
-        <div className="mx-auto max-w-6xl rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
+        <div className="mx-auto max-w-[96rem] rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
           <LoadingGif label="Loading your profile" />
         </div>
       </main>
@@ -642,7 +548,7 @@ export default function SettingsPage() {
 
   return (
     <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
-      <div className="mx-auto max-w-6xl space-y-6">
+      <div className="mx-auto max-w-[96rem] space-y-6">
         <header className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-2xl shadow-slate-950/40 backdrop-blur-sm">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h1 className="text-3xl font-bold text-white">User Settings</h1>

@@ -7,7 +7,8 @@
  * season standings. Also exposes the RPC-backed mutations the page uses:
  * generating the schedule and the playoff bracket (owner only), the two-sided
  * time agreement between participants (propose, accept/decline, withdraw),
- * submitting and (staff-only) editing game results, and forfeiting a match.
+ * submitting and (staff-only) editing game results, forfeiting a match, and
+ * recording the member's winner prediction for a matchup.
  */
 import { supabase } from "@/lib/supabase/client";
 import { isCurrentSeason, loadSeason } from "@/lib/supabase/seasons";
@@ -166,6 +167,12 @@ export type ScheduleMatch = {
    * simply having no time.
    */
   pending_proposal: ScheduleProposal | null;
+  /**
+   * The team the signed-in member picked to win, or null when they have not
+   * predicted this match. Loaded with the matches so each card reads its own
+   * pick without issuing a query.
+   */
+  my_prediction_team_id: string | null;
 };
 
 /**
@@ -218,6 +225,8 @@ export type StandingsRow = {
   wins: number;
   losses: number;
   ko_diff: number;
+  /** Correct winner picks made by this team's owner, worth one point each. */
+  prediction_points: number;
 };
 
 /**
@@ -285,6 +294,36 @@ export function movesStandings(
 
   // Anything left over was in the old set and is not in the new one.
   return previous.size > 0;
+}
+
+/**
+ * Records or changes the member's winner pick for a match.
+ *
+ * The database owns the lock rules: it refuses the write once the scheduled time
+ * has passed or a game result has been filed, so a stale page cannot sneak a pick
+ * in after the match started. The page uses the same rules to disable the control.
+ *
+ * @param matchId - The match being predicted.
+ * @param predictedTeamId - One of the match's two teams.
+ * @returns The team id stored as the member's pick.
+ * @throws If the pick is refused or the write fails.
+ */
+export async function setMatchPrediction(
+  matchId: string,
+  predictedTeamId: string,
+): Promise<string> {
+  const { data, error } = await supabase.rpc("set_match_prediction", {
+    p_match_id: matchId,
+    p_predicted_team_id: predictedTeamId,
+  });
+
+  if (error) {
+    throw new Error(
+      error.message || "Your prediction could not be saved.",
+    );
+  }
+
+  return (data as string | null) ?? predictedTeamId;
 }
 
 /**
@@ -583,6 +622,7 @@ function toStandingsRows(data: unknown): StandingsRow[] {
     wins: Number(row.wins),
     losses: Number(row.losses),
     ko_diff: Number(row.ko_diff),
+    prediction_points: Number(row.prediction_points ?? 0),
   }));
 }
 
@@ -594,6 +634,7 @@ function toStandingsRows(data: unknown): StandingsRow[] {
  * @param ownerDisplayName - The league owner's name, used to attribute a forfeit filed
  *   before attribution was recorded. Passed in rather than read again, because it is the
  *   owner's profile and does not change while the page is open.
+ * @param userId - The signed-in member, whose winner picks are attached to the matches.
  * @returns The season's matches, ordered by week then creation.
  * @throws If the read fails.
  */
@@ -601,22 +642,45 @@ export async function loadScheduleMatches(
   leagueId: string,
   seasonId: string,
   ownerDisplayName: string | null,
+  userId: string,
 ): Promise<ScheduleMatch[]> {
-  const { data: matchRows, error: matchError } = await supabase
-    .from("matches")
-    .select(MATCHES_WITH_LIVE_SELECT)
-    .eq("league_id", leagueId)
-    .eq("season_id", seasonId)
-    // Narrows the embedded proposals, not the matches: see MATCHES_WITH_LIVE_SELECT.
-    .eq("proposals.status", "pending")
-    .order("week_number", { ascending: true })
-    .order("created_at", { ascending: true });
+  const [matchResult, predictionResult] = await Promise.all([
+    supabase
+      .from("matches")
+      .select(MATCHES_WITH_LIVE_SELECT)
+      .eq("league_id", leagueId)
+      .eq("season_id", seasonId)
+      // Narrows the embedded proposals, not the matches: see MATCHES_WITH_LIVE_SELECT.
+      .eq("proposals.status", "pending")
+      .order("week_number", { ascending: true })
+      .order("created_at", { ascending: true }),
+    /*
+     * The viewer's own picks for the season, in one read rather than one per
+     * card. The match_id index keeps this to the rows this member actually made.
+     */
+    supabase
+      .from("match_predictions")
+      .select("match_id, predicted_team_id")
+      .eq("season_id", seasonId)
+      .eq("user_id", userId),
+  ]);
 
-  if (matchError) {
+  if (matchResult.error) {
     throw new Error("Matches could not be loaded.");
   }
 
-  return ((matchRows ?? []) as unknown as ScheduleMatchRow[]).map(
+  if (predictionResult.error) {
+    throw new Error("Match predictions could not be loaded.");
+  }
+
+  const predictionsByMatch = new Map(
+    ((predictionResult.data ?? []) as {
+      match_id: string;
+      predicted_team_id: string;
+    }[]).map((row) => [row.match_id, row.predicted_team_id]),
+  );
+
+  return ((matchResult.data ?? []) as unknown as ScheduleMatchRow[]).map(
     (row): ScheduleMatch => {
       /*
        * Results arrive embedded and unordered. Sorted by game number so a card lists
@@ -699,6 +763,7 @@ export async function loadScheduleMatches(
               responded_at: pending.responded_at,
             }
           : null,
+        my_prediction_team_id: predictionsByMatch.get(row.id) ?? null,
       };
     },
   );
@@ -1074,6 +1139,7 @@ export async function loadSchedulePageData(
     leagueId,
     season.id,
     ownerDisplayName,
+    user.id,
   );
 
   /*

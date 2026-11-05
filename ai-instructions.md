@@ -426,20 +426,25 @@ The system must ensure:
 
 ### 7.1 Shared navigation
 
-Every page in the app includes a persistent top navigation bar with:
+Every page in the app includes a single persistent top navigation bar. It holds,
+in order from left to right:
 
 - Home button
 - League dropdown menu
 - Create New League option
-- Gear icon button that opens a dropdown menu
+- Season selector directly to the right of the league dropdown, with
+  previous/current season navigation
+- League page tabs, between the season selector and the user settings button:
+  Dashboard, Draft Board, Teams, Pokémon, Schedule, Trades, Rules, Hall of Fame
+- Gear icon button, between the tabs and the user settings button, that opens a dropdown menu
 - Dropdown options must include:
   - Settings for: User
   - Settings for: Draft (Owner only)
   - Settings for: League (Owner only)
   - Settings for: Members (Owner only)
+- User settings button on the far right
 - The navigation bar remains pinned at the top of the screen while the page scrolls
 - League header showing name and current season
-- Season selector with previous/current season navigation
 
 This navigation must remain visible on all authenticated pages, including league views, settings, draft settings, and league creation pages.
 
@@ -463,7 +468,8 @@ Required fields:
   - checkbox: Enable Costs for Pokémon
   - if enabled: Total Token Salary field is shown
   - checkbox: Teams can have different Total Salary
-  - if enabled: per-team salary override fields appear on the team screen and must be >= 0
+  - if enabled: per-team salary override fields appear on the team screen and must be >= 0.
+    Overrides are per season; editing one season's salaries must not change another season's teams.
 - Timer controls:
   - Pick time limit in minutes
   - Auto-pick when time expires
@@ -493,6 +499,9 @@ Required fields:
 ### 7.4 League settings page (Owner only)
 
 - League name text field.
+- League image upload: PNG, JPG, or WebP up to 100 KB, re-encoded to WebP at
+  512px. The dashboard shows it to the left of the league name only when an image
+  exists; no placeholder is rendered.
 - Number of Players: integer.
 - Transaction system:
   - checkbox: Enable Transaction Costs
@@ -500,6 +509,12 @@ Required fields:
 - Owner has to Approve Trades: checkbox.
 - Owners/Admins vote on Approving Trades: only enabled if the previous checkbox is checked.
 - Approval logic must be deterministic: if admin approval is enabled, approval requires a majority of Owner + Admin voting members.
+- Trade deadline checkbox with a date and time. Once it passes, no trade may be
+  proposed, accepted, or approved; declining, withdrawing, cancelling, and
+  rejecting remain allowed. The database enforces this, not just the page.
+- Free agency deadline checkbox with a date and time. Once it passes, members
+  cannot pick up free agents; the league owner can still add or drop Pokémon on
+  any team. The database enforces the member restriction with the owner override.
 
 ### 7.5 User settings page
 
@@ -742,10 +757,26 @@ Opponent availability:
 - Best-of-3 results switch the “vs” section to a game record, like `2-1`.
 - Replay links should display as clickable video thumbnails or a clear link to the replay.
 
-### 10.4 Standings and history
+### 10.4 Match winner predictions
+
+- Every active league member, whether or not they play in the matchup, can pick
+  one of the two teams to win a matchup. The same picker appears on the detailed
+  matchup card, each card in the schedule page's **Upcoming matches** panel, and
+  each matchup card in the dashboard's **Schedule** panel.
+- A correct pick is worth one **PP** (prediction point) to the member who made it,
+  attributed to that member's team as a PP column in the standings.
+- Picks close when the scheduled match time arrives or when the first game result
+  is submitted, whichever happens first. A matchup with no agreed time stays open
+  until a result is submitted.
+- Picks cannot be changed once closed. The database enforces the same rule as the
+  card, so a page left open past kickoff cannot still write a pick.
+- PP is shown in both the Schedule tab's standings table and the dashboard
+  standings panel, with a legend explaining it.
+
+### 10.5 Standings and history
 
 - Playoffs tab: bracket view after the draft is complete. Must have at least 2 Playoff teams, with the league size being the max playoff teams limit. If the amount of Playoff teams is a power of 2, The top seed plays the bottom playoff seed (EX: 1st in rankings and 16th in rankings if theres 16 playoff teams), the second seed plays the second from the bottom playoff seed, and so on. In a Double Elimination format, all Playoff teams start in the winner's bracket, winners continue through the winner's bracket and losers get sent to the losers bracket. If a team loses in the loser's bracket, they are eliminated from the playoffs. If a team from the winner's bracket loses their match in the grand finals, then a bracket reset occurs and those 2 teams play eachother again next week. If the amount of playoff teams is not a power of two, then the top seeded teams get a bye week the first week (EX: 12 Playoff teams mean the top 4 teams get a bye week, since 8 is the closest power of two 12 descends to). If a playoff team forfeits, they get the loss and their opponent gets the win. If both playoff teams in a match forfeit, they both receive the loss. Playoff match submitions should update the playoff bracket. Clicking the Advance Bracket when all playoff matches for that week are submitted will create the matchup/upcoming matches cards for the next set of matches. User's with no opponents in their bracket when Advance Bracket is pressed get the win and continue through the bracket. The Reset Bracket button should reset the playoff bracket to how it was set up initially, as if the playoff bracket was just set up.
-- Standings tab: rank, player, W/L, KO Diff.
+- Standings tab: rank, player, W/L, KO Diff, PP (prediction points).
 - History tab: all games sorted by posted time, newest first.
 - History tab also carries a **Match proposal history** panel, visible to the league owner only. It logs every match-time proposal made during the season, not just the one still awaiting an answer, so the owner can see the whole negotiation including offers that were declined or withdrawn. Grouped by week, newest week first; each entry shows the matchup, the time offered, who proposed it and when, who answered and when, and the proposal's notes. Every status is shown: `Accepted by`, `Declined by`, `Withdrawn by`, and `Awaiting a response` for one nobody has answered. Times render in the owner's own zone, not the proposer's.
 
@@ -769,6 +800,9 @@ Opponent availability:
   control that did nothing. All eighteen are always listed, in the canonical order
   from `TYPE_LIST`, so the list does not shift as the pool changes.
 - Each row includes a pickup control: `+` to add or `-` to cancel the pending add.
+- Once the season's free agency deadline has passed, members see no active pickup
+  controls and a note explaining that pickups are closed. The league owner keeps
+  the add override.
 - If the player clicks `+`, show confirmation with the Pokémon cost and projected balance after the purchase, including transaction costs if enabled.
 - On confirmation, the Pokémon is added to the player’s roster and token salary updates accordingly.
 - Transaction history on the right shows prior actions in stack order.
@@ -813,6 +847,9 @@ This is the final legal definition:
 
 - Upon successful completion, every user sees the completed trade in trade history with a timestamp.
 - Only involved players see it in `My Trades`.
+- Once the season's trade deadline has passed, the New Trade tab is closed, and
+  Accept/Approve controls are disabled. Decline, withdraw, cancel, and reject
+  remain available so a member can settle an old card.
 
 ## 13. Rules Page
 

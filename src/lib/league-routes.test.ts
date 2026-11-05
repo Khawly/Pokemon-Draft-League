@@ -1,7 +1,7 @@
 /*
- * Tests for the league sub-navigation's route metadata.
+ * Tests for the league page tabs' route metadata.
  *
- * The tab list is shared by the global sub-navigation and the dashboard's own
+ * The tab list is shared by the global top navigation and the dashboard's own
  * links, so a duplicate slug or a missing league id would send two different
  * surfaces to the same wrong place.
  */
@@ -31,7 +31,7 @@ describe("LEAGUE_TABS", () => {
     expect(new Set(slugs).size).toBe(slugs.length);
   });
 
-  it("covers every league page the sub-navigation offers", () => {
+  it("covers every league page the top navigation offers", () => {
     expect(LEAGUE_TABS.map((tab) => tab.slug)).toEqual([
       "dashboard",
       "draftboard",

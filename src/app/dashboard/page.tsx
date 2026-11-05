@@ -251,19 +251,22 @@ function DashboardPageContent() {
   /*
    * Clearing notifications is a delete, so it is confirmed first. The dialog copy
    * names the scope, because "clear all" on a panel that shows five of the
-   * member's forty would otherwise read as removing only what is on screen.
+   * member's forty would otherwise read as removing only what is on screen. The
+   * scope is the season on screen, not the league: the dashboard can be pointed
+   * at a past season, and clearing there must not delete the current one's rows.
    */
   const handleClearNotifications = useCallback(async () => {
     const leagueId = goods?.leagueId;
+    const seasonId = goods?.season?.id;
 
-    if (!leagueId) {
+    if (!leagueId || !seasonId) {
       return;
     }
 
     const confirmed = await confirm({
       title: "Clear all notifications?",
       detail:
-        "This removes every notification for this league, including any you have not read. It cannot be undone.",
+        "This removes every notification for this season, including any you have not read. It cannot be undone.",
       confirmLabel: "Clear all",
       tone: "danger",
     });
@@ -276,13 +279,14 @@ function DashboardPageContent() {
     setNotificationError(null);
 
     try {
-      const removed = await clearAllNotifications(leagueId);
+      const removed = await clearAllNotifications(leagueId, seasonId);
 
       /*
        * The match-time and trade alerts behind the two nav badges are notifications
-       * too, so they are gone along with the list and the badges have to go with
-       * them. The panel only ever holds this league's rows, and every one of them is
-       * gone, so all four fields are emptied rather than refetched.
+       * too, so the ones raised this season are gone along with the list and the
+       * badges have to be told to re-read. The panel only ever holds this season's
+       * rows, and every one of them is gone, so the list is emptied rather than
+       * refetched.
        */
       setGoods((current) =>
         current
@@ -316,7 +320,7 @@ function DashboardPageContent() {
     } finally {
       setIsClearingNotifications(false);
     }
-  }, [goods?.leagueId, confirm]);
+  }, [goods?.leagueId, goods?.season?.id, confirm]);
 
   /*
    * Live updates. A match changing status, time, or result changes the schedule,

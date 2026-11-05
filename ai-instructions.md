@@ -26,6 +26,11 @@ This project must be built with clarity, predictable state transitions, and stro
 
 - Sign-up is email + password.
 - Email verification is required before a user can access a league.
+- Signing up with an address that already has a confirmed account must say so. With
+  email confirmation enabled Supabase answers with a fake user and no error (its
+  anti-enumeration behavior), so the app detects the empty `identities` array and
+  reports the duplicate itself; otherwise the form tells the member to check an
+  inbox that will never receive anything.
 - Login is email + password only.
 - Password reset uses a magic link sent by email.
 - All auth state should be stored with Supabase Auth, not in a custom user table as the authority.
@@ -670,15 +675,20 @@ Match time alerts:
 - The count is derived from `notifications.is_read` scoped to the recipient, and
   read state is only ever flipped by `mark_notifications_read`. `notifications`
   must not gain a client UPDATE policy.
+- The dashboard's notification panel lists the season currently selected in the
+  shell, so a past season keeps its own history instead of piling every season
+  into one list. The season selector is the only switch; there is no cross-season
+  view.
 - The dashboard's notification panel carries a **Clear all** control. It deletes
   rather than marks read, because the panel lists read rows too and marking them
   read would leave the list looking untouched. It is the only delete offered on
   `notifications`, so it confirms first with a danger tone, and the dialog names
-  the scope: every notification for the selected league, not just the handful on
-  screen.
-- Clearing also empties the Schedule badge, because the alerts it counts are
-  notifications and are removed by the same delete. Leaving the number in place
-  would have it outliving the rows it was counting.
+  the scope: every notification for the selected season, not just the handful on
+  screen and not the other seasons' rows.
+- Clearing also empties the Schedule badge when the season cleared is the one the
+  badge is reading, because the alerts it counts are notifications and are removed
+  by the same delete. Leaving the number in place would have it outliving the rows
+  it was counting.
 - The control is always present and disabled when the list is empty, never hidden.
   Hiding it leaves a member with an empty panel no visible way to clear anything
   and no way to tell the control exists, which reads as the feature being missing.

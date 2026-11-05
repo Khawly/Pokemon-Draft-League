@@ -3,8 +3,12 @@
  *
  * The random generator decides every pairing, which is the right default but useless when
  * the league has already agreed its fixtures elsewhere. This is the manual path: one card
- * per week, a row per game, two team pickers and a remove button, with the week's resting
+ * per week, a row per game, two team pickers and a clear button, with the week's resting
  * teams named so an owner can see who has a bye instead of inferring it from the rows.
+ *
+ * Every week opens with the same full slate of pickers as week one, so the season can be
+ * filled in week order without adding rows to each card first. A row whose sides are not
+ * both chosen is ignored on save, which is also how a team is given the week off.
  *
  * Validation is deliberately eager and non-blocking: every problem is listed at once and
  * the save button is disabled while any remain. Waiting until save to name the third
@@ -64,6 +68,101 @@ function TeamSelect({
 }
 
 /**
+ * How many pairing rows a full slate needs: one per pair of teams, never zero.
+ *
+ * An odd team count rounds down and leaves the extra team resting, which the
+ * resting line on each week card already names.
+ *
+ * @param teamCount - Number of schedulable teams.
+ * @returns The number of rows one week card should show.
+ */
+function fullSlateRows(teamCount: number): number {
+  return Math.max(1, Math.floor(teamCount / 2));
+}
+
+/**
+ * Builds the editor's opening rows, one week card per week of the season.
+ *
+ * Saved pairings are kept as they are. A week with nothing saved is padded to a
+ * full slate of blank pickers so every card matches week one's format. When the
+ * season has no saved schedule at all, week one instead keeps its drafting
+ * convenience: teams are paired in draft order rather than left blank.
+ *
+ * @param initialGames - Pairings already saved for the season.
+ * @param teams - Schedulable teams, in display order.
+ * @param weeks - How many week cards the season has.
+ * @returns Rows in week order, ready to seed state.
+ */
+function buildInitialRows(
+  initialGames: ManualScheduleGame[],
+  teams: Array<{ id: string }>,
+  weeks: number,
+): DraftRow[] {
+  const perWeek = fullSlateRows(teams.length);
+  const rows: DraftRow[] = [];
+
+  for (let week = 1; week <= weeks; week += 1) {
+    const saved = initialGames.filter((game) => game.week === week);
+
+    rows.push(
+      ...saved.map((game, index) => ({
+        ...game,
+        key: `week-${week}-row-${index}`,
+      })),
+    );
+
+    for (let index = saved.length; index < perWeek; index += 1) {
+      const isOpeningWeek = initialGames.length === 0 && week === 1;
+      rows.push({
+        key: `week-${week}-row-${index}`,
+        week,
+        player_1_team_id: isOpeningWeek ? (teams[index * 2]?.id ?? "") : "",
+        player_2_team_id: isOpeningWeek
+          ? (teams[index * 2 + 1]?.id ?? "")
+          : "",
+      });
+    }
+  }
+
+  return rows;
+}
+
+/**
+ * Appends blank rows to any week that is short of a full slate.
+ *
+ * Used when the owner changes the number of regular season weeks while the
+ * editor is open, so the new cards arrive in the same shape as the rest. Rows
+ * are only ever added, never removed, so the existing keys stay put.
+ *
+ * @param rows - Rows currently in state.
+ * @param weeks - How many week cards the season now has.
+ * @param perWeek - Rows a full slate needs.
+ * @returns The same rows plus any padding, or the original array when complete.
+ */
+function padToFullSlate(
+  rows: DraftRow[],
+  weeks: number,
+  perWeek: number,
+): DraftRow[] {
+  const padding: DraftRow[] = [];
+
+  for (let week = 1; week <= weeks; week += 1) {
+    const existing = rows.filter((row) => row.week === week).length;
+
+    for (let index = existing; index < perWeek; index += 1) {
+      padding.push({
+        key: `week-${week}-row-${index}`,
+        week,
+        player_1_team_id: "",
+        player_2_team_id: "",
+      });
+    }
+  }
+
+  return padding.length > 0 ? [...rows, ...padding] : rows;
+}
+
+/**
  * Edits and saves an owner-supplied regular season schedule.
  *
  * @param props - {@link ManualScheduleEditorProps}
@@ -76,29 +175,26 @@ export function ManualScheduleEditor({
   saving,
   onSave,
 }: ManualScheduleEditorProps) {
-  // A stable key per row, assigned once, so removing a row does not remount the next one.
-  const [nextKey, setNextKey] = useState(initialGames.length);
+  const perWeek = fullSlateRows(teams.length);
 
-  const [rows, setRows] = useState<DraftRow[]>(() => {
-    const seeded = initialGames.map((game, index) => ({
-      ...game,
-      key: `row-${index}`,
-    }));
+  // Every week opens at the season's full slate size, so the editor never asks
+  // the owner to build a card up row by row before it can be filled in.
+  const [rows, setRows] = useState<DraftRow[]>(() =>
+    buildInitialRows(initialGames, teams, weeks),
+  );
 
-    if (seeded.length > 0) {
-      return seeded;
-    }
+  /*
+   * Raising the week count while the editor is open adds cards that did not
+   * exist when the rows were seeded. Padded during render rather than from an
+   * effect so the new card arrives complete on its first frame; the guard keeps
+   * it a one-off adjustment per week count.
+   */
+  const [paddedWeeks, setPaddedWeeks] = useState(weeks);
 
-    // Nothing saved yet: offer a full slate for the opening week rather than a blank
-    // page, so pairing a league does not begin with pressing "add" ten times.
-    const perWeek = Math.floor(teams.length / 2);
-    return Array.from({ length: perWeek }, (_, index) => ({
-      key: `row-${index}`,
-      week: 1,
-      player_1_team_id: teams[index * 2]?.id ?? "",
-      player_2_team_id: teams[index * 2 + 1]?.id ?? "",
-    }));
-  });
+  if (paddedWeeks !== weeks) {
+    setPaddedWeeks(weeks);
+    setRows((previous) => padToFullSlate(previous, weeks, perWeek));
+  }
 
   const teamIds = useMemo(() => teams.map((team) => team.id), [teams]);
 
@@ -145,30 +241,28 @@ export function ManualScheduleEditor({
       previous.map((row) => (row.key === key ? { ...row, ...patch } : row)),
     );
 
-  const remove = (key: string) =>
-    setRows((previous) => previous.filter((row) => row.key !== key));
-
-  const add = (week: number) => {
-    setRows((previous) => [
-      ...previous,
-      {
-        key: `row-${nextKey}`,
-        week,
-        player_1_team_id: "",
-        player_2_team_id: "",
-      },
-    ]);
-    setNextKey((value) => value + 1);
-  };
+  // A cleared row keeps its place in the week's slate: both sides go back to
+  // "Select team" and the row is simply ignored on save. With no add control the
+  // grid has to stay whole, and an empty pairing is already how a bye is written.
+  const clear = (key: string) =>
+    setRows((previous) =>
+      previous.map((row) =>
+        row.key === key
+          ? { ...row, player_1_team_id: "", player_2_team_id: "" }
+          : row,
+      ),
+    );
 
   const canSave = !saving && problems.length === 0;
 
   return (
     <div className="space-y-4">
       <p className="text-sm text-slate-400">
-        Pick each week&apos;s matchups by hand. A team can play at most once in a
-        week, and any team you leave out rests that week. Saving replaces the
-        season&apos;s current schedule, including any results already recorded.
+        Pick each week&apos;s matchups by hand. Every week starts with a full
+        slate of pairings. A team can play at most once in a week, and any team
+        you leave out rests that week, so clear a pairing to give teams a bye.
+        Saving replaces the season&apos;s current schedule, including any results
+        already recorded.
       </p>
 
       {problems.length > 0 && (
@@ -199,13 +293,6 @@ export function ManualScheduleEditor({
             >
               <div className="mb-2 flex items-center justify-between gap-2">
                 <p className="text-sm font-semibold text-slate-200">Week {week}</p>
-                <button
-                  type="button"
-                  onClick={() => add(week)}
-                  className="rounded-lg border border-slate-700 px-2 py-1 text-xs text-slate-300 transition hover:border-slate-500 hover:text-white"
-                >
-                  Add matchup
-                </button>
               </div>
 
               {weekRows.length === 0 ? (
@@ -214,37 +301,44 @@ export function ManualScheduleEditor({
                 </p>
               ) : (
                 <div className="space-y-2">
-                  {weekRows.map((row) => (
-                    <div key={row.key} className="flex items-center gap-1.5">
-                      <TeamSelect
-                        value={row.player_1_team_id}
-                        teams={teams}
-                        label={`Week ${week} first team`}
-                        onChange={(teamId) =>
-                          update(row.key, { player_1_team_id: teamId })
-                        }
-                      />
-                      <span className="shrink-0 text-xs text-slate-500">vs</span>
-                      <TeamSelect
-                        value={row.player_2_team_id}
-                        teams={teams}
-                        label={`Week ${week} second team`}
-                        onChange={(teamId) =>
-                          update(row.key, { player_2_team_id: teamId })
-                        }
-                      />
-                      <button
-                        type="button"
-                        aria-label={`Remove the week ${week} matchup between ${nameOf(
-                          row.player_1_team_id,
-                        )} and ${nameOf(row.player_2_team_id)}`}
-                        onClick={() => remove(row.key)}
-                        className="shrink-0 rounded-lg border border-slate-700 px-2 py-1 text-xs text-slate-400 transition hover:border-rose-700 hover:text-rose-300"
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  ))}
+                  {weekRows.map((row) => {
+                    const pairingLabel =
+                      row.player_1_team_id && row.player_2_team_id
+                        ? `${nameOf(row.player_1_team_id)} and ${nameOf(
+                            row.player_2_team_id,
+                          )}`
+                        : "this pairing";
+
+                    return (
+                      <div key={row.key} className="flex items-center gap-1.5">
+                        <TeamSelect
+                          value={row.player_1_team_id}
+                          teams={teams}
+                          label={`Week ${week} first team`}
+                          onChange={(teamId) =>
+                            update(row.key, { player_1_team_id: teamId })
+                          }
+                        />
+                        <span className="shrink-0 text-xs text-slate-500">vs</span>
+                        <TeamSelect
+                          value={row.player_2_team_id}
+                          teams={teams}
+                          label={`Week ${week} second team`}
+                          onChange={(teamId) =>
+                            update(row.key, { player_2_team_id: teamId })
+                          }
+                        />
+                        <button
+                          type="button"
+                          aria-label={`Clear week ${week}'s matchup between ${pairingLabel}`}
+                          onClick={() => clear(row.key)}
+                          className="shrink-0 rounded-lg border border-slate-700 px-2 py-1 text-xs text-slate-400 transition hover:border-rose-700 hover:text-rose-300"
+                        >
+                          Clear
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
 

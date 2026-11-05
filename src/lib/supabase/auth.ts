@@ -12,12 +12,45 @@ import { normalizeNameColor } from "@/lib/name-colors";
 import { normalizeAvatarInitials } from "@/lib/avatar-initials";
 
 /**
+ * The shape of the `identities` field on a sign-up result. Only the field the
+ * duplicate check needs, so the helper stays usable without importing the SDK's
+ * full user type.
+ */
+type SignUpIdentities = { identities?: unknown[] } | null;
+
+/**
+ * Reports whether a sign-up result is Supabase's obfuscated "already registered"
+ * user rather than a genuinely new account.
+ *
+ * When email confirmation is enabled, Supabase answers a sign-up for an address
+ * that already has an account with a fake user and no error, so a caller cannot
+ * use the response to discover which addresses are registered. The tell is an
+ * empty `identities` array: a real new sign-up always comes back with the email
+ * identity attached. Callers turn this into the message the member sees.
+ *
+ * @param user - The `user` from a `signUp` response, or null.
+ * @returns True when the email already belongs to a confirmed account.
+ */
+export function isDuplicateSignUpUser(user: SignUpIdentities): boolean {
+  return (
+    user != null &&
+    Array.isArray(user.identities) &&
+    user.identities.length === 0
+  );
+}
+
+/**
  * Signs up a new user with email and password, attaching the display name to
  * the auth user's metadata.
  *
  * @param params - Object containing the email, password, and display name.
  * @returns A Promise resolving to the Supabase `signUp` result data (session
  *   and/or created user).
+ * @throws When Supabase rejects the sign-up, or when the email already belongs
+ *   to an account. The second case arrives as a successful response (see
+ *   {@link isDuplicateSignUpUser}) and is turned into an error here so the form
+ *   can say so instead of telling the member to check an inbox that will never
+ *   receive anything.
  */
 export async function signUpWithEmail({
   email,
@@ -40,6 +73,12 @@ export async function signUpWithEmail({
 
   if (error) {
     throw new Error(error.message);
+  }
+
+  if (isDuplicateSignUpUser(data.user)) {
+    throw new Error(
+      "An account with that email already exists. Sign in instead, or use Reset password if you have forgotten it.",
+    );
   }
 
   return data;

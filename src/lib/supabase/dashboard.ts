@@ -1,12 +1,13 @@
 /*
  * Home page data layer for the Pokemon Draft League.
  *
- * Loads everything the dashboard shell renders for the league's latest season:
- * the season standings (through the season_standings RPC), the open schedule,
- * the free agent pool size, the signed-in member's own team and roster, their
- * open trade proposals, and their most recent notifications. Read-only - the
- * dashboard links out to the pages that own each write. The nav alert badges are
- * loaded by the shared league shell, not here.
+ * Loads everything the dashboard shell renders for a league's selected season
+ * (the newest unless the member picked another): the season standings (through
+ * the season_standings RPC), the open schedule, the free agent pool size, the
+ * signed-in member's own team and roster, their open trade proposals, and their
+ * most recent notifications from that season. Read-only - the dashboard links
+ * out to the pages that own each write. The nav alert badges are loaded by the
+ * shared league shell, not here.
  */
 import { supabase } from "@/lib/supabase/client";
 import { loadLatestSeason } from "@/lib/supabase/seasons";
@@ -755,6 +756,7 @@ export async function loadDashboardData(
         .from("notifications")
         .select("id, message, is_read, created_at")
         .eq("league_id", leagueId)
+        .eq("season_id", season.id)
         .eq("recipient_user_id", userId)
         .order("created_at", { ascending: false })
         .limit(NOTIFICATION_LIMIT),
@@ -912,28 +914,33 @@ export type MatchTimeAlerts = {
 };
 
 /**
- * Deletes every notification addressed to the member in one league.
+ * Deletes every notification addressed to the member in one season of a league.
  *
  * This is the panel's "clear all", so it removes the member's whole backlog for
- * the league rather than only the handful the panel lists, and it deletes rather
+ * the season rather than only the handful the panel lists, and it deletes rather
  * than marks read: the panel shows read rows too, so marking them read would
  * leave the list looking untouched.
  *
- * Scoped by league because that is the panel's scope, and because notifications
- * are addressed per league and season. A member who plays in two leagues clears
- * one and keeps the other.
+ * Scoped by league and season because that is the panel's scope. The dashboard
+ * lists one season at a time, so clearing while an older season is selected must
+ * not wipe the current season's history as well. A member who plays in two
+ * leagues, or who is browsing a past season, clears one and keeps the other.
  *
  * The match-time and trade alerts behind the nav badges are notifications too,
- * so clearing removes them. The caller announces the change (`nav-alerts.ts`) so
- * the shared league shell re-reads its badges instead of showing a count for
- * rows that no longer exist.
+ * so clearing a season removes the ones raised in it. The caller announces the
+ * change (`nav-alerts.ts`) so the shared league shell re-reads its badges instead
+ * of showing a count for rows that no longer exist.
  *
  * @param leagueId - The league to clear the member's notifications in.
+ * @param seasonId - The season whose notifications are being cleared.
  * @returns How many notifications were removed.
  * @throws If the delete fails. The delete is all-or-nothing from the member's
  *   point of view: a failure leaves the panel exactly as it was.
  */
-export async function clearAllNotifications(leagueId: string): Promise<number> {
+export async function clearAllNotifications(
+  leagueId: string,
+  seasonId: string,
+): Promise<number> {
   const {
     data: { user },
     error: userError,
@@ -947,6 +954,7 @@ export async function clearAllNotifications(leagueId: string): Promise<number> {
     .from("notifications")
     .delete({ count: "exact" })
     .eq("league_id", leagueId)
+    .eq("season_id", seasonId)
     .eq("recipient_user_id", user.id);
 
   if (error) {

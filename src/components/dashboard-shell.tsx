@@ -60,9 +60,9 @@ export interface DashboardShellProps {
   /** Season data backing every panel; omitted panels render their empty state. */
   goods: DashboardGoods;
   /**
-   * Called when the member asks to clear every notification for this league. The
-   * page owns the confirmation and the delete, so this panel stays presentational
-   * and the irreversible action is confirmed in one place.
+   * Called when the member asks to clear every notification for the season on
+   * screen. The page owns the confirmation and the delete, so this panel stays
+   * presentational and the irreversible action is confirmed in one place.
    */
   onClearNotifications?: () => void;
   /** Disables the clear control while a clear is in flight. */
@@ -496,7 +496,7 @@ export function DashboardShell({
                     title={
                       goods.notifications.length === 0
                         ? "There are no notifications to clear"
-                        : "Clear every notification for this league"
+                        : "Clear every notification for this season"
                     }
                     className="rounded-lg border border-slate-700 px-2.5 py-1 text-xs font-medium text-slate-300 transition hover:border-rose-800 hover:text-rose-300 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-slate-700 disabled:hover:text-slate-300"
                   >
@@ -516,7 +516,7 @@ export function DashboardShell({
               )}
               {goods.notifications.length === 0 ? (
                 <p className="mt-4 text-sm text-slate-500">
-                  You have no notifications yet.
+                  You have no notifications for this season.
                 </p>
               ) : (
                 /*

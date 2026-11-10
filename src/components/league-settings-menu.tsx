@@ -6,8 +6,8 @@
  * Draft Settings lands on the season the member is looking at rather than
  * resolving the newest one for itself.
  *
- * User settings deliberately live on the avatar in the top bar instead: that is
- * the one entry that is not about a league or a season.
+ * User settings are the one entry that is not about a league or a season, so
+ * they open the plain settings route without either query parameter.
  */
 "use client";
 
@@ -55,13 +55,18 @@ export function LeagueSettingsMenu({
   }, [isOpen]);
 
   const items = [
-    ...(isOwner
+    ...(leagueId
       ? [
-          { label: "Draft Settings", slug: "draft-settings" },
-          { label: "League Settings", slug: "league-settings" },
+          ...(isOwner
+            ? [
+                { label: "Draft Settings", slug: "draft-settings" },
+                { label: "League Settings", slug: "league-settings" },
+              ]
+            : []),
+          { label: "Members Settings", slug: "members-settings" },
         ]
       : []),
-    { label: "Members Settings", slug: "members-settings" },
+    { label: "User Settings", slug: "settings" },
   ];
 
   /**
@@ -71,6 +76,10 @@ export function LeagueSettingsMenu({
    * @returns The route with the league and season attached.
    */
   function hrefFor(slug: string): string {
+    if (slug === "settings") {
+      return "/settings";
+    }
+
     const params = new URLSearchParams();
 
     if (leagueId) {

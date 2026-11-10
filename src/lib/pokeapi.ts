@@ -615,3 +615,67 @@ export function getPokemonRarity(slug: string): PokemonRarity {
     isGigantamax: false,
   };
 }
+
+/**
+ * Builds an order-independent signature for an ability list.
+ *
+ * @param abilities - The abilities to compare.
+ * @returns A string that differs whenever the ability set does.
+ */
+function abilitySignature(abilities: readonly PokemonAbility[]): string {
+  return abilities
+    .map((ability) => `${ability.name}:${ability.hidden}`)
+    .sort()
+    .join("|");
+}
+
+/**
+ * Reports whether a stored slug is a cosmetic alternate form.
+ *
+ * Mega Evolutions and Gigantamax forms are always cosmetic for pool purposes:
+ * they are battle transformations rather than separate draftable species. Other
+ * forms count as cosmetic only when their typing, base stats, and abilities all
+ * match the base species; a regional form or a form that changes typing (such as
+ * Castform or Oricorio) remains a genuinely different draft choice.
+ *
+ * @param slug - The PokeAPI slug, e.g. "pikachu-rock-star" or "charizard-gmax".
+ * @returns True when the form offers no draft-relevant difference from its base.
+ */
+export function isCosmeticPokemonForm(slug: string): boolean {
+  const rarity = getPokemonRarity(slug);
+  if (rarity.isMega || rarity.isGigantamax) {
+    return true;
+  }
+
+  const formEntry = FORM_BY_SLUG.get(slug);
+  if (!formEntry) {
+    return false;
+  }
+
+  const formDetails = DETAILS_BY_SLUG.get(slug);
+  const baseDetails = DETAILS_BY_SLUG.get(formEntry.baseSlug);
+  const baseSpecies = BY_SLUG.get(formEntry.baseSlug);
+
+  if (!formDetails || !baseDetails || !baseSpecies) {
+    return false;
+  }
+
+  const sameTypes =
+    [...formEntry.types].sort().join("|") ===
+    [...baseSpecies.types].sort().join("|");
+
+  const sameStats =
+    formDetails.stats.hp === baseDetails.stats.hp &&
+    formDetails.stats.attack === baseDetails.stats.attack &&
+    formDetails.stats.defense === baseDetails.stats.defense &&
+    formDetails.stats.specialAttack === baseDetails.stats.specialAttack &&
+    formDetails.stats.specialDefense === baseDetails.stats.specialDefense &&
+    formDetails.stats.speed === baseDetails.stats.speed;
+
+  return (
+    sameTypes &&
+    sameStats &&
+    abilitySignature(formDetails.abilities) ===
+      abilitySignature(baseDetails.abilities)
+  );
+}

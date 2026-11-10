@@ -3,10 +3,10 @@
  *
  * One bar now carries everything that used to be split between the top bar and
  * the league sub-navigation: the home link, the league selector, the season
- * selector, the league page tabs, the alert badges, the settings gear, and the
- * user avatar that opens user settings. Keeping them together means the league
- * and season a page is showing are visible beside the tabs that switch pages,
- * and there is no second sticky row eating vertical space.
+ * selector, the league page tabs, the alert badges, and the settings gear.
+ * Keeping them together means the league and season a page is showing are
+ * visible beside the tabs that switch pages, and there is no second sticky row
+ * eating vertical space.
  *
  * The profile, memberships, selected league, seasons, ownership, and alert
  * counts all come from the shared league shell provider, so the bar issues no
@@ -18,7 +18,6 @@
 
 import { usePathname, useRouter } from "next/navigation";
 
-import { MemberAvatar } from "@/components/member-avatar";
 import { LeagueSettingsMenu } from "@/components/league-settings-menu";
 import { TabNotification } from "@/components/nav-alert-badge";
 import { useLeagueShell } from "@/components/league-shell-context";
@@ -57,7 +56,6 @@ export function TopNav() {
   const pathname = usePathname();
   const {
     isReady,
-    profile,
     leagueOptions,
     selectedLeague,
     seasons,
@@ -79,6 +77,17 @@ export function TopNav() {
   const activeSlug = pathname?.split("/")[1] ?? "";
   const hasLeague =
     Boolean(selectedLeague) && selectedLeague !== "create-league";
+  /**
+   * The page tab to reflect in the mobile dropdown. The draft arena sits under
+   * the Draft Board tab, and settings pages are not tabs, so they show the
+   * neutral placeholder instead of selecting an unrelated tab.
+   */
+  const activePageTabSlug =
+    activeSlug === "draft"
+      ? "draftboard"
+      : LEAGUE_TABS.some((tab) => tab.slug === activeSlug)
+        ? activeSlug
+        : "";
 
   /*
    * The single exit point for every navigation this bar performs.
@@ -161,7 +170,7 @@ export function TopNav() {
 
   return (
     <header className="sticky top-0 z-50 border-b border-slate-800 bg-slate-950/90 backdrop-blur-sm">
-      <div className="mx-auto flex max-w-[96rem] flex-wrap items-center gap-2 px-4 py-2.5 sm:px-6">
+      <div className="mx-auto flex max-w-[96rem] flex-wrap items-center gap-2 px-3 py-2 sm:px-6 sm:py-2.5">
         <button
           type="button"
           onClick={() => void navigate("/")}
@@ -181,29 +190,37 @@ export function TopNav() {
         {/*
           The league selector is no longer the whole middle of the bar: the
           season selector sits immediately to its right, then the tabs, so the
-          league and season a page belongs to read as one group.
+          league and season a page belongs to read as one group. A member with no
+          leagues gets the create action by itself, since there is nothing to
+          select from yet.
         */}
-        <label className="min-w-0 shrink-0">
-          <span className="sr-only">League menu</span>
-          <select
-            value={selectedLeague}
-            onChange={handleLeagueChange}
-            className="w-44 rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm font-medium text-slate-100 outline-none transition focus:border-amber-400 sm:w-56"
-            aria-label="League dropdown"
+        {leagueOptions.length === 0 ? (
+          <button
+            type="button"
+            onClick={() => void navigate("/create-league")}
+            className="min-w-0 flex-1 shrink-0 rounded-xl border border-amber-500/60 bg-amber-500/10 px-3 py-2 text-sm font-semibold text-amber-200 transition hover:bg-amber-500/20 sm:flex-none"
           >
-            {leagueOptions.length === 0 && (
+            + Create New League
+          </button>
+        ) : (
+          <label className="min-w-0 flex-1 sm:flex-none">
+            <span className="sr-only">League menu</span>
+            <select
+              value={selectedLeague}
+              onChange={handleLeagueChange}
+              className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm font-medium text-slate-100 outline-none transition focus:border-amber-400 sm:w-56"
+              aria-label="League dropdown"
+            >
+              {leagueOptions.map((league) => (
+                <option key={league.id} value={league.id}>
+                  {league.label}
+                </option>
+              ))}
+
               <option value="create-league">+ Create New League</option>
-            )}
-
-            {leagueOptions.map((league) => (
-              <option key={league.id} value={league.id}>
-                {league.label}
-              </option>
-            ))}
-
-            <option value="create-league">+ Create New League</option>
-          </select>
-        </label>
+            </select>
+          </label>
+        )}
 
         {hasLeague && seasons.length > 1 && (
           <label className="shrink-0">
@@ -223,9 +240,32 @@ export function TopNav() {
         )}
 
         {hasLeague && (
+          <label className="min-w-0 flex-1 sm:hidden">
+            <span className="sr-only">League pages</span>
+            <select
+              value={activePageTabSlug}
+              onChange={(event) => void handleTabClick(event.target.value)}
+              className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm font-medium text-slate-100 outline-none transition focus:border-amber-400"
+              aria-label="League page"
+            >
+              {activePageTabSlug === "" && (
+                <option value="" disabled>
+                  Pages
+                </option>
+              )}
+              {LEAGUE_TABS.map((tab) => (
+                <option key={tab.slug} value={tab.slug}>
+                  {tab.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+
+        {hasLeague && (
           <nav
             aria-label="League pages"
-            className="flex flex-wrap items-center gap-1.5"
+            className="hidden min-w-0 flex-1 items-center gap-1.5 overflow-x-auto pb-1 sm:flex sm:w-auto sm:flex-none sm:flex-wrap sm:overflow-visible sm:pb-0"
           >
             {LEAGUE_TABS.map((tab) => {
               /*
@@ -249,7 +289,7 @@ export function TopNav() {
                   type="button"
                   onClick={() => void handleTabClick(tab.slug)}
                   aria-current={active ? "page" : undefined}
-                  className={`relative rounded-full px-3 py-1.5 text-sm font-medium transition ${
+                  className={`relative shrink-0 rounded-full px-3 py-1.5 text-sm font-medium transition ${
                     active
                       ? "bg-amber-500 text-slate-950"
                       : "bg-slate-800 text-slate-300 hover:bg-slate-700"
@@ -269,38 +309,14 @@ export function TopNav() {
           </nav>
         )}
 
-        <div className="ml-auto flex items-center gap-2">
-          {hasLeague && (
-            <LeagueSettingsMenu
-              leagueId={selectedLeague}
-              seasonId={selectedSeasonId}
-              isOwner={isOwner}
-            />
-          )}
-
-          <button
-            type="button"
-            onClick={() => {
-              if (!selectedLeague || selectedLeague === "create-league") {
-                void navigate("/settings");
-                return;
-              }
-
-              void navigate(`/settings?leagueId=${selectedLeague}`);
-            }}
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-700 bg-slate-900 transition hover:border-slate-500 hover:bg-slate-800"
-            aria-label="User settings"
-            title="User settings"
-          >
-            <MemberAvatar
-              name={profile.displayName ?? "You"}
-              avatarUrl={profile.avatarUrl}
-              initials={profile.avatarInitials}
-              color={profile.nameColor}
-              size={32}
-              textClassName="text-xs"
-            />
-          </button>
+        <div className="ml-auto flex shrink-0 items-center gap-2">
+          <LeagueSettingsMenu
+            leagueId={
+              selectedLeague === "create-league" ? null : selectedLeague
+            }
+            seasonId={selectedSeasonId}
+            isOwner={isOwner}
+          />
         </div>
       </div>
     </header>

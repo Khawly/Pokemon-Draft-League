@@ -13,8 +13,9 @@
  * ✓ button confirms (persists) a pending tier change for that single Pokémon,
  * independent of the global Save. The owner can also delete the selected saved
  * pool, and new/renamed pool names are rejected when they would duplicate an
- * existing saved pool in the dropdown. While a pool's rows are loading -- on
- * first open and after switching pools -- the summary, tabs, and table are
+ * existing saved pool in the dropdown. The owner can also replace the in-pool
+ * selection with a random draw of a chosen size. While a pool's rows are loading
+ * -- on first open and after switching pools -- the summary, tabs, and table are
  * replaced by the app's loading animation so stale contents are never shown.
  */
 "use client";
@@ -38,6 +39,7 @@ import {
   getPokemonEntryBySlug,
   getPokemonRarity,
   getSpriteUrl,
+  isCosmeticPokemonForm,
   matchPokemonName,
   POKEMON_DATA,
 } from "@/lib/pokeapi";
@@ -47,6 +49,7 @@ import { LoadingGif } from "@/components/loading-gif";
 import { TablePagination } from "@/components/table-pagination";
 import { getSelectedSeason } from "@/lib/season-selection";
 import { isCurrentSeason as checkIsCurrentSeason, loadSeason } from "@/lib/supabase/seasons";
+import { createUuid } from "@/lib/uuid";
 
 /** A named, saved draft pool for a league season. */
 type PoolSummary = {
@@ -131,13 +134,13 @@ const TYPE_STYLES: Record<string, string> = {
 
 /**
  * Labels a tier value for display; there is no upper bound, so any positive
- * integer renders as "Tier n" and 0 renders as "Unranked".
+ * integer renders as "Tier n" and 0 renders as "0" (no tier assigned).
  *
  * @param tier - The tier integer.
  * @returns The display label.
  */
 function tierLabel(tier: number): string {
-  return tier === 0 ? "Unranked" : `Tier ${tier}`;
+  return tier === 0 ? "0" : `Tier ${tier}`;
 }
 
 /**
@@ -291,7 +294,7 @@ export default function PoolPage() {
   return (
     <Suspense
       fallback={
-        <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
+        <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
           <div className="mx-auto max-w-[96rem] rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
             <LoadingGif label="Loading draft pool" />
           </div>
@@ -444,8 +447,26 @@ const PoolTableRow = memo(function PoolTableRow({
           />
         </td>
       )}
-      <td className="px-4 py-3 text-slate-500">
-        {row.dex > 0 ? `#${row.dex}` : "—"}
+      <td className="px-4 py-3 text-center">
+        {!row.is_in_pool ? (
+          <span className="text-slate-600">—</span>
+        ) : isOwner ? (
+          <input
+            type="number"
+            min={0}
+            max={MAX_TIER}
+            step={1}
+            value={row.tier_value}
+            onChange={(event) =>
+              onTierChange(row.key, parseTier(event.target.value, row.tier_value))
+            }
+            className="w-20 rounded-lg border border-slate-700 bg-slate-900 px-2 py-1.5 text-sm text-slate-100 outline-none focus:border-amber-400"
+          />
+        ) : (
+          <span className="text-slate-300">
+            {row.tier_value > 0 ? row.tier_value : "—"}
+          </span>
+        )}
       </td>
       <td className="px-4 py-3 text-slate-300">
         {row.generation ? generationNumber(row.generation) : "—"}
@@ -483,26 +504,8 @@ const PoolTableRow = memo(function PoolTableRow({
           {!row.type_primary && <span className="text-slate-600">—</span>}
         </div>
       </td>
-      <td className="px-4 py-3 text-center">
-        {!row.is_in_pool ? (
-          <span className="text-slate-600">—</span>
-        ) : isOwner ? (
-          <input
-            type="number"
-            min={0}
-            max={MAX_TIER}
-            step={1}
-            value={row.tier_value}
-            onChange={(event) =>
-              onTierChange(row.key, parseTier(event.target.value, row.tier_value))
-            }
-            className="w-20 rounded-lg border border-slate-700 bg-slate-900 px-2 py-1.5 text-sm text-slate-100 outline-none focus:border-amber-400"
-          />
-        ) : (
-          <span className="text-slate-300">
-            {row.tier_value > 0 ? row.tier_value : "—"}
-          </span>
-        )}
+      <td className="px-4 py-3 text-slate-500">
+        {row.dex > 0 ? `#${row.dex}` : "—"}
       </td>
       <td className="max-w-[160px] px-4 py-3 text-slate-300">
         {details && details.abilities.length > 0 ? (
@@ -724,6 +727,8 @@ function PoolPageContent({
   const [isBusy, setIsBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  /** How many Pokémon the owner wants the randomizer to put in the pool. */
+  const [randomizeCount, setRandomizeCount] = useState("10");
 
   const [selectedTab, setSelectedTab] = useState<"table" | "tiers">("table");
   const [sortKey, setSortKey] = useState<SortKey>("dex");
@@ -877,31 +882,52 @@ function PoolPageContent({
         }
 
         const poolList = (poolRows ?? []) as PoolSummary[];
-        setPools(poolList);
 
-        if (poolList.length === 0) {
-          if (league.owner_id === user.id && seasonIsCurrent) {
-            // One default pool per league, created on first load so the owner
-            // always has somewhere to save to. Contents start as the unconfigured
-            // working set (full dex, all off pool) until the first Save.
-            const defaultId = await createPool(
-              resolvedLeagueId,
-              resolvedSeasonId,
-              user.id,
-              "Default Pool",
+        /*
+         * Earlier builds auto-created a "Default Pool" on first load. An empty
+         * one is just that old placeholder and is left out of the dropdown; once
+         * the owner has saved Pokémon into it, it is real data and stays.
+         */
+        const legacyDefaultIds = poolList
+          .filter((pool) => pool.name.trim().toLowerCase() === "default pool")
+          .map((pool) => pool.id);
+
+        let visiblePools = poolList;
+
+        if (legacyDefaultIds.length > 0) {
+          const { data: legacyRows, error: legacyError } = await supabase
+            .from("draft_pool_pokemon")
+            .select("draft_pool_id")
+            .in("draft_pool_id", legacyDefaultIds);
+
+          if (!legacyError) {
+            const poolsWithRows = new Set(
+              ((legacyRows ?? []) as { draft_pool_id: string }[]).map(
+                (row) => row.draft_pool_id,
+              ),
             );
-            setPools([{ id: defaultId, name: "Default Pool", is_active: false }]);
-            setActivePoolId(defaultId);
-          } else {
-            setActivePoolId(null);
-            setPoolName("");
-            setSavedPoolName("");
+
+            visiblePools = poolList.filter(
+              (pool) =>
+                !legacyDefaultIds.includes(pool.id) ||
+                poolsWithRows.has(pool.id),
+            );
           }
+        }
+
+        setPools(visiblePools);
+
+        if (visiblePools.length === 0) {
+          setActivePoolId(null);
+          setPoolName("");
+          setSavedPoolName("");
           return;
         }
 
         // Always land on the pool the season actually uses when one is set.
-        setActivePoolId((poolList.find((pool) => pool.is_active) ?? poolList[0]).id);
+        setActivePoolId(
+          (visiblePools.find((pool) => pool.is_active) ?? visiblePools[0]).id,
+        );
       } catch (caughtError) {
         const message =
           caughtError instanceof Error
@@ -1057,9 +1083,11 @@ function PoolPageContent({
     setSavedPoolName("");
     setSelectedIds(new Set());
     setPage(1);
-    setIsPoolLoading(true);
-    setRows([]);
+    // A new pool starts from the full default pool so every Pokémon is
+    // available to toggle, exactly as the page does before the first save.
+    setRows(buildDefaultRows());
     setSavedRows([]);
+    setIsPoolLoading(false);
     loadedRowsPoolRef.current = null;
     setError(null);
     setSuccessMessage(null);
@@ -1207,7 +1235,7 @@ function PoolPageContent({
           .from("draft_pool_pokemon")
           .upsert(
             insertRows.map((row) =>
-              buildPoolRowPayload(row, targetPoolId, crypto.randomUUID()),
+              buildPoolRowPayload(row, targetPoolId, createUuid()),
             ),
             { onConflict: "draft_pool_id,pokemon_id" },
           );
@@ -1450,7 +1478,7 @@ function PoolPageContent({
           ),
         );
       } else {
-        const newId = crypto.randomUUID();
+        const newId = createUuid();
         const { error: upsertError } = await supabase
           .from("draft_pool_pokemon")
           .upsert(buildPoolRowPayload(row, activePoolId, newId), {
@@ -1532,6 +1560,66 @@ function PoolPageContent({
           ? { ...row, is_in_pool: nextInPool }
           : row,
       ),
+    );
+  }
+
+  /**
+   * Replaces the in-pool selection with the requested number of Pokémon drawn
+   * uniformly at random from the full default pool.
+   *
+   * The shuffle is Fisher-Yates so every Pokémon is equally likely to land in
+   * the chosen slice. Tiers and notes are left untouched; only `is_in_pool`
+   * changes, and the result is staged until Save like every other pool edit.
+   */
+  function handleRandomizePool() {
+    if (!canEdit || isBusy || rows.length === 0) {
+      return;
+    }
+
+    setError(null);
+    setSuccessMessage(null);
+
+    const requested = Number(randomizeCount);
+    if (!Number.isFinite(requested) || requested < 1) {
+      setError("Enter how many Pokémon to randomly select.");
+      return;
+    }
+
+    /*
+     * Megas, Gigantamax forms, and purely cosmetic forms are not separate draft
+     * choices, so the draw ignores them even when they are in the working set.
+     */
+    const candidates = rows.filter(
+      (row) => !isCosmeticPokemonForm(row.pokemon_id),
+    );
+
+    if (candidates.length === 0) {
+      setError("There are no non-cosmetic Pokémon to randomize.");
+      return;
+    }
+
+    const count = Math.min(Math.floor(requested), candidates.length);
+    const shuffled = [...candidates];
+
+    for (let index = shuffled.length - 1; index > 0; index -= 1) {
+      const swapIndex = Math.floor(Math.random() * (index + 1));
+      [shuffled[index], shuffled[swapIndex]] = [
+        shuffled[swapIndex],
+        shuffled[index],
+      ];
+    }
+
+    const chosen = new Set(shuffled.slice(0, count).map((row) => row.key));
+
+    setRows((current) =>
+      current.map((row) => ({
+        ...row,
+        is_in_pool: chosen.has(row.key),
+      })),
+    );
+    setSelectedIds(new Set());
+    setSuccessMessage(
+      `Randomly selected ${count} Pokémon for this pool. Save to persist the result.`,
     );
   }
 
@@ -1960,7 +2048,7 @@ function PoolPageContent({
 
   if (isLoading) {
     return (
-      <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
+      <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
         <div className="mx-auto max-w-[96rem] rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
           <LoadingGif label="Loading draft pool" />
         </div>
@@ -1969,7 +2057,7 @@ function PoolPageContent({
   }
 
   return (
-    <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
+    <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
       <div className="mx-auto max-w-[96rem] space-y-8">
         <header className="space-y-2">
           <h1 className="text-2xl font-bold text-white">{leagueName} Pool</h1>
@@ -2002,7 +2090,7 @@ function PoolPageContent({
         )}
 
         {/* Top bar: pool selection + pool management + document actions */}
-        <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-xl shadow-slate-950/40">
+        <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-xl sm:p-6 shadow-slate-950/40">
           <div className="flex flex-col gap-5">
             {/* Row 1: saved pool / name, plus the pool management buttons */}
             <div className="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-center md:justify-between">
@@ -2016,16 +2104,13 @@ function PoolPageContent({
                     className="rounded-xl border border-slate-700 bg-slate-900 px-3 py-2.5 text-sm text-slate-100 outline-none focus:border-amber-400"
                   >
                     {pools.length === 0 ? (
-                      <option value="">No saved pools</option>
+                      <option value="">Empty</option>
                     ) : (
-                      <>
-                        <option value="">Start a new pool</option>
-                        {pools.map((pool) => (
-                          <option key={pool.id} value={pool.id}>
-                            {pool.is_active ? `${pool.name} (active)` : pool.name}
-                          </option>
-                        ))}
-                      </>
+                      pools.map((pool) => (
+                        <option key={pool.id} value={pool.id}>
+                          {pool.is_active ? `${pool.name} (active)` : pool.name}
+                        </option>
+                      ))
                     )}
                   </select>
                 </label>
@@ -2117,6 +2202,34 @@ function PoolPageContent({
                       Import CSV
                     </button>
                   </>
+                )}
+
+                {canEdit && (
+                  <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-800 bg-slate-950/50 px-3 py-2">
+                    <label className="flex items-center gap-2 text-xs text-slate-400">
+                      <span className="whitespace-nowrap">Randomize</span>
+                      <input
+                        type="number"
+                        min={1}
+                        max={rows.length}
+                        value={randomizeCount}
+                        onChange={(event) =>
+                          setRandomizeCount(event.target.value)
+                        }
+                        className="w-20 rounded-lg border border-slate-700 bg-slate-900 px-2 py-1.5 text-sm text-slate-100 outline-none transition focus:border-amber-400"
+                      />
+                      <span className="whitespace-nowrap">Pokémon</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={handleRandomizePool}
+                      disabled={isBusy || isPoolLoading || rows.length === 0}
+                      title="Replace the in-pool selection with this many randomly chosen Pokémon"
+                      className="rounded-lg border border-amber-500/60 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-200 transition hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      Randomize
+                    </button>
+                  </div>
                 )}
               </div>
 
@@ -2370,39 +2483,40 @@ function PoolPageContent({
                             <input
                               type="checkbox"
                               checked={
-                                pageRows.length > 0 &&
-                                pageRows.every((row) =>
+                                filteredRows.length > 0 &&
+                                filteredRows.every((row) =>
                                   selectedIds.has(row.key),
                                 )
                               }
                               onChange={() => {
-                                const allSelected = pageRows.every((row) =>
+                                const allSelected = filteredRows.every((row) =>
                                   selectedIds.has(row.key),
                                 );
                                 setSelectedIds((current) => {
                                   const next = new Set(current);
                                   if (allSelected) {
-                                    for (const row of pageRows) {
+                                    for (const row of filteredRows) {
                                       next.delete(row.key);
                                     }
                                   } else {
-                                    for (const row of pageRows) {
+                                    for (const row of filteredRows) {
                                       next.add(row.key);
                                     }
                                   }
                                   return next;
                                 });
                               }}
-                              aria-label="Select all"
+                              aria-label="Select all Pokémon in the current filtered list"
+                              title="Select all Pokémon matching the current filters, across every page"
                               className="h-4 w-4 accent-emerald-500"
                             />
                           </th>
                         )}
-                        <SortHeader label="Dex" column="dex" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                        <SortHeader label="Tier" column="tier" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
                         <SortHeader label="Gen" column="gen" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
                         <SortHeader label="Pokémon" column="name" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} left />
                         <SortHeader label="Type" column="type" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
-                        <SortHeader label="Tier" column="tier" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                        <SortHeader label="Dex" column="dex" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
                         <th className="px-4 py-3 font-semibold">
                           Abilities
                         </th>
@@ -2455,7 +2569,7 @@ function PoolPageContent({
               groupedByTier.map((group) => (
                 <section
                   key={group.tier}
-                  className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-xl shadow-slate-950/40"
+                  className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-xl sm:p-6 shadow-slate-950/40"
                 >
                   <h2 className="mb-4 text-lg font-semibold text-white">
                     {group.label}

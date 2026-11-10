@@ -41,7 +41,7 @@ export default function HallOfFamePage() {
   return (
     <Suspense
       fallback={
-        <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
+        <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
           <div className="mx-auto max-w-[96rem] rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
             <LoadingGif label="Loading the Hall of Fame" />
           </div>
@@ -70,7 +70,7 @@ function ChampionCard({ entry }: { entry: HallOfFameEntry }) {
   const displayName = entry.displayName?.trim() || entry.teamName;
 
   return (
-    <article className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-lg shadow-slate-950/30">
+    <article className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-lg sm:p-6 shadow-slate-950/30">
       <div className="flex flex-wrap items-center gap-6">
         <GymBadge
           region={badge.region}
@@ -211,9 +211,9 @@ function HallOfFameContent() {
   const error = current?.error ?? null;
 
   return (
-    <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
+    <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
       <div className="mx-auto max-w-[96rem] space-y-6">
-        <header className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-2xl shadow-slate-950/40">
+        <header className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-2xl sm:p-6 shadow-slate-950/40">
           <h1 className="text-3xl font-bold text-white">Hall of Fame</h1>
           <p className="mt-1 text-sm text-slate-400">
             Every champion this league has crowned, with the badge their title

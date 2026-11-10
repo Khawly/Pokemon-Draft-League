@@ -10,7 +10,11 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { signOut, updateUserProfile } from "@/lib/supabase/auth";
+import {
+  MAX_DISPLAY_NAME_LENGTH,
+  signOut,
+  updateUserProfile,
+} from "@/lib/supabase/auth";
 import { supabase } from "@/lib/supabase/client";
 import { useConfirm } from "@/components/confirm-dialog";
 import {
@@ -538,7 +542,7 @@ export default function SettingsPage() {
 
   if (isLoading) {
     return (
-      <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
+      <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
         <div className="mx-auto max-w-[96rem] rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
           <LoadingGif label="Loading your profile" />
         </div>
@@ -547,9 +551,9 @@ export default function SettingsPage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
+    <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
       <div className="mx-auto max-w-[96rem] space-y-6">
-        <header className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-2xl shadow-slate-950/40 backdrop-blur-sm">
+        <header className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-2xl sm:p-6 shadow-slate-950/40 backdrop-blur-sm">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h1 className="text-3xl font-bold text-white">User Settings</h1>
 
@@ -586,7 +590,7 @@ export default function SettingsPage() {
         </header>
 
         <section className="grid gap-6 lg:grid-cols-[0.9fr_1.5fr]">
-          <aside className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-lg shadow-slate-950/30">
+          <aside className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-lg sm:p-6 shadow-slate-950/30">
             <div className="flex flex-col items-center">
               <MemberAvatar
                 name={displayName}
@@ -663,7 +667,7 @@ export default function SettingsPage() {
             </div>
           </aside>
 
-          <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-lg shadow-slate-950/30">
+          <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-lg sm:p-6 shadow-slate-950/30">
             <div className="space-y-5">
               <div>
                 <label className="mb-2 block text-sm font-medium text-slate-300">
@@ -675,6 +679,7 @@ export default function SettingsPage() {
                   onChange={(event) =>
                     handleFieldChange(setDisplayName, event.target.value)
                   }
+                  maxLength={MAX_DISPLAY_NAME_LENGTH}
                   className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-slate-100 outline-none transition focus:border-amber-400 focus:bg-slate-950"
                 />
               </div>

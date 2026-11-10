@@ -1128,7 +1128,7 @@ describe("sortByTier", () => {
   });
 
   it("sorts an unranked Pokemon last rather than first", () => {
-    // tier_value 0 renders as "Unranked" and is also the fallback for a Pokemon the
+    // tier_value 0 renders as "0" and is also the fallback for a Pokemon the
     // catalog could not resolve, so it must not lead a list of real picks.
     const sorted = sortByTier([pokemon("unknown", 0), pokemon("real", 4)]);
     expect(sorted.map((row) => row.pokemon_id)).toEqual(["real", "unknown"]);

@@ -7,7 +7,7 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { getPokemonRarity } from "./pokeapi";
+import { getPokemonRarity, isCosmeticPokemonForm } from "./pokeapi";
 
 describe("getPokemonRarity", () => {
   it("classifies a legendary species", () => {
@@ -91,5 +91,35 @@ describe("getPokemonRarity", () => {
       isMega: false,
       isGigantamax: false,
     });
+  });
+});
+
+describe("isCosmeticPokemonForm", () => {
+  it("treats Mega and Gigantamax forms as cosmetic", () => {
+    for (const slug of ["charizard-mega-x", "charizard-gmax"]) {
+      expect(isCosmeticPokemonForm(slug), slug).toBe(true);
+    }
+  });
+
+  it("treats a form with identical typing, stats, and abilities as cosmetic", () => {
+    for (const slug of ["pikachu-rock-star", "minior-orange-meteor"]) {
+      expect(isCosmeticPokemonForm(slug), slug).toBe(true);
+    }
+  });
+
+  it("keeps a form that changes typing, even when stats and abilities match", () => {
+    for (const slug of ["castform-sunny", "oricorio-pom-pom"]) {
+      expect(isCosmeticPokemonForm(slug), slug).toBe(false);
+    }
+  });
+
+  it("keeps regional and stat-changing forms", () => {
+    for (const slug of ["vulpix-alola", "deoxys-defense"]) {
+      expect(isCosmeticPokemonForm(slug), slug).toBe(false);
+    }
+  });
+
+  it("does not classify a base species as a cosmetic form", () => {
+    expect(isCosmeticPokemonForm("charizard")).toBe(false);
   });
 });

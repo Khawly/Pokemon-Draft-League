@@ -38,7 +38,7 @@ export default function DashboardPage() {
   return (
     <Suspense
       fallback={
-        <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
+        <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
           <div className="mx-auto max-w-[96rem] rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
             <LoadingGif label="Loading dashboard" />
           </div>
@@ -66,6 +66,8 @@ function DashboardPageContent() {
   } | null>(null);
   const [leagueName, setLeagueName] = useState<string | null>(null);
   const [goods, setGoods] = useState<DashboardGoods | null>(null);
+  /** True once the signed-in member is known to have no active league memberships. */
+  const [hasNoLeagues, setHasNoLeagues] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   /**
@@ -156,38 +158,116 @@ function DashboardPageContent() {
 
       const selectedLeagueId = searchParams.get("leagueId");
 
-      // Prefer the league from the query param, else the most recently joined active one.
-      let query = supabase
-        .from("league_members")
-        .select("league_id, leagues(name)")
-        .eq("user_id", user.id)
-        .eq("is_active", true)
-        .order("joined_at", { ascending: false })
-        .limit(1);
-
-      if (selectedLeagueId) {
-        query = supabase
+      /*
+       * The membership read can land a moment before a just-created league's
+       * membership row is visible through PostgREST on a slow mobile connection.
+       * Retrying the same scoped query avoids showing "unavailable" for a league
+       * the account has just created.
+       */
+      const fetchMembership = () => {
+        // Prefer the league from the query param, else the most recently joined active one.
+        let query = supabase
           .from("league_members")
           .select("league_id, leagues(name)")
           .eq("user_id", user.id)
-          .eq("league_id", selectedLeagueId)
           .eq("is_active", true)
+          .order("joined_at", { ascending: false })
           .limit(1);
+
+        if (selectedLeagueId) {
+          query = supabase
+            .from("league_members")
+            .select("league_id, leagues(name)")
+            .eq("user_id", user.id)
+            .eq("league_id", selectedLeagueId)
+            .eq("is_active", true)
+            .limit(1);
+        }
+
+        return query;
+      };
+
+      let membershipResult = await fetchMembership();
+
+      for (
+        let attempt = 0;
+        attempt < 3 &&
+        !membershipResult.error &&
+        (!membershipResult.data || membershipResult.data.length === 0) &&
+        selectedLeagueId;
+        attempt += 1
+      ) {
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        membershipResult = await fetchMembership();
       }
 
-      const { data, error } = await query;
+      const { data, error } = membershipResult;
 
-      if (error || !data || data.length === 0) {
+      const resolvedError = error;
+      let resolvedData = data;
+
+      /*
+       * If the id in the URL does not resolve, fall back to the most recent
+       * active membership rather than claiming the league is unavailable. A
+       * stale link after leaving a league is the common case.
+       */
+      if (
+        !resolvedError &&
+        selectedLeagueId &&
+        (!resolvedData || resolvedData.length === 0)
+      ) {
+        const fallback = await supabase
+          .from("league_members")
+          .select("league_id, leagues(name)")
+          .eq("user_id", user.id)
+          .eq("is_active", true)
+          .order("joined_at", { ascending: false })
+          .limit(1);
+
+        if (!fallback.error && fallback.data && fallback.data.length > 0) {
+          resolvedData = fallback.data;
+        }
+      }
+
+      if (resolvedError || !resolvedData || resolvedData.length === 0) {
         setLeagueName("League Name");
         setGoods(null);
+
+        /*
+         * Distinguish "this account belongs to no leagues" from "the requested
+         * league is missing or inaccessible". The first gets the onboarding
+         * screen; the second keeps the ordinary unavailable message.
+         */
+        if (!resolvedError && resolvedData && resolvedData.length === 0) {
+          if (!selectedLeagueId) {
+            setHasNoLeagues(true);
+          } else {
+            const { data: otherMemberships, error: membershipError } =
+              await supabase
+                .from("league_members")
+                .select("league_id")
+                .eq("user_id", user.id)
+                .eq("is_active", true)
+                .limit(1);
+
+            setHasNoLeagues(
+              !membershipError && (otherMemberships?.length ?? 0) === 0,
+            );
+          }
+        } else {
+          setHasNoLeagues(false);
+        }
+
         return;
       }
 
-      const nextLeagueName = (data[0] as { leagues?: { name?: string | null } })
+      setHasNoLeagues(false);
+
+      const nextLeagueName = (resolvedData[0] as { leagues?: { name?: string | null } })
         .leagues?.name;
       setLeagueName(nextLeagueName || "League Name");
 
-      const resolvedLeagueId = (data[0] as { league_id?: string | null })
+      const resolvedLeagueId = (resolvedData[0] as { league_id?: string | null })
         .league_id;
 
       if (!resolvedLeagueId) {
@@ -352,10 +432,36 @@ function DashboardPageContent() {
           return current;
         }
 
-        const withPick = (match: DashboardMatch): DashboardMatch =>
-          match.id === matchId
-            ? { ...match, my_prediction_team_id: teamId }
-            : match;
+        const withPick = (match: DashboardMatch): DashboardMatch => {
+          if (match.id !== matchId) {
+            return match;
+          }
+
+          /*
+           * Move the member's own count from the side they had picked, if any,
+           * to the new side so the buttons agree with the saved pick without a
+           * reload.
+           */
+          const previous = match.my_prediction_team_id;
+
+          if (previous === teamId) {
+            return match;
+          }
+
+          const counts = { ...match.prediction_counts };
+
+          if (previous) {
+            counts[previous] = Math.max(0, (counts[previous] ?? 0) - 1);
+          }
+
+          counts[teamId] = (counts[teamId] ?? 0) + 1;
+
+          return {
+            ...match,
+            my_prediction_team_id: teamId,
+            prediction_counts: counts,
+          };
+        };
 
         return {
           ...current,
@@ -386,7 +492,7 @@ function DashboardPageContent() {
 
   if (isLoading || !sessionUser || !leagueName) {
     return (
-      <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
+      <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
         <div className="mx-auto max-w-[96rem] rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
           <LoadingGif label="Loading dashboard" />
         </div>
@@ -394,9 +500,40 @@ function DashboardPageContent() {
     );
   }
 
+  if (hasNoLeagues) {
+    return (
+      <main className="flex min-h-dvh items-center justify-center bg-slate-950 px-4 py-10 text-slate-100">
+        <div className="w-full max-w-xl rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-center shadow-xl shadow-slate-950/40">
+          <p className="text-xs font-semibold uppercase tracking-[0.25em] text-amber-400">
+            Welcome, {sessionUser.displayName}
+          </p>
+          <h1 className="mt-3 text-3xl font-bold text-white">
+            You are not in a league yet.
+          </h1>
+          <p className="mt-3 text-sm leading-relaxed text-slate-400">
+            Create a new league to run your own draft and season, or join an
+            existing league using an invite link from its owner.
+          </p>
+
+          <button
+            type="button"
+            onClick={() => router.push("/create-league")}
+            className="mt-6 rounded-xl bg-amber-500 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-amber-400"
+          >
+            Create New League
+          </button>
+
+          <p className="mt-5 text-xs text-slate-500">
+            Have an invite link? Open it on this device to join that league.
+          </p>
+        </div>
+      </main>
+    );
+  }
+
   if (error || !goods) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-slate-950 px-4 py-10 text-slate-100">
+      <main className="flex min-h-dvh items-center justify-center bg-slate-950 px-4 py-10 text-slate-100">
         <div className="max-w-md rounded-2xl border border-red-900 bg-red-950/40 px-6 py-4 text-center text-sm text-red-200 shadow-lg shadow-slate-950/40">
           {error ?? "This league is not available."}
         </div>
@@ -405,7 +542,7 @@ function DashboardPageContent() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
+    <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
       <div className="mx-auto max-w-[96rem]">
         <CrownProvider crownedUserIds={goods.crownedMemberIds}>
           <DashboardShell

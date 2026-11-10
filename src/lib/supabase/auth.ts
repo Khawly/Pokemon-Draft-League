@@ -10,6 +10,10 @@
 import { supabase } from "@/lib/supabase/client";
 import { normalizeNameColor } from "@/lib/name-colors";
 import { normalizeAvatarInitials } from "@/lib/avatar-initials";
+import { MAX_NAME_LENGTH } from "@/lib/name-limits";
+
+/** Longest display name the UI and database accept, in characters. */
+export const MAX_DISPLAY_NAME_LENGTH = MAX_NAME_LENGTH;
 
 /**
  * The shape of the `identities` field on a sign-up result. Only the field the
@@ -41,7 +45,8 @@ export function isDuplicateSignUpUser(user: SignUpIdentities): boolean {
 
 /**
  * Signs up a new user with email and password, attaching the display name to
- * the auth user's metadata.
+ * the auth user's metadata. The name is trimmed and capped at
+ * {@link MAX_DISPLAY_NAME_LENGTH} characters before it is sent.
  *
  * @param params - Object containing the email, password, and display name.
  * @returns A Promise resolving to the Supabase `signUp` result data (session
@@ -61,12 +66,15 @@ export async function signUpWithEmail({
   password: string;
   displayName: string;
 }) {
+  const normalizedDisplayName = displayName
+    .trim()
+    .slice(0, MAX_DISPLAY_NAME_LENGTH);
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
     options: {
       data: {
-        display_name: displayName,
+        display_name: normalizedDisplayName,
       },
     },
   });
@@ -131,9 +139,10 @@ export async function resetPassword(email: string) {
 /**
  * Updates the current user's auth metadata and profile record.
  *
- * Trims display name and Showdown username, updates the auth user metadata,
- * upserts the matching profile row, and emits a `profile-updated` event so
- * other components can refresh.
+ * Trims display name and Showdown username, caps the display name at
+ * {@link MAX_DISPLAY_NAME_LENGTH}, updates the auth user metadata, upserts the
+ * matching profile row, and emits a `profile-updated` event so other components
+ * can refresh.
  *
  * @param params - Object containing the user id, display name, Showdown
  *   username, optional avatar URL, the IANA time zone league timestamps
@@ -164,7 +173,9 @@ export async function updateUserProfile({
   /** The member's chosen name colour. Normalized to the palette before writing. */
   nameColor?: string | null;
 }) {
-  const trimmedDisplayName = displayName.trim();
+  const trimmedDisplayName = displayName
+    .trim()
+    .slice(0, MAX_DISPLAY_NAME_LENGTH);
   const trimmedShowdownUsername = showdownUsername.trim();
   /*
    * Normalized on the way in rather than trusted from the caller. The column has no

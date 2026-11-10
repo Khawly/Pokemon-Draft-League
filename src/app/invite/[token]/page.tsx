@@ -32,7 +32,7 @@ export default function InvitePage({
   return (
     <Suspense
       fallback={
-        <main className="flex min-h-screen items-center justify-center bg-slate-950 px-4 py-10 text-slate-100">
+        <main className="flex min-h-dvh items-center justify-center bg-slate-950 px-4 py-10 text-slate-100">
           <div className="rounded-2xl border border-slate-700 bg-slate-900 px-6 py-4 text-sm text-slate-300 shadow-lg shadow-slate-950/40">
             <LoadingGif label="Loading invite" />
           </div>
@@ -150,7 +150,7 @@ function InviteContent({ params }: { params: Promise<{ token: string }> }) {
 
   if (isLoading) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-slate-950 px-4 py-10 text-slate-100">
+      <main className="flex min-h-dvh items-center justify-center bg-slate-950 px-4 py-10 text-slate-100">
         <div className="rounded-2xl border border-slate-700 bg-slate-900 px-6 py-4 text-sm text-slate-300 shadow-lg shadow-slate-950/40">
           <LoadingGif label="Loading invite" />
         </div>
@@ -159,7 +159,7 @@ function InviteContent({ params }: { params: Promise<{ token: string }> }) {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center px-4 py-10 text-slate-100">
+    <main className="flex min-h-dvh items-center justify-center px-4 py-10 text-slate-100">
       <div className="w-full max-w-lg rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-center shadow-2xl shadow-slate-950/40">
         {error && !info && (
           <>

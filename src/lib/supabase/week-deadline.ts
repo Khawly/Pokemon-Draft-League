@@ -5,8 +5,9 @@
  * league format, the first deadline's local date/time/time zone, and the pause
  * state) plus the client-side helpers that mirror the database's recurrence
  * math so the settings page can preview the next deadline without a round trip.
- * Also owns the manual week controls: progressing a week on demand and undoing
- * the most recent progression (whether it came from the button or the deadline).
+ * Also owns the weekly token allowance toggle and the manual week controls:
+ * progressing a week on demand and undoing the most recent progression (whether
+ * it came from the button or the deadline).
  * All writes go through SECURITY DEFINER RPCs so validation (time zone, time
  * format, ownership) and the undo bookkeeping stay on the server.
  */
@@ -34,6 +35,8 @@ export type WeekDeadlineSettings = {
   week_deadline_last_advanced_at: string | null;
   /** Matches settled as double losses by the most recent advance. */
   week_deadline_settled_matches: number;
+  /** Whether closing weeks credit every team one token. */
+  weekly_allowance_enabled: boolean;
   /** The week the deadline sweep is currently working through. */
   current_week: number;
   regular_season_weeks: number;
@@ -51,6 +54,7 @@ type WeekDeadlineRow = {
   week_deadline_paused_at?: string | null;
   week_deadline_last_advanced_at?: string | null;
   week_deadline_settled_matches?: number | null;
+  weekly_allowance_enabled?: boolean | null;
   current_week?: number | null;
   regular_season_weeks?: number | null;
   regular_season_completed_at?: string | null;
@@ -238,7 +242,7 @@ export async function loadWeekDeadlineSettings(
   const { data, error } = await supabase
     .from("league_settings")
     .select(
-      "league_format, match_format, week_deadline_enabled, week_deadline_anchor_date, week_deadline_time, week_deadline_timezone, week_deadline_paused, week_deadline_paused_at, week_deadline_last_advanced_at, week_deadline_settled_matches, current_week, regular_season_weeks, regular_season_completed_at",
+      "league_format, match_format, week_deadline_enabled, week_deadline_anchor_date, week_deadline_time, week_deadline_timezone, week_deadline_paused, week_deadline_paused_at, week_deadline_last_advanced_at, week_deadline_settled_matches, weekly_allowance_enabled, current_week, regular_season_weeks, regular_season_completed_at",
     )
     .eq("league_id", leagueId)
     .eq("season_id", seasonId)
@@ -261,6 +265,7 @@ export async function loadWeekDeadlineSettings(
     week_deadline_paused_at: row.week_deadline_paused_at ?? null,
     week_deadline_last_advanced_at: row.week_deadline_last_advanced_at ?? null,
     week_deadline_settled_matches: Number(row.week_deadline_settled_matches ?? 0),
+    weekly_allowance_enabled: Boolean(row.weekly_allowance_enabled),
     current_week: Number(row.current_week ?? 0),
     regular_season_weeks: Number(row.regular_season_weeks ?? 0),
     regular_season_completed_at: row.regular_season_completed_at ?? null,
@@ -305,6 +310,29 @@ export async function saveWeekDeadline(
     p_first_deadline_date: input.firstDeadlineDate || null,
     p_time: input.time,
     p_timezone: input.timeZone,
+  });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
+/**
+ * Enables or disables the weekly token allowance for the league's current
+ * season. Enabling it mid-week awards the current week immediately when every
+ * match in that week has already been settled.
+ *
+ * @param leagueId - League to update.
+ * @param enabled - Whether closing weeks should credit one token per team.
+ * @throws If the RPC rejects the change.
+ */
+export async function saveWeeklyAllowance(
+  leagueId: string,
+  enabled: boolean,
+): Promise<void> {
+  const { error } = await supabase.rpc("set_weekly_allowance", {
+    p_league_id: leagueId,
+    p_enabled: enabled,
   });
 
   if (error) {

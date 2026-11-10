@@ -45,7 +45,7 @@ export default function RulesPage() {
   return (
     <Suspense
       fallback={
-        <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
+        <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
           <div className="mx-auto max-w-[96rem] rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
             <LoadingGif label="Loading rules" />
           </div>
@@ -238,7 +238,7 @@ function RulesPageContent() {
 
   if (isLoading) {
     return (
-      <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
+      <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
         <div className="mx-auto max-w-[96rem] rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
           <LoadingGif label="Loading rules" />
         </div>
@@ -247,9 +247,9 @@ function RulesPageContent() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
+    <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
       <div className="mx-auto max-w-[96rem] space-y-6">
-        <header className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-2xl shadow-slate-950/40">
+        <header className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-2xl sm:p-6 shadow-slate-950/40">
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-400">
             Rules
           </p>
@@ -285,7 +285,7 @@ function RulesPageContent() {
         )}
 
         {isOwner && isCurrentSeason && (
-          <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-lg shadow-slate-950/30">
+          <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-lg sm:p-6 shadow-slate-950/30">
             <h2 className="text-lg font-semibold text-white">Edit rules</h2>
             <p className="mt-1 text-sm text-slate-400">
               Type the rules below, or load them from a text file. Nothing is
@@ -342,7 +342,7 @@ function RulesPageContent() {
           </section>
         )}
 
-        <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-lg shadow-slate-950/30">
+        <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-lg sm:p-6 shadow-slate-950/30">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <h2 className="text-lg font-semibold text-white">League rules</h2>
             {rules && (

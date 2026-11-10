@@ -14,6 +14,7 @@
 
 html {
   background: #020817;
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
@@ -24,4 +25,34 @@ body {
     linear-gradient(180deg, #020817 0%, #0f172a 100%);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+  overflow-x: clip;
+  overflow-wrap: break-word;
+}
+
+img,
+video,
+canvas,
+svg {
+  max-width: 100%;
+}
+
+button,
+a,
+input,
+select,
+textarea {
+  touch-action: manipulation;
+}
+
+/*
+ * iOS Safari zooms the page when a focused control's text is smaller than
+ * 16px. Keep mobile form controls at that size so tapping a field does not
+ * shift the layout.
+ */
+@media (max-width: 640px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
 }

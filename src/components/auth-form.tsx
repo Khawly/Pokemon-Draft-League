@@ -11,6 +11,7 @@
 import { FormEvent, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
+  MAX_DISPLAY_NAME_LENGTH,
   resetPassword,
   signInWithEmail,
   signUpWithEmail,
@@ -158,6 +159,7 @@ export function AuthForm({ mode, onModeChange }: AuthFormProps) {
               type="text"
               value={displayName}
               onChange={(event) => setDisplayName(event.target.value)}
+              maxLength={MAX_DISPLAY_NAME_LENGTH}
               className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-slate-100 outline-none transition placeholder:text-slate-600 focus:border-amber-400"
               placeholder="Ash Ketchum"
               required

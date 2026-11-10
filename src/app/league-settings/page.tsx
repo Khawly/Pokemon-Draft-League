@@ -5,7 +5,8 @@
  * league format (6v6/4v4), transaction/trade rules, optional trade and free
  * agency deadlines for the active season, plus the recurring weekly deadline
  * that automatically closes each week and moves the league to the next week or
- * the playoffs. Everything persists through Supabase (direct writes for the
+ * the playoffs. The weekly deadline section also enables the weekly token
+ * allowance. Everything persists through Supabase (direct writes for the
  * metadata and image URL, owner RPCs for the deadline).
  */
 "use client";
@@ -39,6 +40,7 @@ import {
   progressLeagueWeek,
   saveLeagueFormat,
   saveWeekDeadline,
+  saveWeeklyAllowance,
   setWeekDeadlinePaused,
   undoWeekProgress,
   type LeagueFormat,
@@ -48,6 +50,7 @@ import {
 } from "@/lib/supabase/week-deadline";
 import { loadLatestSeason, saveSeasonName } from "@/lib/supabase/seasons";
 import { deleteLeague } from "@/lib/supabase/leagues";
+import { MAX_NAME_LENGTH } from "@/lib/name-limits";
 import { LoadingGif } from "@/components/loading-gif";
 import { compressImageFile } from "@/lib/image-upload";
 import { clearSelectedSeason, getSelectedSeason } from "@/lib/season-selection";
@@ -146,7 +149,7 @@ export default function LeagueSettingsPage() {
   return (
     <Suspense
       fallback={
-        <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
+        <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
           <div className="mx-auto max-w-[96rem] rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
             <LoadingGif label="Loading league settings" />
           </div>
@@ -204,6 +207,7 @@ function LeagueSettingsPageContent() {
     useState<WeekDeadlineSettings | null>(null);
   const [leagueFormat, setLeagueFormat] = useState<LeagueFormat>("6v6");
   const [deadlineEnabled, setDeadlineEnabled] = useState(false);
+  const [weeklyAllowanceEnabled, setWeeklyAllowanceEnabled] = useState(false);
   const [deadlineDate, setDeadlineDate] = useState("");
   const [deadlineTime, setDeadlineTime] = useState("20:00");
   const [deadlineTimeZone, setDeadlineTimeZone] = useState("UTC");
@@ -417,6 +421,9 @@ function LeagueSettingsPageContent() {
         setDeadlineSettings(loadedDeadline);
         setLeagueFormat(loadedDeadline?.league_format ?? "6v6");
         setDeadlineEnabled(loadedDeadline?.week_deadline_enabled ?? false);
+        setWeeklyAllowanceEnabled(
+          loadedDeadline?.weekly_allowance_enabled ?? false,
+        );
         setDeadlineTime(loadedDeadline?.week_deadline_time ?? "20:00");
         setProgressState(
           // The week pointer belongs to the current season; showing it while a past
@@ -593,6 +600,7 @@ function LeagueSettingsPageContent() {
     }
     const loaded = await loadWeekDeadlineSettings(leagueId, seasonId);
     setDeadlineSettings(loaded);
+    setWeeklyAllowanceEnabled(loaded?.weekly_allowance_enabled ?? false);
   }, [leagueId, seasonId]);
 
   /**
@@ -654,6 +662,7 @@ function LeagueSettingsPageContent() {
         time: deadlineTime,
         timeZone: deadlineTimeZone,
       });
+      await saveWeeklyAllowance(leagueId, weeklyAllowanceEnabled);
       await refreshDeadlineState();
       setDeadlineMessage(
         deadlineEnabled
@@ -978,9 +987,18 @@ function LeagueSettingsPageContent() {
       return;
     }
 
+    if (trimmedLeagueName.length > MAX_NAME_LENGTH) {
+      setError(
+        `League name must be ${MAX_NAME_LENGTH} characters or fewer.`,
+      );
+      return;
+    }
+
     const trimmedSeasonName = seasonName.trim();
-    if (trimmedSeasonName.length > 80) {
-      setError("Season name must be 80 characters or fewer.");
+    if (trimmedSeasonName.length > MAX_NAME_LENGTH) {
+      setError(
+        `Season name must be ${MAX_NAME_LENGTH} characters or fewer.`,
+      );
       return;
     }
 
@@ -1235,7 +1253,7 @@ function LeagueSettingsPageContent() {
 
   if (isLoading) {
     return (
-      <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
+      <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
         <div className="mx-auto max-w-[96rem] rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
           <LoadingGif label="Loading league settings" />
         </div>
@@ -1245,7 +1263,7 @@ function LeagueSettingsPageContent() {
 
   if (accessAllowed === false) {
     return (
-      <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
+      <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
         <div className="mx-auto max-w-[96rem] rounded-2xl border border-red-800 bg-red-950/30 p-8 text-sm text-red-200 shadow-xl shadow-slate-950/40">
           <h1 className="mb-2 text-2xl font-bold text-white">Access Denied</h1>
           <p>
@@ -1359,9 +1377,9 @@ function LeagueSettingsPageContent() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
+    <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
       <div className="mx-auto max-w-[96rem] space-y-6">
-        <header className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-2xl shadow-slate-950/40">
+        <header className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-2xl sm:p-6 shadow-slate-950/40">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
               <h1 className="text-3xl font-bold text-white">League Settings</h1>
@@ -1432,7 +1450,7 @@ function LeagueSettingsPageContent() {
           className="min-w-0 border-0 p-0"
         >
         <section className="grid gap-6 lg:grid-cols-2">
-          <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-lg shadow-slate-950/30">
+          <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-lg sm:p-6 shadow-slate-950/30">
             <div className="space-y-5">
               <div>
                 <label className="mb-2 block text-sm font-medium text-slate-300">
@@ -1440,6 +1458,7 @@ function LeagueSettingsPageContent() {
                 </label>
                 <input
                   type="text"
+                  maxLength={MAX_NAME_LENGTH}
                   value={leagueName}
                   onChange={(event) => {
                     setLeagueName(event.target.value);
@@ -1504,7 +1523,7 @@ function LeagueSettingsPageContent() {
                   </label>
                   <input
                     type="text"
-                    maxLength={80}
+                    maxLength={MAX_NAME_LENGTH}
                     value={seasonName}
                     onChange={(event) => {
                       setSeasonName(event.target.value);
@@ -1575,7 +1594,7 @@ function LeagueSettingsPageContent() {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-lg shadow-slate-950/30">
+          <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-lg sm:p-6 shadow-slate-950/30">
             <div className="space-y-5">
               <label className="flex items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-950/60 p-3 text-sm text-slate-200">
                 <span>Owner has to approve trades</span>
@@ -1659,7 +1678,7 @@ function LeagueSettingsPageContent() {
           </div>
         </section>
 
-        <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-lg shadow-slate-950/30">
+        <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-lg sm:p-6 shadow-slate-950/30">
           <div>
             <h2 className="text-xl font-bold text-white">Season deadlines</h2>
             <p className="mt-1 text-sm text-slate-400">
@@ -1759,7 +1778,7 @@ function LeagueSettingsPageContent() {
           </p>
         </section>
 
-        <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-lg shadow-slate-950/30">
+        <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-lg sm:p-6 shadow-slate-950/30">
           <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
             <div>
               <h2 className="text-xl font-bold text-white">
@@ -1894,6 +1913,24 @@ function LeagueSettingsPageContent() {
                   </div>
                 </>
               )}
+
+              <label className="flex items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-950/60 p-3 text-sm text-slate-200">
+                <span>Weekly Allowance</span>
+                <input
+                  type="checkbox"
+                  checked={weeklyAllowanceEnabled}
+                  disabled={isDeadlineSaving || !isCurrentSeason}
+                  onChange={(event) =>
+                    setWeeklyAllowanceEnabled(event.target.checked)
+                  }
+                  className="h-4 w-4 accent-amber-500 disabled:opacity-50"
+                />
+              </label>
+              <p className="text-xs text-slate-400">
+                When on, every team is credited one token each time a week
+                closes, whether that happens at the weekly deadline or when the
+                week&apos;s last match is settled. Save above to apply.
+              </p>
             </div>
 
             <div className="space-y-4">
@@ -2063,7 +2100,7 @@ function LeagueSettingsPageContent() {
           a setting: it is the one action here that changes what every other page is about,
           so it is separated from the controls that only change a rule.
         */}
-        <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-lg shadow-slate-950/30">
+        <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-lg sm:p-6 shadow-slate-950/30">
           <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">
             Season
           </h2>

@@ -86,7 +86,7 @@ export default function PokemonPage() {
   return (
     <Suspense
       fallback={
-        <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
+        <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
           <div className="mx-auto max-w-[96rem] rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
             <LoadingGif label="Loading free agents" />
           </div>
@@ -206,13 +206,13 @@ function TypeBadge({ type }: { type: string }) {
 
 /**
  * Labels a tier value for display; there is no upper bound, so any positive
- * tier renders as "Tier N" and untiered as "Unranked".
+ * tier renders as "Tier N" and an untiered Pokémon renders as "0".
  *
  * @param tier - The tier integer.
  * @returns The display label.
  */
 function tierLabel(tier: number): string {
-  return tier === 0 ? "Unranked" : `Tier ${tier}`;
+  return tier === 0 ? "0" : `Tier ${tier}`;
 }
 
 /**
@@ -227,7 +227,8 @@ function actionLabel(
     | "dropped"
     | "trade_in"
     | "trade_out"
-    | "token_transfer",
+    | "token_transfer"
+    | "weekly_allowance",
 ): string {
   switch (action) {
     case "added":
@@ -240,6 +241,8 @@ function actionLabel(
       return "Trade out";
     case "token_transfer":
       return "Tokens traded";
+    case "weekly_allowance":
+      return "Weekly allowance";
   }
 }
 
@@ -448,9 +451,9 @@ function FreeAgentTable({
       <table className="min-w-full divide-y divide-slate-800 text-center text-sm">
         <thead className="bg-slate-950 text-slate-300">
           <tr>
+            <SortableTh label="Tier" column="tier" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
             <SortableTh label="Pokémon" column="name" sortKey={sortKey} sortDir={sortDir} onSort={onSort} align="left" />
             <SortableTh label="Type" column="type" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
-            <SortableTh label="Tier" column="tier" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
             <SortableTh label="Abilities" column="abilities" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
             <SortableTh label="BST" column="bst" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
             <SortableTh label="HP" column="hp" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
@@ -468,6 +471,9 @@ function FreeAgentTable({
             const affordable = isPending ? true : canAfford(row);
             return (
               <tr key={row.pokemon_id} className="hover:bg-slate-800/80">
+                <td className="whitespace-nowrap px-3 py-2 text-slate-200">
+                  {row.tier_value}
+                </td>
                 <td className="px-3 py-2 text-left">
                   <div className="flex items-center justify-start gap-2">
                     <Sprite
@@ -490,9 +496,6 @@ function FreeAgentTable({
                       <span className="text-slate-600">—</span>
                     )}
                   </span>
-                </td>
-                <td className="whitespace-nowrap px-3 py-2 text-slate-200">
-                  {row.tier_value}
                 </td>
                 <td className="max-w-[180px] px-3 py-2 text-slate-300">
                   {row.abilities && row.abilities.length > 0 ? (
@@ -948,8 +951,8 @@ function teamOptionLabel(team: PokemonTeamOption): string {
  * Pokémon name, action label, who made the move, the signed token delta, and
  * when it happened. Moves a league owner made on another member's team also name
  * that team, so a pickup or release is never ambiguous about whose roster it
- * touched. Draft picks are excluded by the loader. Times render in the zone the
- * member picked in user settings.
+ * touched. Draft picks and weekly allowances are excluded by the loader. Times
+ * render in the zone the member picked in user settings.
  */
 function TransactionHistory({
   goods,
@@ -961,7 +964,7 @@ function TransactionHistory({
   const timeZone = useUserTimeZone();
 
   return (
-    <aside className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-lg shadow-slate-950/30">
+    <aside className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-lg sm:p-6 shadow-slate-950/30">
       <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">
         Transaction history
       </p>
@@ -975,9 +978,9 @@ function TransactionHistory({
       ) : (
         <>
           <p className="mt-2 text-xs text-slate-500">
-            Every team&apos;s free agent pickups, releases, and token trades, newest
-            first. A move the league owner made on another team names that team.
-            Draft picks are left out.
+            Every team&apos;s free agent pickups, releases, and token trades,
+            newest first. A move the league owner made on another team names that
+            team. Draft picks and weekly allowances are left out.
           </p>
           <ul className="mt-4 space-y-3">
             {transactions.map((entry) => {
@@ -1469,7 +1472,7 @@ function PokemonPageContent({
 
   if (isLoading && !goods) {
     return (
-      <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
+      <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
         <div className="mx-auto max-w-[96rem] rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
           <LoadingGif label="Loading free agents" />
         </div>
@@ -1479,7 +1482,7 @@ function PokemonPageContent({
 
   if (error && !goods) {
     return (
-      <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
+      <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
         <div className="mx-auto max-w-[96rem] rounded-2xl border border-red-800 bg-red-950/40 p-8 text-sm text-red-200 shadow-xl shadow-slate-950/40">
           {error}
         </div>
@@ -1492,9 +1495,9 @@ function PokemonPageContent({
   }
 
   return (
-    <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
+    <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
       <div className="mx-auto max-w-[96rem] space-y-6">
-        <header className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-2xl shadow-slate-950/40">
+        <header className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-2xl sm:p-6 shadow-slate-950/40">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <h2 className="text-3xl font-bold text-white">
@@ -1726,7 +1729,7 @@ function PokemonPageContent({
         )}
 
         <section className="grid gap-6 xl:grid-cols-[1.5fr_0.9fr]">
-          <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-lg shadow-slate-950/30">
+          <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-lg sm:p-6 shadow-slate-950/30">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">

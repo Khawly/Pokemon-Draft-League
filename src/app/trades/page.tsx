@@ -122,7 +122,7 @@ export default function TradesPage() {
   return (
     <Suspense
       fallback={
-        <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
+        <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
           <div className="mx-auto max-w-[96rem] rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
             <LoadingGif label="Loading trades" />
           </div>
@@ -215,13 +215,13 @@ function TypeBadges({ types }: { types: string[] }) {
 
 /**
  * Renders a tier value. There is no upper bound, so any positive tier reads as
- * "Tier N" and an untiered Pokémon reads as unranked rather than as tier zero.
+ * "Tier N" and an untiered Pokémon reads as "0" rather than as tier zero.
  *
  * @param tier - The tier integer.
  * @returns The display label.
  */
 function tierLabel(tier: number): string {
-  return tier === 0 ? "Unranked" : `Tier ${tier}`;
+  return tier === 0 ? "0" : `Tier ${tier}`;
 }
 
 /**
@@ -1162,7 +1162,7 @@ function ProposalBuilder({
 
   return (
     <div className="space-y-5">
-      <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-lg shadow-slate-950/30">
+      <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-lg sm:p-6 shadow-slate-950/30">
         <label className="block">
           <span className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">
             Trade with
@@ -1208,7 +1208,7 @@ function ProposalBuilder({
 
       {/* Token inputs, mirroring the two Pokémon pickers above. */}
       {tokenTradesAllowed && (
-        <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-lg shadow-slate-950/30">
+        <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-lg sm:p-6 shadow-slate-950/30">
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">
             Tokens
           </p>
@@ -1234,7 +1234,7 @@ function ProposalBuilder({
         </div>
       )}
 
-      <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-lg shadow-slate-950/30">
+      <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-lg sm:p-6 shadow-slate-950/30">
         <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">
           Projected balances
         </p>
@@ -1864,7 +1864,7 @@ function TradesPageContent({
 
   if (isLoading && !goods) {
     return (
-      <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
+      <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
         <div className="mx-auto max-w-[96rem] rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
           <LoadingGif label="Loading trades" />
         </div>
@@ -1874,7 +1874,7 @@ function TradesPageContent({
 
   if (error && !goods) {
     return (
-      <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
+      <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
         <div className="mx-auto max-w-[96rem] rounded-2xl border border-red-800 bg-red-950/40 p-8 text-sm text-red-200 shadow-xl shadow-slate-950/40">
           {error}
         </div>
@@ -1887,9 +1887,9 @@ function TradesPageContent({
   }
 
   return (
-    <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
+    <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
       <div className="mx-auto max-w-[96rem] space-y-6">
-        <header className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-2xl shadow-slate-950/40">
+        <header className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-2xl sm:p-6 shadow-slate-950/40">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <h2 className="text-3xl font-bold text-white">{goods.league.name}</h2>

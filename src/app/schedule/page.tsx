@@ -239,7 +239,8 @@ function sideByTeamId(
  * A read-only matchup card for a completed match, used by the match history
  * panel. Mirrors the Matchup section's layout and honours the spoiler filter, but
  * carries none of its action buttons; selecting the card loads the match into the
- * Matchup section above instead.
+ * Matchup section above instead. It also names the current member's winner pick,
+ * which is otherwise lost once the card stops offering the picker.
  */
 function MatchupHistoryCard({
   match,
@@ -271,6 +272,15 @@ function MatchupHistoryCard({
   const rows = buildGameRows(match, matchFormat);
   const winnerSide = (teamId: string) =>
     !hideSpoilers && match.winner_team_id === teamId;
+  const predictionSide = match.my_prediction_team_id
+    ? {
+        ...sideByTeamId(match, match.my_prediction_team_id),
+        userId:
+          match.my_prediction_team_id === match.player_1_team_id
+            ? match.player_1_user_id
+            : match.player_2_user_id,
+      }
+    : null;
 
   const side = (
     teamId: string,
@@ -420,6 +430,18 @@ function MatchupHistoryCard({
             );
           })}
         </div>
+      )}
+
+      {predictionSide && (
+        <p className="mt-3 border-t border-slate-800 pt-3 text-xs text-slate-500">
+          Your pick:{" "}
+          <MemberName
+            name={predictionSide.name}
+            color={predictionSide.color}
+            userId={predictionSide.userId}
+            className="font-semibold text-slate-300"
+          />
+        </p>
       )}
 
       {match.status === "forfeit" && match.forfeited_by_name && (
@@ -686,7 +708,7 @@ function SectionCard({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-lg shadow-slate-950/30">
+    <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-lg sm:p-6 shadow-slate-950/30">
       <div className="flex items-center justify-between gap-4">
         <h2 className="text-xl font-bold text-white">{title}</h2>
         {action}
@@ -887,7 +909,7 @@ export default function SchedulePage() {
   return (
     <Suspense
       fallback={
-        <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
+        <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
           <div className="mx-auto max-w-[96rem] rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
             <LoadingGif label="Loading schedule" />
           </div>
@@ -2643,7 +2665,7 @@ function SchedulePageContent({
 
   if (isLoading) {
     return (
-      <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
+      <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
         <div className="mx-auto max-w-[96rem] rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
           <LoadingGif label="Loading schedule" />
         </div>
@@ -2653,7 +2675,7 @@ function SchedulePageContent({
 
   if (!goods) {
     return (
-      <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
+      <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
         <div className="mx-auto max-w-xl rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
           {error ?? "The schedule could not be loaded."}
         </div>
@@ -2689,10 +2711,10 @@ function SchedulePageContent({
   );
 
   return (
-    <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
+    <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
       <CrownProvider crownedUserIds={goods.crownedMemberIds}>
         <div className="mx-auto max-w-[96rem] space-y-6">
-        <header className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-2xl shadow-slate-950/40">
+        <header className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-2xl sm:p-6 shadow-slate-950/40">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h1 className="text-3xl font-bold text-white">
@@ -3195,6 +3217,9 @@ function SchedulePageContent({
                               const picked =
                                 selectedMatch.my_prediction_team_id ===
                                 side.teamId;
+                              const count =
+                                selectedMatch.prediction_counts[side.teamId] ??
+                                0;
 
                               return (
                                 <button
@@ -3214,8 +3239,21 @@ function SchedulePageContent({
                                       : "border-slate-700 bg-slate-800 text-slate-200 hover:border-amber-500/60 hover:bg-slate-700"
                                   }`}
                                 >
-                                  {picked ? "Your pick: " : "Pick "}
-                                  {side.name}
+                                  <span className="flex items-center justify-between gap-2">
+                                    <span>
+                                      {picked ? "Your pick: " : "Pick "}
+                                      {side.name}
+                                    </span>
+                                    <span
+                                      className={`shrink-0 text-xs font-semibold ${
+                                        picked
+                                          ? "text-emerald-300/80"
+                                          : "text-slate-400"
+                                      }`}
+                                    >
+                                      {count} {count === 1 ? "pick" : "picks"}
+                                    </span>
+                                  </span>
                                 </button>
                               );
                             })}
@@ -4013,6 +4051,7 @@ function SchedulePageContent({
                                 : null
                             }
                             predictedTeamId={match.my_prediction_team_id}
+                            predictionCounts={match.prediction_counts}
                             disabled={isBusy}
                             onPick={(teamId) =>
                               void handlePredict(match.id, teamId)

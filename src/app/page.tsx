@@ -2,9 +2,9 @@
  * Landing page for the Pokemon Draft League.
  *
  * Explains what the app does and gives visitors a single place to sign in or
- * create an account. A signed-in visitor sees the same explanation with a
- * "go to dashboard" action instead of the authentication form, so the home
- * button in the top bar can always land on this page.
+ * create an account. A signed-in visitor sees the same explanation with
+ * dashboard and logout actions in the top bar instead of the authentication
+ * form, so the home button in the top bar can always land on this page.
  *
  * In development, `?devAccount=<key>` still signs in a registered test account
  * and sends it to the dashboard. Without that parameter the landing page stays
@@ -20,6 +20,7 @@ import Image from "next/image";
 import { AuthForm, type AuthMode } from "@/components/auth-form";
 import { LoadingGif } from "@/components/loading-gif";
 import { getSelectedLeague } from "@/lib/league-selection";
+import { signOut } from "@/lib/supabase/auth";
 import { supabase } from "@/lib/supabase/client";
 
 /** A feature shown in the landing page's capability grid. */
@@ -95,6 +96,7 @@ export default function Home() {
   const [isSignedIn, setIsSignedIn] = useState(false);
   const [signedInLabel, setSignedInLabel] = useState<string | null>(null);
   const [authMode, setAuthMode] = useState<AuthMode>("login");
+  const [isSigningOut, setIsSigningOut] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -203,9 +205,21 @@ export default function Home() {
     router.push(leagueId ? `/dashboard?leagueId=${leagueId}` : "/dashboard");
   }
 
+  /** Signs the current user out and returns the page to its signed-out state. */
+  async function handleSignOut() {
+    setIsSigningOut(true);
+
+    try {
+      await signOut();
+      router.refresh();
+    } finally {
+      setIsSigningOut(false);
+    }
+  }
+
   if (isCheckingSession) {
     return (
-      <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(245,158,11,0.18),_rgba(15,23,42,0.2)_30%,_#020817_100%)] px-6 py-10 text-slate-100">
+      <main className="min-h-dvh bg-[radial-gradient(circle_at_top,_rgba(245,158,11,0.18),_rgba(15,23,42,0.2)_30%,_#020817_100%)] px-6 py-10 text-slate-100">
         <div className="mx-auto max-w-[96rem] rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
           <LoadingGif label="Loading home page" />
         </div>
@@ -214,7 +228,7 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(245,158,11,0.18),_rgba(15,23,42,0.2)_30%,_#020817_100%)] px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
+    <main className="min-h-dvh bg-[radial-gradient(circle_at_top,_rgba(245,158,11,0.18),_rgba(15,23,42,0.2)_30%,_#020817_100%)] px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
       <div className="mx-auto max-w-[96rem] space-y-16">
         <header className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -242,13 +256,23 @@ export default function Home() {
 
           <div className="flex flex-wrap items-center gap-2">
             {isSignedIn ? (
-              <button
-                type="button"
-                onClick={goToDashboard}
-                className="rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-amber-400"
-              >
-                Go to dashboard
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={goToDashboard}
+                  className="rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-amber-400"
+                >
+                  Go to dashboard
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleSignOut()}
+                  disabled={isSigningOut}
+                  className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-2.5 text-sm font-medium text-slate-200 transition hover:border-slate-500 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {isSigningOut ? "Logging out..." : "Log out"}
+                </button>
+              </>
             ) : (
               <>
                 <button
@@ -282,54 +306,27 @@ export default function Home() {
             </h1>
             <p className="max-w-xl text-base leading-relaxed text-slate-300 sm:text-lg">
               Draft with your friends, manage rosters and token budgets, trade
-              players, schedule matches, and crown a champion — all in one
-              place.
+              players, schedule matches, and crown a champion.
             </p>
 
-            <div className="flex flex-col gap-3 sm:flex-row">
-              {isSignedIn ? (
+            {!isSignedIn && (
+              <div className="flex flex-col gap-3 sm:flex-row">
                 <button
                   type="button"
-                  onClick={goToDashboard}
+                  onClick={() => chooseAuth("signup")}
                   className="rounded-xl bg-amber-500 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-amber-400"
                 >
-                  Open your dashboard
+                  Create an account
                 </button>
-              ) : (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => chooseAuth("signup")}
-                    className="rounded-xl bg-amber-500 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-amber-400"
-                  >
-                    Create an account
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => chooseAuth("login")}
-                    className="rounded-xl border border-slate-700 bg-slate-900 px-5 py-3 text-sm font-medium text-slate-200 transition hover:border-slate-500 hover:bg-slate-800"
-                  >
-                    Sign in
-                  </button>
-                </>
-              )}
-            </div>
-
-            <ul className="flex flex-wrap gap-2 pt-2 text-xs text-slate-400">
-              {[
-                "Snake and set drafts",
-                "Salary and transaction rules",
-                "Trades and approvals",
-                "Playoffs and history",
-              ].map((item) => (
-                <li
-                  key={item}
-                  className="rounded-full border border-slate-800 bg-slate-900/70 px-3 py-1.5"
+                <button
+                  type="button"
+                  onClick={() => chooseAuth("login")}
+                  className="rounded-xl border border-slate-700 bg-slate-900 px-5 py-3 text-sm font-medium text-slate-200 transition hover:border-slate-500 hover:bg-slate-800"
                 >
-                  {item}
-                </li>
-              ))}
-            </ul>
+                  Sign in
+                </button>
+              </div>
+            )}
           </div>
 
           <div id="auth" className="scroll-mt-6 lg:sticky lg:top-8">
@@ -362,20 +359,17 @@ export default function Home() {
               id="features-heading"
               className="mt-2 text-2xl font-bold text-white sm:text-3xl"
             >
-              Everything your league needs, in one place.
+              Everything your league needs.
             </h2>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {FEATURES.map((feature, index) => (
+            {FEATURES.map((feature) => (
               <article
                 key={feature.title}
                 className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5 transition hover:border-slate-700"
               >
-                <span className="inline-flex h-8 min-w-8 items-center justify-center rounded-lg border border-amber-500/30 bg-amber-500/10 px-2 text-xs font-bold text-amber-300">
-                  {String(index + 1).padStart(2, "0")}
-                </span>
-                <h3 className="mt-4 text-base font-semibold text-white">
+                <h3 className="text-base font-semibold text-white">
                   {feature.title}
                 </h3>
                 <p className="mt-2 text-sm leading-relaxed text-slate-400">

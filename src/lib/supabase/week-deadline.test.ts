@@ -35,6 +35,7 @@ function settings(anchorDate: string, time = "20:00"): WeekDeadlineSettings {
     week_deadline_paused_at: null,
     week_deadline_last_advanced_at: null,
     week_deadline_settled_matches: 0,
+    weekly_allowance_enabled: false,
     current_week: 1,
     regular_season_weeks: 5,
     regular_season_completed_at: null,

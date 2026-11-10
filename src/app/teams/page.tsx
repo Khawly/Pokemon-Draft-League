@@ -113,7 +113,7 @@ export default function TeamsPage() {
   return (
     <Suspense
       fallback={
-        <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
+        <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
           <div className="mx-auto max-w-[96rem] rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
             <LoadingGif label="Loading teams" />
           </div>
@@ -306,7 +306,7 @@ function TeamStatsTable({
   }, [roster]);
 
   return (
-    <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-lg shadow-slate-950/30">
+    <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-lg sm:p-6 shadow-slate-950/30">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">
@@ -350,9 +350,6 @@ function TeamStatsTable({
           <table className="min-w-full divide-y divide-slate-800 text-center text-sm">
             <thead className="bg-slate-950 text-slate-300">
               <tr>
-                <th scope="col" className="px-3 py-3 text-left font-semibold">
-                  Pokémon
-                </th>
                 <StatHeader
                   label="Tier"
                   column="tier"
@@ -360,11 +357,11 @@ function TeamStatsTable({
                   sortDir={sortDir}
                   onSort={handleSort}
                 />
-                <th scope="col" className="px-3 py-3 font-semibold">
-                  Type 1
+                <th scope="col" className="px-3 py-3 text-left font-semibold">
+                  Pokémon
                 </th>
                 <th scope="col" className="px-3 py-3 font-semibold">
-                  Type 2
+                  Type
                 </th>
                 <th scope="col" className="px-3 py-3 font-semibold">
                   Abilities
@@ -417,6 +414,9 @@ function TeamStatsTable({
             <tbody className="divide-y divide-slate-800 bg-slate-900">
               {filtered.map((pokemon) => (
                 <tr key={pokemon.id} className="hover:bg-slate-800/80">
+                  <td className="px-3 py-2 whitespace-nowrap text-slate-200">
+                    {pokemon.tier_value}
+                  </td>
                   <td className="px-3 py-2 text-left">
                     <div className="flex items-center justify-start gap-2">
                       <Sprite spriteId={pokemon.spriteId} name={pokemon.name} size={40} />
@@ -425,14 +425,16 @@ function TeamStatsTable({
                       </span>
                     </div>
                   </td>
-                  <td className="px-3 py-2 whitespace-nowrap text-slate-200">
-                    {pokemon.tier_value === 0 ? "Unranked" : pokemon.tier_value}
-                  </td>
                   <td className="px-3 py-2">
-                    {pokemon.types[0] ? <TypeBadge type={pokemon.types[0]} /> : <span className="text-slate-600">—</span>}
-                  </td>
-                  <td className="px-3 py-2">
-                    {pokemon.types[1] ? <TypeBadge type={pokemon.types[1]} /> : <span className="text-slate-600">—</span>}
+                    <span className="flex flex-wrap items-center justify-center gap-1">
+                      {pokemon.types.length > 0 ? (
+                        pokemon.types.map((type) => (
+                          <TypeBadge key={type} type={type} />
+                        ))
+                      ) : (
+                        <span className="text-slate-600">—</span>
+                      )}
+                    </span>
                   </td>
                   <td className="max-w-[180px] px-3 py-2 text-slate-300">
                     {pokemon.abilities && pokemon.abilities.length > 0 ? (
@@ -583,7 +585,7 @@ function DefensiveTypingGrid({
   const summary = useMemo(() => buildDefensiveSummary(roster), [roster]);
 
   return (
-    <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-lg shadow-slate-950/30">
+    <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-lg sm:p-6 shadow-slate-950/30">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">
@@ -760,7 +762,7 @@ function MatchHistory({
   );
 
   return (
-    <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-lg shadow-slate-950/30">
+    <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-lg sm:p-6 shadow-slate-950/30">
       <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">
         Match history
       </p>
@@ -1151,7 +1153,7 @@ function TeamsPageContent({
 
   if (isLoading && !goods) {
     return (
-      <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
+      <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
         <div className="mx-auto max-w-[96rem] rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
           <LoadingGif label="Loading teams" />
         </div>
@@ -1161,7 +1163,7 @@ function TeamsPageContent({
 
   if (error) {
     return (
-      <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
+      <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
         <div className="mx-auto max-w-[96rem] rounded-2xl border border-red-800 bg-red-950/40 p-8 text-sm text-red-200 shadow-xl shadow-slate-950/40">
           {error}
         </div>
@@ -1215,9 +1217,9 @@ function TeamsPageContent({
   );
 
   return (
-    <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
+    <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
       <div className="mx-auto max-w-[96rem] space-y-6">
-        <header className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-2xl shadow-slate-950/40">
+        <header className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-2xl sm:p-6 shadow-slate-950/40">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <h2 className="text-3xl font-bold text-white">{goods.league.name}</h2>

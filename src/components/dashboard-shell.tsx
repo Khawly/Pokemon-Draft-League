@@ -113,7 +113,7 @@ function RulesPanel({ rules, timeZone, isOwner, leagueId }: RulesPanelProps) {
   const rulesRoute = routeFor("rules", leagueId);
 
   return (
-    <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-lg shadow-slate-950/30">
+    <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-lg sm:p-6 shadow-slate-950/30">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">
@@ -448,7 +448,7 @@ export function DashboardShell({
 
   return (
     <div className="space-y-6">
-      <header className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-2xl shadow-slate-950/40 backdrop-blur-sm">
+      <header className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-2xl sm:p-6 shadow-slate-950/40 backdrop-blur-sm">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex flex-col gap-3">
             <div className="flex flex-wrap items-center gap-3">
@@ -511,7 +511,7 @@ export function DashboardShell({
       {draftFinished && (
         <>
           <section className="grid gap-6 xl:grid-cols-[1.5fr_0.9fr]">
-            <div className="xl:col-span-2 rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-lg shadow-slate-950/30">
+            <div className="xl:col-span-2 rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-lg sm:p-6 shadow-slate-950/30">
               <div className="flex items-center justify-between gap-3">
                 <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">
                   Notifications
@@ -594,7 +594,7 @@ export function DashboardShell({
               )}
             </div>
 
-            <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-lg shadow-slate-950/30">
+            <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-lg sm:p-6 shadow-slate-950/30">
               <div className="flex items-center justify-between gap-4">
                 <div>
                   <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">
@@ -740,6 +740,7 @@ export function DashboardShell({
                               name: match.player_2_name,
                             }}
                             predictedTeamId={match.my_prediction_team_id}
+                            predictionCounts={match.prediction_counts}
                             disabled={predictingMatchId === match.id}
                             onPick={(teamId) => onPredict(match.id, teamId)}
                           />
@@ -760,7 +761,7 @@ export function DashboardShell({
             </div>
 
             <aside className="space-y-6">
-              <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-lg shadow-slate-950/30">
+              <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-lg sm:p-6 shadow-slate-950/30">
                 <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">
                   Next match
                 </p>
@@ -845,7 +846,7 @@ export function DashboardShell({
                 )}
               </div>
 
-              <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-lg shadow-slate-950/30">
+              <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-lg sm:p-6 shadow-slate-950/30">
                 <div className="flex items-center justify-between gap-4">
                   <div>
                     <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">
@@ -950,7 +951,7 @@ export function DashboardShell({
         the draft could be started without ever scrolling to find it.
       */}
       {!draftFinished && (
-        <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-lg shadow-slate-950/30">
+        <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-lg sm:p-6 shadow-slate-950/30">
           <h2 className="text-lg font-semibold text-white">Draft preview</h2>
           <p className="mt-1 text-sm text-slate-400">
             {goods.season?.status === "draft_active"

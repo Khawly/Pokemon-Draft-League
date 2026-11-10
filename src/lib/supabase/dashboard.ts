@@ -166,6 +166,11 @@ export type DashboardMatch = {
   results: { id: string }[];
   /** The team this member picked to win, or null when they have not picked. */
   my_prediction_team_id: string | null;
+  /**
+   * How many members picked each side to win, keyed by team id. A team nobody
+   * picked is absent rather than stored as zero, so callers use `?? 0`.
+   */
+  prediction_counts: Record<string, number>;
 };
 
 /** A ranked standings row, already ordered by the database. */
@@ -579,15 +584,15 @@ export async function loadDashboardData(
         .eq("season_id", season.id)
         .order("week_number", { ascending: true }),
       /*
-       * The member's winner picks for this season, matched to the schedule cards
-       * below. A failed read leaves the panel without picks rather than blanking
-       * the dashboard, which has a dozen other panels that do not depend on it.
+       * The season's winner picks, used both for the member's own selected side
+       * and for the per-side counts on each prediction button. A failed read
+       * leaves the panel without picks rather than blanking the dashboard,
+       * which has a dozen other panels that do not depend on it.
        */
       supabase
         .from("match_predictions")
-        .select("match_id, predicted_team_id")
-        .eq("season_id", season.id)
-        .eq("user_id", userId),
+        .select("match_id, predicted_team_id, user_id")
+        .eq("season_id", season.id),
       /*
        * The rules for this season. A failure here is deliberately not fatal: the
        * dashboard has a dozen other panels, and a league whose rules row is
@@ -664,14 +669,28 @@ export async function loadDashboardData(
   const teamIds = teams.map((team) => team.id);
   const myTeam = teams.find((team) => team.owner_user_id === userId) ?? null;
 
-  const predictionsByMatch = predictionResult.error
-    ? new Map<string, string>()
-    : new Map(
-        ((predictionResult.data ?? []) as {
-          match_id: string;
-          predicted_team_id: string;
-        }[]).map((row) => [row.match_id, row.predicted_team_id]),
-      );
+  const predictionsByMatch = new Map<string, string>();
+  const predictionCountsByMatch = new Map<string, Record<string, number>>();
+
+  if (!predictionResult.error) {
+    for (const prediction of (predictionResult.data ?? []) as {
+      match_id: string;
+      predicted_team_id: string;
+      user_id: string;
+    }[]) {
+      if (prediction.user_id === userId) {
+        predictionsByMatch.set(
+          prediction.match_id,
+          prediction.predicted_team_id,
+        );
+      }
+
+      const counts = predictionCountsByMatch.get(prediction.match_id) ?? {};
+      counts[prediction.predicted_team_id] =
+        (counts[prediction.predicted_team_id] ?? 0) + 1;
+      predictionCountsByMatch.set(prediction.match_id, counts);
+    }
+  }
 
   const matches = ((matchResult.data ?? []) as {
     id: string;
@@ -724,6 +743,7 @@ export async function loadDashboardData(
     player_2_user_id: row.player_2?.owner_user_id ?? null,
     results: row.results ?? [],
     my_prediction_team_id: predictionsByMatch.get(row.id) ?? null,
+    prediction_counts: predictionCountsByMatch.get(row.id) ?? {},
   }));
 
 

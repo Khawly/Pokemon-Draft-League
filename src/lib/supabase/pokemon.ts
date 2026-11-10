@@ -121,6 +121,8 @@ export const TRANSACTION_SOURCES = [
   "trade",
   /** Dropped from a roster. */
   "release",
+  /** Credited by the league's weekly allowance. */
+  "weekly_allowance",
 ] as const;
 
 /** What caused a roster move, as classified by the ledger's source column. */
@@ -162,7 +164,13 @@ export type PokemonTransaction = {
   teamOwnerColor: string | null;
   /** The draft-time team name, used when the owner has no display name. */
   teamName: string | null;
-  action: "added" | "dropped" | "trade_in" | "trade_out" | "token_transfer";
+  action:
+    | "added"
+    | "dropped"
+    | "trade_in"
+    | "trade_out"
+    | "token_transfer"
+    | "weekly_allowance";
   /**
    * What caused the move. Null only for a row written before the column existed
    * and read before the backfill, which the panel treats as unknown rather than
@@ -262,7 +270,13 @@ type TransactionRow = {
       name_color?: string | null;
     } | null;
   } | null;
-  action: "added" | "dropped" | "trade_in" | "trade_out" | "token_transfer";
+  action:
+    | "added"
+    | "dropped"
+    | "trade_in"
+    | "trade_out"
+    | "token_transfer"
+    | "weekly_allowance";
   source?: TransactionSource | null;
   cost_delta: number;
   note: string | null;
@@ -574,7 +588,9 @@ export async function loadPokemonPageData(
    * salary is calculated from. Widening it to the league would make every member
    * rich. This one drops the draft so the panel shows what has happened to the
    * rosters since the draft finished, and the source column is what makes that
-   * distinction reliable rather than a guess from the note text.
+   * distinction reliable rather than a guess from the note text. Weekly
+   * allowances are also excluded: their history lives on the Members Settings
+   * page, not among roster moves.
    */
   const { data: activityRows, error: activityError } = await supabase
     .from("transactions")
@@ -584,6 +600,7 @@ export async function loadPokemonPageData(
     .eq("league_id", leagueId)
     .eq("season_id", season.id)
     .neq("source", "draft_pick")
+    .neq("source", "weekly_allowance")
     .order("created_at", { ascending: false })
     .limit(LEAGUE_ACTIVITY_LIMIT);
 

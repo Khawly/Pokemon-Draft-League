@@ -25,6 +25,11 @@ export interface MatchPredictionButtonsProps {
   playerTwo: MatchPredictionSide | null;
   /** The member's current pick, or null when they have not picked yet. */
   predictedTeamId: string | null;
+  /**
+   * How many members picked each side, keyed by team id. A side nobody picked is
+   * absent from the map rather than stored as zero.
+   */
+  predictionCounts: Record<string, number>;
   /** Disables both buttons while a pick is being saved. */
   disabled?: boolean;
   /** Called with the chosen team id. */
@@ -32,7 +37,8 @@ export interface MatchPredictionButtonsProps {
 }
 
 /**
- * Renders the two winner-pick buttons for one matchup.
+ * Renders the two winner-pick buttons for one matchup, each with the number of
+ * members who picked that side.
  *
  * @param props - {@link MatchPredictionButtonsProps}
  * @returns The picker, or just the first side when the matchup is a bye.
@@ -41,6 +47,7 @@ export function MatchPredictionButtons({
   playerOne,
   playerTwo,
   predictedTeamId,
+  predictionCounts,
   disabled = false,
   onPick,
 }: MatchPredictionButtonsProps) {
@@ -65,6 +72,7 @@ export function MatchPredictionButtons({
     <div className="grid grid-cols-2 gap-1.5">
       {sides.map((side) => {
         const picked = predictedTeamId === side.teamId;
+        const count = predictionCounts[side.teamId] ?? 0;
 
         return (
           <button
@@ -72,16 +80,27 @@ export function MatchPredictionButtons({
             type="button"
             disabled={disabled}
             aria-pressed={picked}
-            title={`Pick ${side.name} to win`}
+            title={`Pick ${side.name} to win (${count} ${
+              count === 1 ? "member has" : "members have"
+            } predicted)`}
             onClick={(event) => handleClick(event, side.teamId)}
-            className={`min-w-0 truncate rounded-lg border px-2 py-1.5 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-50 ${
+            className={`flex min-w-0 items-center justify-between gap-1 rounded-lg border px-2 py-1.5 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-50 ${
               picked
                 ? "border-emerald-500 bg-emerald-500/15 text-emerald-200"
                 : "border-slate-700 bg-slate-800 text-slate-200 hover:border-amber-500/60 hover:bg-slate-700"
             }`}
           >
-            {picked ? "Your pick: " : ""}
-            {side.name}
+            <span className="truncate">
+              {picked ? "Your pick: " : ""}
+              {side.name}
+            </span>
+            <span
+              className={`shrink-0 text-[10px] font-semibold ${
+                picked ? "text-emerald-300/80" : "text-slate-400"
+              }`}
+            >
+              {count} {count === 1 ? "pick" : "picks"}
+            </span>
           </button>
         );
       })}

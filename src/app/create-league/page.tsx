@@ -10,6 +10,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { createLeagueForUser } from "@/lib/supabase/leagues";
+import { MAX_NAME_LENGTH } from "@/lib/name-limits";
 
 /**
  * Renders the create-league form and submits it to createLeagueForUser on
@@ -35,6 +36,7 @@ export default function CreateLeaguePage() {
         numberOfPlayers,
       });
 
+      // The dashboard reloads the new league from the scoped URL parameter.
       router.push(`/dashboard?leagueId=${result.leagueId}`);
     } catch (caughtError) {
       const message =
@@ -48,8 +50,8 @@ export default function CreateLeaguePage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
-      <div className="mx-auto max-w-2xl rounded-2xl border border-slate-800 bg-slate-900/80 p-8 shadow-2xl shadow-slate-950/40">
+    <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
+      <div className="mx-auto max-w-2xl rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-2xl sm:p-6 shadow-slate-950/40 sm:p-8">
         <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-400">
           Create New League
         </p>
@@ -64,6 +66,7 @@ export default function CreateLeaguePage() {
             </label>
             <input
               type="text"
+              maxLength={MAX_NAME_LENGTH}
               value={leagueName}
               onChange={(event) => setLeagueName(event.target.value)}
               placeholder="Indigo City Championship"

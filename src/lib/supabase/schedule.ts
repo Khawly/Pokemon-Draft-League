@@ -173,6 +173,11 @@ export type ScheduleMatch = {
    * pick without issuing a query.
    */
   my_prediction_team_id: string | null;
+  /**
+   * How many members picked each side to win, keyed by team id. A team nobody
+   * picked is absent rather than stored as zero, so callers use `?? 0`.
+   */
+  prediction_counts: Record<string, number>;
 };
 
 /**
@@ -635,6 +640,7 @@ function toStandingsRows(data: unknown): StandingsRow[] {
  *   before attribution was recorded. Passed in rather than read again, because it is the
  *   owner's profile and does not change while the page is open.
  * @param userId - The signed-in member, whose winner picks are attached to the matches.
+ *   Every member's pick also feeds the per-side prediction counts.
  * @returns The season's matches, ordered by week then creation.
  * @throws If the read fails.
  */
@@ -655,14 +661,15 @@ export async function loadScheduleMatches(
       .order("week_number", { ascending: true })
       .order("created_at", { ascending: true }),
     /*
-     * The viewer's own picks for the season, in one read rather than one per
-     * card. The match_id index keeps this to the rows this member actually made.
+     * The season's picks, in one read rather than one per card. The viewer's own
+     * pick becomes the card's selected side, and every row feeds the per-side
+     * counts shown on the buttons. The season index keeps the read scoped to
+     * one season.
      */
     supabase
       .from("match_predictions")
-      .select("match_id, predicted_team_id")
-      .eq("season_id", seasonId)
-      .eq("user_id", userId),
+      .select("match_id, predicted_team_id, user_id")
+      .eq("season_id", seasonId),
   ]);
 
   if (matchResult.error) {
@@ -673,12 +680,23 @@ export async function loadScheduleMatches(
     throw new Error("Match predictions could not be loaded.");
   }
 
-  const predictionsByMatch = new Map(
-    ((predictionResult.data ?? []) as {
-      match_id: string;
-      predicted_team_id: string;
-    }[]).map((row) => [row.match_id, row.predicted_team_id]),
-  );
+  const predictionsByMatch = new Map<string, string>();
+  const predictionCountsByMatch = new Map<string, Record<string, number>>();
+
+  for (const prediction of (predictionResult.data ?? []) as {
+    match_id: string;
+    predicted_team_id: string;
+    user_id: string;
+  }[]) {
+    if (prediction.user_id === userId) {
+      predictionsByMatch.set(prediction.match_id, prediction.predicted_team_id);
+    }
+
+    const counts = predictionCountsByMatch.get(prediction.match_id) ?? {};
+    counts[prediction.predicted_team_id] =
+      (counts[prediction.predicted_team_id] ?? 0) + 1;
+    predictionCountsByMatch.set(prediction.match_id, counts);
+  }
 
   return ((matchResult.data ?? []) as unknown as ScheduleMatchRow[]).map(
     (row): ScheduleMatch => {
@@ -764,6 +782,7 @@ export async function loadScheduleMatches(
             }
           : null,
         my_prediction_team_id: predictionsByMatch.get(row.id) ?? null,
+        prediction_counts: predictionCountsByMatch.get(row.id) ?? {},
       };
     },
   );

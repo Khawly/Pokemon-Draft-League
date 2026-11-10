@@ -6,6 +6,7 @@
  * that cascades from it.
  */
 import { supabase } from "@/lib/supabase/client";
+import { MAX_NAME_LENGTH } from "@/lib/name-limits";
 
 /**
  * Creates a new league owned by the current user via the
@@ -14,8 +15,9 @@ import { supabase } from "@/lib/supabase/client";
  * @param params - Object containing the league `name` and `numberOfPlayers`.
  * @returns A Promise resolving to the created league's id, season id, name, and
  *   number of players.
- * @throws If the name is blank, the player count is not a positive integer, the
- *   user is not signed in, or the RPC fails.
+ * @throws If the name is blank or longer than {@link MAX_NAME_LENGTH}, the
+ *   player count is not a positive integer, the user is not signed in, or the
+ *   RPC fails.
  */
 export async function createLeagueForUser({
   name,
@@ -28,6 +30,12 @@ export async function createLeagueForUser({
 
   if (!trimmedName) {
     throw new Error("League name is required.");
+  }
+
+  if (trimmedName.length > MAX_NAME_LENGTH) {
+    throw new Error(
+      `League name must be ${MAX_NAME_LENGTH} characters or fewer.`,
+    );
   }
 
   if (!Number.isInteger(numberOfPlayers) || numberOfPlayers <= 0) {

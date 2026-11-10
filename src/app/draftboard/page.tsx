@@ -35,7 +35,7 @@ export default function DraftBoardPage() {
   return (
     <Suspense
       fallback={
-        <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
+        <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
           <div className="mx-auto max-w-[96rem] rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
             <LoadingGif label="Loading draft board" />
           </div>
@@ -491,7 +491,7 @@ function DraftBoardPageContent() {
 
   if (isLoading) {
     return (
-      <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
+      <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
         <div className="mx-auto max-w-[96rem] rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
           <LoadingGif label="Loading draft board" />
         </div>
@@ -501,7 +501,7 @@ function DraftBoardPageContent() {
 
   if (!goods) {
     return (
-      <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
+      <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
         <div className="mx-auto max-w-2xl rounded-2xl border border-red-800 bg-red-950/60 px-6 py-5 text-sm text-red-200 shadow-xl shadow-slate-950/40">
           {error ?? "The draft board could not be loaded."}
         </div>
@@ -510,9 +510,9 @@ function DraftBoardPageContent() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
+    <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
       <div className="mx-auto max-w-[96rem] space-y-6">
-        <header className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-2xl shadow-slate-950/40">
+        <header className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-2xl sm:p-6 shadow-slate-950/40">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-400">
@@ -672,7 +672,7 @@ function InviteCard({
   onRegenerate: () => void;
 }) {
   return (
-    <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-lg shadow-slate-950/30">
+    <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-lg sm:p-6 shadow-slate-950/30">
       <h2 className="text-lg font-semibold text-white">Invite Link</h2>
       <p className="mt-1 text-sm text-slate-400">
         Share this link to bring new trainers into the league.
@@ -754,7 +754,7 @@ function ChecklistCard({
   ).filter((position) => !takenPositions.has(position));
 
   return (
-    <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-lg shadow-slate-950/30">
+    <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-lg sm:p-6 shadow-slate-950/30">
       <h2 className="text-lg font-semibold text-white">Draft Checklist</h2>
       <p className="mt-1 text-sm text-slate-400">
         Everything below must be complete before the draft can start.
@@ -907,7 +907,7 @@ function PlayerListCard({
   });
 
   return (
-    <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-lg shadow-slate-950/30">
+    <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-lg sm:p-6 shadow-slate-950/30">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold text-white">Players</h2>

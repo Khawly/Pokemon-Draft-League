@@ -91,6 +91,7 @@ player_1_name: "Player One",
     results,
     pending_proposal: null,
     my_prediction_team_id: null,
+    prediction_counts: {},
   };
 }
 

@@ -7,6 +7,7 @@
  * owner-only RPC that renames the current season.
  */
 import { supabase } from "@/lib/supabase/client";
+import { MAX_NAME_LENGTH } from "@/lib/name-limits";
 
 /** The season columns every page needs for labelling. */
 export type SeasonLabel = {
@@ -217,12 +218,21 @@ export function rosterChangesOpen(
  *
  * @param leagueId - League whose latest season should be renamed.
  * @param name - Desired season name; trimmed server-side, blank clears it.
- * @throws If the season name RPC rejects the change.
+ * @throws If the name exceeds {@link MAX_NAME_LENGTH} or the season name RPC
+ *   rejects the change.
  */
 export async function saveSeasonName(leagueId: string, name: string): Promise<void> {
+  const trimmedName = name.trim();
+
+  if (trimmedName.length > MAX_NAME_LENGTH) {
+    throw new Error(
+      `Season name must be ${MAX_NAME_LENGTH} characters or fewer.`,
+    );
+  }
+
   const { error } = await supabase.rpc("set_season_name", {
     p_league_id: leagueId,
-    p_name: name.trim(),
+    p_name: trimmedName,
   });
 
   if (error) {

@@ -6,7 +6,8 @@
  * transfer ownership, remove). All members have read-only roster access and can
  * leave the league themselves. Join dates are shown in the time zone the member
  * picked in user settings. Each member's name is rendered in the colour they
- * picked in their own profile.
+ * picked in their own profile. The bottom section lists the selected season's
+ * total-token-salary edits, newest first.
  */
 "use client";
 
@@ -48,6 +49,177 @@ type MemberRow = {
   total_token_salary: number | null;
 };
 
+/** One recorded total-token-salary change, enriched with both members' names. */
+type SalaryEditRow = {
+  id: string;
+  /** The member whose salary changed. */
+  user_id: string;
+  /** Their effective salary before the edit, or null when it inherited a default. */
+  previous_salary: number | null;
+  /** The salary after the edit. */
+  new_salary: number;
+  /** The user who made the edit. */
+  changed_by: string;
+  created_at: string;
+  member_name: string | null;
+  member_color: string | null;
+  editor_name: string | null;
+  editor_color: string | null;
+};
+
+/** One weekly allowance credit, enriched with the member's display name. */
+type WeeklyAllowanceRow = {
+  id: string;
+  /** The member credited. */
+  user_id: string;
+  /** The week that closed. */
+  week_number: number;
+  /** Tokens awarded, currently always one. */
+  amount: number;
+  /** What closed the week: the deadline or the last match. */
+  trigger_source: "deadline" | "week_complete";
+  created_at: string;
+  member_name: string | null;
+  member_color: string | null;
+};
+
+/**
+ * Loads one season's salary edit history, newest first.
+ *
+ * Names are resolved with a second query rather than an embedded join because
+ * both foreign keys point at `profiles`; the separate lookup stays readable and
+ * still shows a member who has since left the league.
+ *
+ * @param leagueId - League whose history to read.
+ * @param seasonId - Season whose edits to read.
+ * @returns The edits with display names and colours attached.
+ */
+async function loadSalaryEditHistory(
+  leagueId: string,
+  seasonId: string,
+): Promise<SalaryEditRow[]> {
+  const { data, error } = await supabase
+    .from("member_salary_edits")
+    .select(
+      "id, user_id, previous_salary, new_salary, changed_by, created_at",
+    )
+    .eq("league_id", leagueId)
+    .eq("season_id", seasonId)
+    .order("created_at", { ascending: false })
+    .limit(100);
+
+  if (error || !data) {
+    return [];
+  }
+
+  const edits = data as {
+    id: string;
+    user_id: string;
+    previous_salary: number | null;
+    new_salary: number;
+    changed_by: string;
+    created_at: string;
+  }[];
+
+  const userIds = [
+    ...new Set(edits.flatMap((edit) => [edit.user_id, edit.changed_by])),
+  ];
+
+  const profileById = new Map<
+    string,
+    { display_name: string | null; name_color: string | null }
+  >();
+
+  if (userIds.length > 0) {
+    const { data: profileRows } = await supabase
+      .from("profiles")
+      .select("id, display_name, name_color")
+      .in("id", userIds);
+
+    for (const profile of (profileRows ?? []) as {
+      id: string;
+      display_name: string | null;
+      name_color: string | null;
+    }[]) {
+      profileById.set(profile.id, {
+        display_name: profile.display_name,
+        name_color: profile.name_color,
+      });
+    }
+  }
+
+  return edits.map((edit) => ({
+    ...edit,
+    member_name: profileById.get(edit.user_id)?.display_name ?? null,
+    member_color: profileById.get(edit.user_id)?.name_color ?? null,
+    editor_name: profileById.get(edit.changed_by)?.display_name ?? null,
+    editor_color: profileById.get(edit.changed_by)?.name_color ?? null,
+  }));
+}
+
+/**
+ * Loads one season's weekly allowance awards, newest first.
+ *
+ * @param leagueId - League whose awards to read.
+ * @param seasonId - Season whose awards to read.
+ * @returns The awards with the credited member's name and colour attached.
+ */
+async function loadWeeklyAllowanceHistory(
+  leagueId: string,
+  seasonId: string,
+): Promise<WeeklyAllowanceRow[]> {
+  const { data, error } = await supabase
+    .from("weekly_allowance_awards")
+    .select("id, user_id, week_number, amount, trigger_source, created_at")
+    .eq("league_id", leagueId)
+    .eq("season_id", seasonId)
+    .order("created_at", { ascending: false })
+    .limit(100);
+
+  if (error || !data) {
+    return [];
+  }
+
+  const awards = data as {
+    id: string;
+    user_id: string;
+    week_number: number;
+    amount: number;
+    trigger_source: "deadline" | "week_complete";
+    created_at: string;
+  }[];
+
+  const userIds = [...new Set(awards.map((award) => award.user_id))];
+  const profileById = new Map<
+    string,
+    { display_name: string | null; name_color: string | null }
+  >();
+
+  if (userIds.length > 0) {
+    const { data: profileRows } = await supabase
+      .from("profiles")
+      .select("id, display_name, name_color")
+      .in("id", userIds);
+
+    for (const profile of (profileRows ?? []) as {
+      id: string;
+      display_name: string | null;
+      name_color: string | null;
+    }[]) {
+      profileById.set(profile.id, {
+        display_name: profile.display_name,
+        name_color: profile.name_color,
+      });
+    }
+  }
+
+  return awards.map((award) => ({
+    ...award,
+    member_name: profileById.get(award.user_id)?.display_name ?? null,
+    member_color: profileById.get(award.user_id)?.name_color ?? null,
+  }));
+}
+
 /**
  * Members settings page that suspends rendering until the client-only
  * content component has been resolved.
@@ -56,7 +228,7 @@ export default function MembersSettingsPage() {
   return (
     <Suspense
       fallback={
-        <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
+        <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
           <div className="mx-auto max-w-[96rem] rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
             <LoadingGif label="Loading members settings" />
           </div>
@@ -80,6 +252,20 @@ function MembersSettingsPageContent() {
   const [leagueId, setLeagueId] = useState<string | null>(null);
   const [leagueName, setLeagueName] = useState("");
   const [members, setMembers] = useState<MemberRow[]>([]);
+  /** The selected season's recorded total-token-salary changes, newest first. */
+  const [salaryHistory, setSalaryHistory] = useState<SalaryEditRow[]>([]);
+  /** The selected season's weekly allowance credits, newest first. */
+  const [allowanceHistory, setAllowanceHistory] = useState<
+    WeeklyAllowanceRow[]
+  >([]);
+  /**
+   * The salary each member had when the page last loaded or saved, keyed by
+   * user id. Compared against the editable row to show the previous value while
+   * an unsaved edit is staged.
+   */
+  const [savedSalaries, setSavedSalaries] = useState<
+    Record<string, number | null>
+  >({});
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
   const [ownerUserId, setOwnerUserId] = useState<string | null>(null);
@@ -258,6 +444,21 @@ function MembersSettingsPageContent() {
         });
 
         setMembers(normalizedMembers);
+        setSavedSalaries(
+          Object.fromEntries(
+            normalizedMembers.map((member) => [
+              member.user_id,
+              member.total_token_salary,
+            ]),
+          ),
+        );
+
+        const [salaryEdits, allowanceAwards] = await Promise.all([
+          loadSalaryEditHistory(league.id, seasonData.id),
+          loadWeeklyAllowanceHistory(league.id, seasonData.id),
+        ]);
+        setSalaryHistory(salaryEdits);
+        setAllowanceHistory(allowanceAwards);
 
         const userRole =
           normalizedMembers.find((member) => member.user_id === user.id)
@@ -407,6 +608,12 @@ function MembersSettingsPageContent() {
 
       setHasMemberSalaryChanges(false);
       setSuccessMessage("Member total salary settings saved.");
+      setSavedSalaries(
+        Object.fromEntries(
+          members.map((member) => [member.user_id, member.total_token_salary]),
+        ),
+      );
+      setSalaryHistory(await loadSalaryEditHistory(leagueId, season.id));
     } catch (caughtError) {
       const message =
         caughtError instanceof Error
@@ -674,7 +881,7 @@ function MembersSettingsPageContent() {
 
   if (isLoading) {
     return (
-      <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
+      <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
         <div className="mx-auto max-w-[96rem] rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
           <LoadingGif label="Loading members settings" />
         </div>
@@ -683,9 +890,9 @@ function MembersSettingsPageContent() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
+    <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
       <div className="mx-auto max-w-[96rem] space-y-6">
-        <header className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-2xl shadow-slate-950/40">
+        <header className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-2xl sm:p-6 shadow-slate-950/40">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
               <h1 className="text-3xl font-bold text-white">
@@ -736,7 +943,7 @@ function MembersSettingsPageContent() {
           </div>
         )}
 
-        <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-lg shadow-slate-950/30">
+        <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-lg sm:p-6 shadow-slate-950/30">
           <div className="mb-4 flex items-center justify-between gap-3">
             <h2 className="text-xl font-semibold text-white">League Members</h2>
             <div className="flex items-center gap-3">
@@ -792,6 +999,16 @@ function MembersSettingsPageContent() {
                   const isCurrentUser = member.user_id === currentUserId;
                   const isOwnerMember = member.role === "owner";
                   const canManage = isOwner && !isCurrentUser && !isOwnerMember;
+                  const hasSavedSalary = Object.prototype.hasOwnProperty.call(
+                    savedSalaries,
+                    member.user_id,
+                  );
+                  const previousSalary = hasSavedSalary
+                    ? savedSalaries[member.user_id]
+                    : null;
+                  const salaryChanged =
+                    hasSavedSalary &&
+                    member.total_token_salary !== previousSalary;
 
                   return (
                     <tr
@@ -836,30 +1053,44 @@ function MembersSettingsPageContent() {
                       </td>
                       {allowPerTeamSalary && (
                         <td className="px-3 py-3">
-                          {isOwner ? (
-                            <input
-                              type="number"
-                              min={0}
-                              value={
-                                typeof member.total_token_salary === "number"
+                          <div className="flex items-center gap-3">
+                            {isOwner ? (
+                              <input
+                                type="number"
+                                min={0}
+                                value={
+                                  typeof member.total_token_salary === "number"
+                                    ? member.total_token_salary
+                                    : defaultTotalTokenSalary
+                                }
+                                onChange={(event) =>
+                                  handleMemberSalaryChange(
+                                    member.user_id,
+                                    event.target.value,
+                                  )
+                                }
+                                className="w-32 rounded-xl border border-slate-700 bg-slate-950 px-2.5 py-2 text-slate-100 outline-none transition focus:border-amber-400"
+                              />
+                            ) : (
+                              <span className="text-slate-300">
+                                {typeof member.total_token_salary === "number"
                                   ? member.total_token_salary
-                                  : defaultTotalTokenSalary
-                              }
-                              onChange={(event) =>
-                                handleMemberSalaryChange(
-                                  member.user_id,
-                                  event.target.value,
-                                )
-                              }
-                              className="w-32 rounded-xl border border-slate-700 bg-slate-950 px-2.5 py-2 text-slate-100 outline-none transition focus:border-amber-400"
-                            />
-                          ) : (
-                            <span className="text-slate-300">
-                              {typeof member.total_token_salary === "number"
-                                ? member.total_token_salary
-                                : defaultTotalTokenSalary}
-                            </span>
-                          )}
+                                  : defaultTotalTokenSalary}
+                              </span>
+                            )}
+                            {isOwner && (
+                              <span className="w-32 shrink-0 truncate text-xs text-slate-500">
+                                {salaryChanged ? (
+                                  <>
+                                    Previous:{" "}
+                                    <span className="text-slate-300">
+                                      {previousSalary ?? defaultTotalTokenSalary}
+                                    </span>
+                                  </>
+                                ) : null}
+                              </span>
+                            )}
+                          </div>
                         </td>
                       )}
                       <td className="px-3 py-3 text-slate-400">
@@ -939,6 +1170,141 @@ function MembersSettingsPageContent() {
               </tbody>
             </table>
           </div>
+        </section>
+
+        <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-lg sm:p-6 shadow-slate-950/30">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h2 className="text-xl font-bold text-white">
+                Total token salary history
+              </h2>
+              <p className="mt-1 text-sm text-slate-400">
+                Changes to member salaries
+                {season ? ` for ${formatSeasonLabel(season)}` : ""}, newest
+                first.
+              </p>
+            </div>
+          </div>
+
+          {salaryHistory.length === 0 ? (
+            <p className="mt-4 rounded-xl border border-slate-800 bg-slate-950/50 px-4 py-3 text-sm text-slate-400">
+              No salary changes have been recorded for this season yet.
+            </p>
+          ) : (
+            <div className="mt-4 overflow-x-auto">
+              <table className="min-w-full text-left text-sm">
+                <thead>
+                  <tr className="border-b border-slate-800 text-xs uppercase tracking-wider text-slate-500">
+                    <th className="px-3 py-2 font-medium">Member</th>
+                    <th className="px-3 py-2 font-medium">Change</th>
+                    <th className="px-3 py-2 font-medium">Changed by</th>
+                    <th className="px-3 py-2 font-medium">When</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {salaryHistory.map((edit) => (
+                    <tr
+                      key={edit.id}
+                      className="border-b border-slate-800/80 text-slate-200"
+                    >
+                      <td className="px-3 py-3">
+                        <MemberName
+                          name={edit.member_name ?? "Member"}
+                          color={edit.member_color}
+                          fallback="Member"
+                          className="font-medium text-white"
+                        />
+                      </td>
+                      <td className="px-3 py-3">
+                        <span className="text-slate-400">
+                          {edit.previous_salary ?? "Default"}
+                        </span>
+                        <span className="mx-1.5 text-slate-500">→</span>
+                        <span className="font-semibold text-amber-200">
+                          {edit.new_salary}
+                        </span>
+                      </td>
+                      <td className="px-3 py-3">
+                        <MemberName
+                          name={edit.editor_name ?? "League owner"}
+                          color={edit.editor_color}
+                          fallback="League owner"
+                          className="text-slate-300"
+                        />
+                      </td>
+                      <td className="px-3 py-3 text-slate-400">
+                        {formatDateTimeInZone(edit.created_at, timeZone)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+
+        <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-lg sm:p-6 shadow-slate-950/30">
+          <div>
+            <h2 className="text-xl font-bold text-white">
+              Weekly allowance history
+            </h2>
+            <p className="mt-1 text-sm text-slate-400">
+              Tokens credited when a week closed
+              {season ? ` in ${formatSeasonLabel(season)}` : ""}, newest first.
+            </p>
+          </div>
+
+          {allowanceHistory.length === 0 ? (
+            <p className="mt-4 rounded-xl border border-slate-800 bg-slate-950/50 px-4 py-3 text-sm text-slate-400">
+              No weekly allowances have been awarded for this season yet.
+            </p>
+          ) : (
+            <div className="mt-4 overflow-x-auto">
+              <table className="min-w-full text-left text-sm">
+                <thead>
+                  <tr className="border-b border-slate-800 text-xs uppercase tracking-wider text-slate-500">
+                    <th className="px-3 py-2 font-medium">Member</th>
+                    <th className="px-3 py-2 font-medium">Week</th>
+                    <th className="px-3 py-2 font-medium">Allowance</th>
+                    <th className="px-3 py-2 font-medium">Closed by</th>
+                    <th className="px-3 py-2 font-medium">When</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {allowanceHistory.map((award) => (
+                    <tr
+                      key={award.id}
+                      className="border-b border-slate-800/80 text-slate-200"
+                    >
+                      <td className="px-3 py-3">
+                        <MemberName
+                          name={award.member_name ?? "Member"}
+                          color={award.member_color}
+                          fallback="Member"
+                          className="font-medium text-white"
+                        />
+                      </td>
+                      <td className="px-3 py-3 text-slate-300">
+                        Week {award.week_number}
+                      </td>
+                      <td className="px-3 py-3 font-semibold text-emerald-300">
+                        +{award.amount}{" "}
+                        {award.amount === 1 ? "token" : "tokens"}
+                      </td>
+                      <td className="px-3 py-3 text-slate-400">
+                        {award.trigger_source === "deadline"
+                          ? "Weekly deadline"
+                          : "Week finished"}
+                      </td>
+                      <td className="px-3 py-3 text-slate-400">
+                        {formatDateTimeInZone(award.created_at, timeZone)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </section>
       </div>
 

@@ -26,7 +26,7 @@ export default function DraftSettingsPage() {
   return (
     <Suspense
       fallback={
-        <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
+        <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
           <div className="mx-auto max-w-[96rem] rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
             <LoadingGif label="Loading draft settings" />
           </div>
@@ -46,7 +46,11 @@ function DraftSettingsPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [draftFormat, setDraftFormat] = useState("snake");
-  const [totalRounds, setTotalRounds] = useState(1);
+  /**
+   * Kept as the raw input string so the field can be cleared while typing;
+   * validation happens when the form is saved.
+   */
+  const [totalRounds, setTotalRounds] = useState("1");
   const [enableCosts, setEnableCosts] = useState(false);
   const [totalTokenSalary, setTotalTokenSalary] = useState(100);
   const [allowPerTeamSalary, setAllowPerTeamSalary] = useState(false);
@@ -74,7 +78,7 @@ function DraftSettingsPageContent() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const originalSettingsRef = useRef({
     draftFormat: "snake",
-    totalRounds: 1,
+    totalRounds: "1",
     enableCosts: false,
     totalTokenSalary: 100,
     allowPerTeamSalary: false,
@@ -165,7 +169,7 @@ function DraftSettingsPageContent() {
 
         const nextSettings = {
           draftFormat: settingsData.draft_format || "snake",
-          totalRounds: settingsData.total_rounds || 1,
+          totalRounds: String(settingsData.total_rounds || 1),
           enableCosts: Boolean(settingsData.enable_pokemon_costs),
           totalTokenSalary: settingsData.total_token_salary ?? 100,
           allowPerTeamSalary: Boolean(settingsData.allow_per_team_salary),
@@ -222,6 +226,17 @@ function DraftSettingsPageContent() {
       return;
     }
 
+    const parsedTotalRounds = Number(totalRounds);
+
+    if (
+      totalRounds.trim() === "" ||
+      !Number.isInteger(parsedTotalRounds) ||
+      parsedTotalRounds < 1
+    ) {
+      setError("Total rounds must be a whole number of at least 1.");
+      return;
+    }
+
     setIsSaving(true);
     setError(null);
     setSuccessMessage(null);
@@ -234,7 +249,7 @@ function DraftSettingsPageContent() {
             league_id: leagueId,
             season_id: seasonId,
             draft_format: draftFormat,
-            total_rounds: Number(totalRounds) || 1,
+            total_rounds: parsedTotalRounds,
             enable_pokemon_costs: enableCosts,
             total_token_salary: enableCosts
               ? Number(totalTokenSalary) || 0
@@ -267,7 +282,7 @@ function DraftSettingsPageContent() {
 
       originalSettingsRef.current = {
         draftFormat,
-        totalRounds,
+        totalRounds: String(parsedTotalRounds),
         enableCosts,
         totalTokenSalary,
         allowPerTeamSalary,
@@ -295,7 +310,7 @@ function DraftSettingsPageContent() {
 
   if (isLoading) {
     return (
-      <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
+      <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
         <div className="mx-auto max-w-[96rem] rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
           <LoadingGif label="Loading draft settings" />
         </div>
@@ -304,9 +319,9 @@ function DraftSettingsPageContent() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
+    <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
       <div className="mx-auto max-w-[96rem] space-y-6">
-        <header className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-2xl shadow-slate-950/40">
+        <header className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-2xl sm:p-6 shadow-slate-950/40">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
               <h1 className="text-3xl font-bold text-white">Draft Settings</h1>
@@ -373,7 +388,7 @@ function DraftSettingsPageContent() {
           className="min-w-0 border-0 p-0"
         >
           <section className="grid gap-6 lg:grid-cols-2">
-          <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-lg shadow-slate-950/30">
+          <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-lg sm:p-6 shadow-slate-950/30">
             <div className="space-y-5">
               <div>
                 <label className="mb-2 block text-sm font-medium text-slate-300">
@@ -401,7 +416,7 @@ function DraftSettingsPageContent() {
                   min={1}
                   value={totalRounds}
                   onChange={(event) => {
-                    setTotalRounds(Number(event.target.value) || 1);
+                    setTotalRounds(event.target.value);
                     setHasUnsavedChanges(true);
                   }}
                   className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-slate-100 outline-none transition focus:border-amber-400"
@@ -454,7 +469,7 @@ function DraftSettingsPageContent() {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-lg shadow-slate-950/30">
+          <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-lg sm:p-6 shadow-slate-950/30">
             <div className="space-y-5">
               <div>
                 <label className="mb-2 block text-sm font-medium text-slate-300">

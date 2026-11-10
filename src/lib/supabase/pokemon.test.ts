@@ -568,16 +568,17 @@ describe("transactionNamesTeam", () => {
 
 describe("TRANSACTION_SOURCES", () => {
   it("lists exactly the values the ledger's check constraint allows", () => {
-    // Mirrors transactions_source_check in
-    // 20261033_transaction_source.sql. The feed filters on `draft_pick` with a
-    // plain inequality, so a rename on either side would not throw; it would
-    // quietly put every draft pick back into the panel. This is the one place
-    // that mismatch would be visible from.
+    // Mirrors transactions_source_check, last widened in
+    // 20261187_weekly_allowance_and_salary_history.sql. The feed filters on
+    // `draft_pick` with a plain inequality, so a rename on either side would not
+    // throw; it would quietly put every draft pick back into the panel. This is
+    // the one place that mismatch would be visible from.
     expect([...TRANSACTION_SOURCES]).toEqual([
       "draft_pick",
       "free_agent_pickup",
       "trade",
       "release",
+      "weekly_allowance",
     ]);
   });
 

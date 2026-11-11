@@ -544,7 +544,16 @@ function DashboardPageContent() {
   return (
     <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
       <div className="mx-auto max-w-[96rem]">
-        <CrownProvider crownedUserIds={goods.crownedMemberIds}>
+        <CrownProvider
+          crownedUserIds={goods.crownedMemberIds}
+          crownedNames={goods.crownedMemberIds
+            .map(
+              (id) =>
+                goods.teams.find((team) => team.owner_user_id === id)
+                  ?.owner_name ?? "",
+            )
+            .filter((name) => name.length > 0)}
+        >
           <DashboardShell
           displayName={sessionUser.displayName}
           userId={sessionUser.id}

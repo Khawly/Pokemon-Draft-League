@@ -11,7 +11,9 @@
  * needed. CSV import/export round-trips tier/status/notes while skipping
  * species it cannot resolve against the catalog. On the tier list, each card's
  * ✓ button confirms (persists) a pending tier change for that single Pokémon,
- * independent of the global Save. The owner can also delete the selected saved
+ * independent of the global Save. Tier cards flow into as many columns as the
+ * viewport fits and show each typing as a colour-coded badge. The owner can
+ * also delete the selected saved
  * pool, and new/renamed pool names are rejected when they would duplicate an
  * existing saved pool in the dropdown. The owner can also replace the in-pool
  * selection with a random draw of a chosen size. While a pool's rows are loading
@@ -357,6 +359,30 @@ function Sprite({
   );
 }
 
+/**
+ * Renders a single typing as a colour-coded pill.
+ *
+ * Uses the same palette as the pool table so the tier cards and the table agree.
+ *
+ * @param props - The normalized type name, e.g. "fire".
+ * @returns The badge, or null when no type is known.
+ */
+function TypeBadge({ type }: { type: string | null }) {
+  if (!type) {
+    return null;
+  }
+
+  return (
+    <span
+      className={`rounded px-1.5 py-0.5 text-[0.7rem] font-semibold leading-tight ${
+        TYPE_STYLES[type] ?? "bg-slate-700 text-slate-200"
+      }`}
+    >
+      {type.charAt(0).toUpperCase() + type.slice(1)}
+    </span>
+  );
+}
+
 /** Renders a sortable table header cell. */
 function SortHeader({
   label,
@@ -481,27 +507,14 @@ const PoolTableRow = memo(function PoolTableRow({
       </td>
       <td className="px-4 py-3">
         <div className="flex flex-wrap items-center justify-center gap-1.5">
-          {row.type_primary && (
-            <span
-              className={`rounded px-1.5 py-0.5 text-xs font-semibold ${
-                TYPE_STYLES[row.type_primary] ?? "bg-slate-700 text-slate-200"
-              }`}
-            >
-              {row.type_primary.charAt(0).toUpperCase() +
-                row.type_primary.slice(1)}
-            </span>
+          {row.type_primary ? (
+            <>
+              <TypeBadge type={row.type_primary} />
+              <TypeBadge type={row.type_secondary} />
+            </>
+          ) : (
+            <span className="text-slate-600">—</span>
           )}
-          {row.type_secondary && (
-            <span
-              className={`rounded px-1.5 py-0.5 text-xs font-semibold ${
-                TYPE_STYLES[row.type_secondary] ?? "bg-slate-700 text-slate-200"
-              }`}
-            >
-              {row.type_secondary.charAt(0).toUpperCase() +
-                row.type_secondary.slice(1)}
-            </span>
-          )}
-          {!row.type_primary && <span className="text-slate-600">—</span>}
         </div>
       </td>
       <td className="px-4 py-3 text-slate-500">
@@ -2577,31 +2590,35 @@ function PoolPageContent({
                       {group.rows.length} Pokémon
                     </span>
                   </h2>
-                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  <div className="grid grid-cols-[repeat(auto-fill,minmax(13.5rem,1fr))] gap-2.5">
                     {group.rows.map((row) => (
                       <div
                         key={row.key}
-                        className="flex items-center gap-3 rounded-xl border border-slate-800 bg-slate-950/60 p-3"
+                        className="rounded-xl border border-slate-800 bg-slate-950/60 p-2.5"
                       >
-                        <Sprite spriteId={row.spriteId} name={row.species_name} size={48} />
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-medium text-slate-100">
-                            {row.species_name}
-                          </p>
-                          <p className="text-xs text-slate-500">
-                            {row.type_primary
-                              ? row.type_primary.charAt(0).toUpperCase() +
-                                row.type_primary.slice(1) +
-                                (row.type_secondary
-                                  ? " / " +
-                                    row.type_secondary.charAt(0).toUpperCase() +
-                                    row.type_secondary.slice(1)
-                                  : "")
-                              : "No data"}
-                          </p>
+                        <div className="flex min-w-0 items-center gap-2">
+                          <Sprite spriteId={row.spriteId} name={row.species_name} size={40} />
+                          <div className="min-w-0 flex-1">
+                            <p
+                              className="truncate text-sm font-medium text-slate-100"
+                              title={row.species_name}
+                            >
+                              {row.species_name}
+                            </p>
+                            <div className="mt-1 flex flex-wrap items-center gap-1">
+                              {row.type_primary ? (
+                                <>
+                                  <TypeBadge type={row.type_primary} />
+                                  <TypeBadge type={row.type_secondary} />
+                                </>
+                              ) : (
+                                <span className="text-xs text-slate-600">No data</span>
+                              )}
+                            </div>
+                          </div>
                         </div>
                         {canEdit && (
-                          <div className="flex shrink-0 items-center gap-1.5">
+                          <div className="mt-2 flex items-center gap-1.5">
                             <input
                               type="number"
                               min={0}
@@ -2615,7 +2632,7 @@ function PoolPageContent({
                                 )
                               }
                               aria-label={`Tier for ${row.species_name}`}
-                              className="w-14 rounded-lg border border-slate-700 bg-slate-900 px-2 py-1.5 text-xs text-slate-100 outline-none focus:border-amber-400"
+                              className="min-w-0 flex-1 rounded-lg border border-slate-700 bg-slate-900 px-2 py-1 text-xs text-slate-100 outline-none focus:border-amber-400"
                             />
                             <button
                               type="button"

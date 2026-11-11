@@ -10,11 +10,16 @@
  * It renders a span and nothing else. Callers keep their own text colour as the
  * default by passing the classes they already used; the chosen colour is layered on
  * top, so a member who has not picked one sees exactly what they saw before.
+ *
+ * When a caller passes the member's Pokemon Showdown handle, it follows the name in
+ * parentheses, muted, so matchup cards name both the trainer and the account they play.
+ * The champion crown and the previous season's E4 badge also sit to the left of the name,
+ * supplied by the crown context rather than by each caller.
  */
 "use client";
 
 import { mergeNameColorClasses } from "@/lib/name-colors";
-import { useCrowned } from "@/components/crown-provider";
+import { useMemberHonor } from "@/components/crown-provider";
 
 /** Props for the {@link MemberName} component. */
 export interface MemberNameProps {
@@ -40,6 +45,12 @@ export interface MemberNameProps {
    * onto that surface.
    */
   userId?: string | null;
+  /**
+   * The member's Pokemon Showdown handle, when the caller has it. Rendered in
+   * parentheses after the name so a matchup card names both the trainer and the
+   * account they play under. Omitted when unset, so the name stands alone.
+   */
+  showdownUsername?: string | null;
 }
 
 /**
@@ -54,9 +65,11 @@ export function MemberName({
   className,
   fallback = "Unnamed",
   userId,
+  showdownUsername,
 }: MemberNameProps) {
   const resolved = name?.trim();
-  const crowned = useCrowned(userId, resolved);
+  const showdown = showdownUsername?.trim();
+  const honor = useMemberHonor(userId, resolved);
 
   if (!resolved) {
     return <span className={className}>{fallback}</span>;
@@ -73,7 +86,7 @@ export function MemberName({
 
   return (
     <span className={classes}>
-      {crowned && (
+      {honor === "champion" && (
         <span
           role="img"
           aria-label="League champion"
@@ -83,7 +96,20 @@ export function MemberName({
           👑
         </span>
       )}
+      {honor === "elite" && (
+        <span
+          title="Top finisher in last season's playoffs"
+          className="mr-1 rounded bg-amber-500/15 px-1 py-0.5 text-[0.7em] font-bold uppercase tracking-wide text-amber-300"
+        >
+          E4
+        </span>
+      )}
       {resolved}
+      {showdown && (
+        <span className="ml-1 text-[0.9em] font-normal text-slate-400">
+          ({showdown})
+        </span>
+      )}
     </span>
   );
 }

@@ -142,6 +142,9 @@ export type ScheduleMatch = {
   /** Each side's stored name colour, raw, or null when the owner has none set. */
   player_1_name_color: string | null;
   player_2_name_color: string | null;
+  /** Each side's Pokemon Showdown handle, or null when they have not set one. */
+  player_1_showdown_username: string | null;
+  player_2_showdown_username: string | null;
   player_1_avatar_url: string | null;
   player_2_avatar_url: string | null;
   /** Each side's stored avatar initials, raw, or null when the owner has none set. */
@@ -581,7 +584,7 @@ export async function loadProposalHistory(
  * owner rather than reading `teams.team_name`.
  */
 const MATCHES_WITH_PARTICIPANTS_SELECT =
-  "id, week_number, is_playoff, playoff_round_no, bracket_phase, bracket_slot, scheduled_at, status, winner_team_id, notes, created_at, player_1_team_id, player_2_team_id, player_1: player_1_team_id (team_name, owner_user_id, owner: owner_user_id (display_name, avatar_url, name_color, avatar_initials)), player_2: player_2_team_id (team_name, owner_user_id, owner: owner_user_id (display_name, avatar_url, name_color, avatar_initials)), forfeited_by: forfeited_by_user_id (display_name, name_color)";
+  "id, week_number, is_playoff, playoff_round_no, bracket_phase, bracket_slot, scheduled_at, status, winner_team_id, notes, created_at, player_1_team_id, player_2_team_id, player_1: player_1_team_id (team_name, owner_user_id, owner: owner_user_id (display_name, pokemon_showdown_username, avatar_url, name_color, avatar_initials)), player_2: player_2_team_id (team_name, owner_user_id, owner: owner_user_id (display_name, pokemon_showdown_username, avatar_url, name_color, avatar_initials)), forfeited_by: forfeited_by_user_id (display_name, name_color)";
 
 /**
  * The same match read, with each match's results and pending proposal embedded.
@@ -758,6 +761,10 @@ export async function loadScheduleMatches(
           (row.player_2_team_id ? "Team 2" : "Bye"),
         player_1_name_color: row.player_1?.owner?.name_color ?? null,
         player_2_name_color: row.player_2?.owner?.name_color ?? null,
+        player_1_showdown_username:
+          row.player_1?.owner?.pokemon_showdown_username ?? null,
+        player_2_showdown_username:
+          row.player_2?.owner?.pokemon_showdown_username ?? null,
         player_1_avatar_url: row.player_1?.owner?.avatar_url ?? null,
         player_2_avatar_url: row.player_2?.owner?.avatar_url ?? null,
         player_1_avatar_initials: row.player_1?.owner?.avatar_initials ?? null,
@@ -935,6 +942,7 @@ type ScheduleMatchRow = {
     owner_user_id?: string;
     owner?: {
       display_name?: string | null;
+      pokemon_showdown_username?: string | null;
       avatar_url?: string | null;
       name_color?: string | null;
       avatar_initials?: string | null;
@@ -945,6 +953,7 @@ type ScheduleMatchRow = {
     owner_user_id?: string;
     owner?: {
       display_name?: string | null;
+      pokemon_showdown_username?: string | null;
       avatar_url?: string | null;
       name_color?: string | null;
       avatar_initials?: string | null;

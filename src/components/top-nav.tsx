@@ -17,6 +17,7 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
+import { useCallback, useRef } from "react";
 
 import { LeagueSettingsMenu } from "@/components/league-settings-menu";
 import { TabNotification } from "@/components/nav-alert-badge";
@@ -27,14 +28,53 @@ import { formatSeasonLabel } from "@/lib/supabase/seasons";
 import { confirmDiscardUnsavedChanges } from "@/lib/unsaved-changes";
 
 /**
+ * Keeps `--app-nav-height` on the document root in sync with the sticky nav.
+ *
+ * Pages that pin a header below the nav read the variable, so the offset tracks
+ * the nav's wrapped height at every viewport instead of assuming one fixed row.
+ *
+ * @returns A callback ref for the nav's header element.
+ */
+function useAppNavHeightRef() {
+  const observerRef = useRef<ResizeObserver | null>(null);
+
+  return useCallback((node: HTMLElement | null) => {
+    observerRef.current?.disconnect();
+    observerRef.current = null;
+
+    if (!node) {
+      return;
+    }
+
+    const publish = () => {
+      document.documentElement.style.setProperty(
+        "--app-nav-height",
+        `${node.getBoundingClientRect().height}px`,
+      );
+    };
+
+    publish();
+    const observer = new ResizeObserver(publish);
+    observer.observe(node);
+    observerRef.current = observer;
+  }, []);
+}
+
+/**
  * Placeholder header shown while the shell identity and league list load, and
  * while Next.js resolves the client search params that the shell provider reads.
  *
  * @returns The skeleton top bar.
  */
 export function TopNavSkeleton() {
+  const navRef = useAppNavHeightRef();
+
   return (
-    <header className="sticky top-0 z-50 border-b border-slate-800 bg-slate-950/90 backdrop-blur-sm">
+    <header
+      ref={navRef}
+      data-app-nav
+      className="sticky top-0 z-50 border-b border-slate-800 bg-slate-950/90 backdrop-blur-sm"
+    >
       <div className="mx-auto flex max-w-[96rem] items-center justify-between gap-3 px-4 py-3 sm:px-6">
         <div className="h-10 w-20 rounded-xl border border-slate-700 bg-slate-900" />
         <div className="flex-1 px-2">
@@ -65,6 +105,8 @@ export function TopNav() {
     markAlertsRead,
     selectSeason,
   } = useLeagueShell();
+
+  const navRef = useAppNavHeightRef();
 
   if (pathname === "/") {
     return null;
@@ -169,7 +211,11 @@ export function TopNav() {
   }
 
   return (
-    <header className="sticky top-0 z-50 border-b border-slate-800 bg-slate-950/90 backdrop-blur-sm">
+    <header
+      ref={navRef}
+      data-app-nav
+      className="sticky top-0 z-50 border-b border-slate-800 bg-slate-950/90 backdrop-blur-sm"
+    >
       <div className="mx-auto flex max-w-[96rem] flex-wrap items-center gap-2 px-3 py-2 sm:px-6 sm:py-2.5">
         <button
           type="button"

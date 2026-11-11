@@ -37,8 +37,9 @@
  * Schedule nav button as an unread-count badge rather than as a panel here, and
  * are cleared by opening the schedule.
  * Member display names are rendered through `MemberName`, so wherever the page
- * names a player the name appears in the colour that member picked. The one
- * exception is a `<select>` option, which cannot hold a styled span.
+ * names a player the name appears in the colour that member picked, with their
+ * Pokemon Showdown handle in parentheses on the matchup and upcoming-match cards.
+ * The one exception is a `<select>` option, which cannot hold a styled span.
  * Opening the page also nudges the weekly deadline sweep so a week whose
  * deadline passed while the app server was idle is settled and the playoff
  * bracket opened before the schedule renders.
@@ -58,7 +59,7 @@ import { PlayoffBracket } from "@/components/playoff-bracket";
 import { ManualScheduleEditor } from "@/components/manual-schedule-editor";
 import { CrownProvider } from "@/components/crown-provider";
 import { MatchupPicker } from "@/components/matchup-picker";
-import { MatchPredictionButtons } from "@/components/match-prediction-buttons";
+import { MatchPredictionButton } from "@/components/match-prediction-buttons";
 import {
   loadWeekProgressState,
   runWeekDeadlineSweep,
@@ -288,6 +289,7 @@ function MatchupHistoryCard({
     avatarUrl: string | null,
     nameColor: string | null,
     initials: string | null,
+    showdownUsername: string | null,
   ) => (
     <div className="flex flex-1 flex-col items-center gap-1 text-center">
       <Avatar
@@ -307,6 +309,7 @@ function MatchupHistoryCard({
             ? match.player_1_user_id
             : match.player_2_user_id
         }
+        showdownUsername={showdownUsername}
       />
       {gameRecord(match, teamId) && (
         <Spoiler hidden={hideSpoilers}>
@@ -345,6 +348,7 @@ function MatchupHistoryCard({
           match.player_1_avatar_url,
           match.player_1_name_color,
           match.player_1_avatar_initials,
+          match.player_1_showdown_username,
         )}
         <div className="flex flex-col items-center gap-1">
           <span className="text-xs font-bold uppercase tracking-widest text-slate-500">
@@ -361,6 +365,7 @@ function MatchupHistoryCard({
           match.player_2_avatar_url,
           match.player_2_name_color,
           match.player_2_avatar_initials,
+          match.player_2_showdown_username,
         )}
       </div>
 
@@ -989,9 +994,8 @@ function SchedulePageContent({
     // Setup is owner-only and is filtered from the tab strip for other members,
     // so it is never selected from a URL.
     return (
-      TABS.find(
-        (tab) => tab !== "Setup" && tab.toLowerCase() === requested,
-      ) ?? "Schedule"
+      TABS.find((tab) => tab !== "Setup" && tab.toLowerCase() === requested) ??
+      "Schedule"
     );
   });
   const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
@@ -1088,7 +1092,10 @@ function SchedulePageContent({
   const timeZone = useUserTimeZone();
 
   const refresh = useCallback(async (leagueId: string) => {
-    const next = await loadSchedulePageData(leagueId, getSelectedSeason(leagueId));
+    const next = await loadSchedulePageData(
+      leagueId,
+      getSelectedSeason(leagueId),
+    );
     setGoods(next);
     if (next.settings) {
       setForm({
@@ -1359,7 +1366,7 @@ function SchedulePageContent({
 
   const isFormOpen = useCallback(() => formOpen, [formOpen]);
 
-/**
+  /**
    * Re-reads the schedule after a real-time change, unless a form is open.
    *
    * Deliberately not the full payload. A change to the match table is the common case by
@@ -1412,7 +1419,8 @@ function SchedulePageContent({
               ...previous,
               matches,
               standings: live?.[0].standings ?? previous.standings,
-              championTeamId: live?.[0].championTeamId ?? previous.championTeamId,
+              championTeamId:
+                live?.[0].championTeamId ?? previous.championTeamId,
               crownedMemberIds:
                 live?.[0].crownedMemberIds ?? previous.crownedMemberIds,
             }
@@ -1612,6 +1620,39 @@ function SchedulePageContent({
   );
 
   /**
+   * A team's season record as "W-L", resolved against the standings already on
+   * the page so each matchup card can show it beside the player's name.
+   *
+   * @param teamId - The team whose record is wanted.
+   * @returns The record, or null when the standings do not include the team.
+   */
+  const teamRecord = useCallback(
+    (teamId: string | null | undefined) => {
+      if (!teamId) {
+        return null;
+      }
+
+      const standing = goods?.standings.find((row) => row.team_id === teamId);
+      return standing ? `${standing.wins}-${standing.losses}` : null;
+    },
+    [goods?.standings],
+  );
+
+  /**
+   * The member id of a team's owner, resolved through the same lookup as
+   * {@link teamLabel}. Standings rows only carry a team id, and passing the owner's
+   * id to `MemberName` lets the champion crown match exactly instead of by name.
+   *
+   * @param teamId - The team whose owner's member id is wanted.
+   * @returns The owner's user id, or null when the team is not in the payload.
+   */
+  const teamOwnerId = useCallback(
+    (teamId: string) =>
+      goods?.teams.find((entry) => entry.id === teamId)?.owner_user_id ?? null,
+    [goods?.teams],
+  );
+
+  /**
    * The member on the other side of the selected matchup, or null when the
    * viewer is not a participant and therefore has no opponent to schedule with.
    *
@@ -1653,30 +1694,27 @@ function SchedulePageContent({
    * "You" and "Your opponent" are addressed in the second person rather than by
    * name, so they carry no colour.
    */
-  const proposalAuthor = useMemo<{ name: string; color: string | null }>(
-    () => {
-      if (!pendingProposal) {
-        return { name: "Your opponent", color: null };
-      }
+  const proposalAuthor = useMemo<{ name: string; color: string | null }>(() => {
+    if (!pendingProposal) {
+      return { name: "Your opponent", color: null };
+    }
 
-      if (proposalIsMine) {
-        return { name: "You", color: null };
-      }
+    if (proposalIsMine) {
+      return { name: "You", color: null };
+    }
 
-      if (pendingProposal.proposed_by === selectedMatch?.player_1_user_id) {
-        return {
-          name: selectedMatch?.player_1_name ?? "Your opponent",
-          color: selectedMatch?.player_1_name_color ?? null,
-        };
-      }
-
+    if (pendingProposal.proposed_by === selectedMatch?.player_1_user_id) {
       return {
-        name: opponent?.name ?? "Your opponent",
-        color: opponent?.color ?? null,
+        name: selectedMatch?.player_1_name ?? "Your opponent",
+        color: selectedMatch?.player_1_name_color ?? null,
       };
-    },
-    [pendingProposal, proposalIsMine, selectedMatch, opponent],
-  );
+    }
+
+    return {
+      name: opponent?.name ?? "Your opponent",
+      color: opponent?.color ?? null,
+    };
+  }, [pendingProposal, proposalIsMine, selectedMatch, opponent]);
 
   /*
    * The opponent's week projected into the reader's zone. The week sampled is
@@ -2085,7 +2123,8 @@ function SchedulePageContent({
     }
   };
 
-  async function handleGenerateSchedule() {    if (!goods) {
+  async function handleGenerateSchedule() {
+    if (!goods) {
       return;
     }
     const matchCount = form.weeks;
@@ -2162,7 +2201,9 @@ function SchedulePageContent({
           ),
         goods.league.id,
       );
-      setNotice(`Schedule saved: ${games.length} matchup${games.length === 1 ? "" : "s"}.`);
+      setNotice(
+        `Schedule saved: ${games.length} matchup${games.length === 1 ? "" : "s"}.`,
+      );
     } finally {
       setIsSavingManual(false);
     }
@@ -2192,7 +2233,9 @@ function SchedulePageContent({
       );
     } catch (cause) {
       setError(
-        cause instanceof Error ? cause.message : "The setting could not be saved.",
+        cause instanceof Error
+          ? cause.message
+          : "The setting could not be saved.",
       );
     } finally {
       setIsSavingToilet(false);
@@ -2712,298 +2755,39 @@ function SchedulePageContent({
 
   return (
     <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
-      <CrownProvider crownedUserIds={goods.crownedMemberIds}>
+      <CrownProvider
+        crownedUserIds={goods.crownedMemberIds}
+        crownedNames={goods.crownedMemberIds
+          .map(
+            (id) =>
+              goods.teams.find((team) => team.owner_user_id === id)
+                ?.owner_name ?? "",
+          )
+          .filter((name) => name.length > 0)}
+      >
         <div className="mx-auto max-w-[96rem] space-y-6">
-        <header className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-2xl sm:p-6 shadow-slate-950/40">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-white">
-                {goods.league.name}
-              </h1>
-              <p className="mt-1 text-sm text-slate-400">
-                Schedule • {formatSeasonLabel(goods.season)}
-                {` • ${phaseLabel}`}
-                {" • All times in "}
-                <span className="text-slate-300">
-                  {formatTimeZoneLabel(timeZone)}
-                </span>
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {tabs.map((tab) => (
-                <button
-                  key={tab}
-                  type="button"
-                  onClick={() => setActiveTab(tab)}
-                  className={`rounded-full px-3.5 py-2 text-sm font-medium transition ${
-                    activeTab === tab
-                      ? "bg-amber-500 text-slate-950"
-                      : "bg-slate-800 text-slate-300 hover:bg-slate-700"
-                  }`}
-                >
-                  {tab}
-                </button>
-              ))}
-            </div>
-          </div>
-        </header>
-
-        {/*
-         * A history view says so, in the place the member will look first. Without this,
-         * a past season's page looks exactly like the live one until an action turns out
-         * to be missing -- which reads as a bug rather than as a rule.
-         */}
-        {!goods.isCurrentSeason && (
-          <div className="rounded-2xl border border-sky-800/60 bg-sky-950/40 px-5 py-4 text-sm text-sky-200">
-            <p className="font-semibold uppercase tracking-[0.15em] text-sky-300">
-              Viewing history
-            </p>
-            <p className="mt-1">
-              This is not the league&apos;s current season, so it is read-only.
-              Results, standings and history are shown as they finished. To
-              schedule or report a match, switch to the current season from the
-              dashboard.
-            </p>
-          </div>
-        )}
-
-        {/*
-         * The weekly deadline is a league-wide commitment, so it is announced in
-         * its own banner rather than as another line of grey subtext in the
-         * header: a member who has not proposed a time yet needs to know how
-         * long they have left to agree on one.
-         */}
-        {goods.isCurrentSeason && hasDeadline && (
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-500/40 bg-amber-500/10 px-5 py-4">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-300">
-                Weekly deadline
-              </p>
-              <p className="mt-1 text-lg font-semibold text-amber-100">
-                {formatInTimeZone(deadlineInstant as Date, timeZone)}
-              </p>
-            </div>
-            <p className="text-sm text-amber-200/80">
-              {weekProgress?.deadline_paused
-                ? "Paused by the league owner; matches are not being closed yet."
-                : `Unreported matches close at this time (shown in ${formatTimeZoneLabel(timeZone)}).`}
-            </p>
-          </div>
-        )}
-
-        {goods.isCurrentSeason && !hasDeadline && (
-          <div className="rounded-2xl border border-slate-800 bg-slate-900/60 px-5 py-3 text-sm text-slate-400">
-            {weekProgress?.deadline_enabled
-              ? "Weekly deadlines are enabled for this league, but no first deadline date has been set yet."
-              : "This league has no weekly deadline; matchups stay open until both players agree on a time."}
-          </div>
-        )}
-
-        {error && (
-          <div className="rounded-xl border border-rose-800 bg-rose-900/40 p-4 text-sm text-rose-200">
-            {error}
-          </div>
-        )}
-        {notice && (
-          <div className="rounded-xl border border-emerald-800 bg-emerald-900/40 p-4 text-sm text-emerald-200">
-            {notice}
-          </div>
-        )}
-
-        {activeTab === "Setup" && goods.isOwner && goods.isCurrentSeason && (
-          <SectionCard
-            title="Schedule setup"
-            action={
-              scheduleMode === "automatic" ? (
-                <button
-                  type="button"
-                  disabled={generateDisabled}
-                  onClick={handleGenerateSchedule}
-                  className="rounded-xl bg-amber-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  Generate schedule
-                </button>
-              ) : null
-            }
+          <header
+            className="sticky z-30 rounded-2xl border border-slate-800 bg-slate-900/90 p-4 shadow-2xl backdrop-blur-md sm:p-6 shadow-slate-950/40"
+            style={{ top: "calc(var(--app-nav-height, 4rem) + 1rem)" }}
           >
-            <div className="mb-5 flex flex-wrap items-center gap-2">
-              <span className="text-sm text-slate-400">Schedule method</span>
-              {(
-                [
-                  ["automatic", "Automatic"],
-                  ["manual", "Manual"],
-                ] as const
-              ).map(([value, label]) => (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() => setScheduleMode(value)}
-                  className={`rounded-lg border px-3 py-1.5 text-sm transition ${
-                    scheduleMode === value
-                      ? "border-amber-500/60 bg-amber-500/15 text-amber-200"
-                      : "border-slate-700 text-slate-300 hover:border-slate-500 hover:text-white"
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-
-            <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
-              <Field label="Regular season weeks">
-                <input
-                  type="number"
-                  min={1}
-                  max={52}
-                  value={form.weeks}
-                  onChange={(event) =>
-                    setForm({ ...form, weeks: Number(event.target.value) })
-                  }
-                  className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-500"
-                />
-              </Field>
-              <Field label="Match format">
-                <select
-                  value={form.matchFormat}
-                  onChange={(event) =>
-                    setForm({
-                      ...form,
-                      matchFormat: event.target.value as "single" | "best_of_3",
-                    })
-                  }
-                  className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-500"
-                >
-                  <option value="single">Single Game</option>
-                  <option value="best_of_3">Best of 3</option>
-                </select>
-              </Field>
-              <Field label={`Playoff teams (max ${maxPlayoffTeams})`}>
-                <input
-                  type="number"
-                  min={0}
-                  max={maxPlayoffTeams}
-                  value={form.playoffTeams}
-                  onChange={(event) =>
-                    setForm({
-                      ...form,
-                      playoffTeams: Number(event.target.value),
-                    })
-                  }
-                  className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-500"
-                />
-              </Field>
-              <Field label="Playoff match format">
-                <select
-                  value={form.playoffMatchFormat}
-                  onChange={(event) =>
-                    setForm({
-                      ...form,
-                      playoffMatchFormat: event.target.value as
-                        | "single"
-                        | "best_of_3",
-                    })
-                  }
-                  className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-500"
-                >
-                  <option value="single">Single Game</option>
-                  <option value="best_of_3">Best of 3</option>
-                </select>
-              </Field>
-              <Field label="Playoff format">
-                <select
-                  value={form.playoffFormat}
-                  onChange={(event) =>
-                    setForm({
-                      ...form,
-                      playoffFormat: event.target.value as
-                        | "single_elimination"
-                        | "double_elimination",
-                    })
-                  }
-                  className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-500"
-                >
-                  <option value="single_elimination">Single Elimination</option>
-                  <option value="double_elimination">Double Elimination</option>
-                </select>
-              </Field>
-              <Field label="First-round byes (calculated)">
-                <div className="rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-300">
-                  {form.playoffTeams >= 2 && form.playoffTeams <= maxPlayoffTeams
-                    ? byes
-                    : "—"}
-                </div>
-              </Field>
-            </div>
-
-            <div className="mt-5 rounded-xl border border-slate-800 bg-slate-950/60 p-3">
-              <label className="flex items-center justify-between gap-3 text-sm text-slate-200">
-                <span>Toilet Bowl bracket</span>
-                <input
-                  type="checkbox"
-                  checked={goods.settings?.enable_toilet_bowl === true}
-                  disabled={isSavingToilet}
-                  onChange={(event) =>
-                    void handleToggleToiletBowl(event.target.checked)
-                  }
-                  className="h-4 w-4 accent-amber-500"
-                />
-              </label>
-              <p className="mt-2 text-xs text-slate-500">
-                Every team that misses the playoff field plays its own
-                single-elimination consolation bracket, seeded by the regular
-                season standings. It appears on the Playoffs tab and advances
-                with the same button. Its winner does not get the champion
-                crown.
-              </p>
-            </div>
-            {scheduleMode === "automatic" ? (
-              <p className="mt-4 text-sm text-slate-400">
-                Generate button is enabled once regular season weeks is a valid
-                integer of at least 1. Generating replaces the current
-                season&apos;s schedule and draws every matchup and home/away side
-                at random, so regenerating produces a different schedule. Each
-                team meets each other team once per round-robin pass, so weeks
-                beyond a full pass re-draw the matchups instead of replaying them.
-                The playoff bracket is advanced from the Playoffs tab once the
-                draft is complete.
-              </p>
-            ) : (
-              <div className="mt-6 border-t border-slate-800 pt-5">
-                <ManualScheduleEditor
-                  teams={goods.teams.map((team) => ({
-                    id: team.id,
-                    name: team.owner_name?.trim() || team.team_name,
-                  }))}
-                  weeks={Math.max(1, form.weeks)}
-                  initialGames={goods.matches
-                    .filter((match) => !match.is_playoff && !isByeMatch(match))
-                    .map((match) => ({
-                      week: match.week_number,
-                      player_1_team_id: match.player_1_team_id,
-                      player_2_team_id: match.player_2_team_id ?? "",
-                    }))
-                    .filter(
-                      (game) =>
-                        // A scheduled bye has no second side, so it is not a pairing
-                        // to carry back into the editor.
-                        game.player_2_team_id !== "",
-                    )}
-                  saving={isSavingManual}
-                  onSave={handleSaveManualSchedule}
-                />
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h1 className="text-3xl font-bold text-white">
+                  {goods.league.name}
+                </h1>
+                <p className="mt-1 text-sm text-slate-400">
+                  Schedule • {formatSeasonLabel(goods.season)}
+                  {` • ${phaseLabel}`}
+                  {" • All times in "}
+                  <span className="text-slate-300">
+                    {formatTimeZoneLabel(timeZone)}
+                  </span>
+                </p>
               </div>
-            )}
-          </SectionCard>
-        )}
-
-        {activeTab === "Schedule" && (
-          <>
-            <SectionCard
-              title="Matchup"
-              action={
-                <div className="flex flex-wrap items-center gap-3">
+              <div className="flex flex-wrap items-center gap-2">
+                {(activeTab === "Schedule" || activeTab === "History") && (
                   <label
-                    className="flex items-center gap-2 text-sm text-slate-400"
+                    className="flex items-center gap-2 rounded-full bg-slate-800 px-3.5 py-2 text-sm text-slate-300"
                     title="Hide the match winner, the per-game winners, and each game's KO differential"
                   >
                     <input
@@ -3016,6 +2800,287 @@ function SchedulePageContent({
                     />
                     <span>Spoiler Filter</span>
                   </label>
+                )}
+                {tabs.map((tab) => (
+                  <button
+                    key={tab}
+                    type="button"
+                    onClick={() => setActiveTab(tab)}
+                    className={`rounded-full px-3.5 py-2 text-sm font-medium transition ${
+                      activeTab === tab
+                        ? "bg-amber-500 text-slate-950"
+                        : "bg-slate-800 text-slate-300 hover:bg-slate-700"
+                    }`}
+                  >
+                    {tab}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </header>
+
+          {/*
+           * A history view says so, in the place the member will look first. Without this,
+           * a past season's page looks exactly like the live one until an action turns out
+           * to be missing -- which reads as a bug rather than as a rule.
+           */}
+          {!goods.isCurrentSeason && (
+            <div className="rounded-2xl border border-sky-800/60 bg-sky-950/40 px-5 py-4 text-sm text-sky-200">
+              <p className="font-semibold uppercase tracking-[0.15em] text-sky-300">
+                Viewing history
+              </p>
+              <p className="mt-1">
+                This is not the league&apos;s current season, so it is
+                read-only. Results, standings and history are shown as they
+                finished. To schedule or report a match, switch to the current
+                season from the dashboard.
+              </p>
+            </div>
+          )}
+
+          {/*
+           * The weekly deadline is a league-wide commitment, so it is announced in
+           * its own banner rather than as another line of grey subtext in the
+           * header: a member who has not proposed a time yet needs to know how
+           * long they have left to agree on one.
+           */}
+          {goods.isCurrentSeason && hasDeadline && (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-500/40 bg-amber-500/10 px-5 py-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-300">
+                  Weekly deadline
+                </p>
+                <p className="mt-1 text-lg font-semibold text-amber-100">
+                  {formatInTimeZone(deadlineInstant as Date, timeZone)}
+                </p>
+              </div>
+              <p className="text-sm text-amber-200/80">
+                {weekProgress?.deadline_paused
+                  ? "Paused by the league owner; matches are not being closed yet."
+                  : `Unreported matches close at this time (shown in ${formatTimeZoneLabel(timeZone)}).`}
+              </p>
+            </div>
+          )}
+
+          {goods.isCurrentSeason && !hasDeadline && (
+            <div className="rounded-2xl border border-slate-800 bg-slate-900/60 px-5 py-3 text-sm text-slate-400">
+              {weekProgress?.deadline_enabled
+                ? "Weekly deadlines are enabled for this league, but no first deadline date has been set yet."
+                : "This league has no weekly deadline; matchups stay open until both players agree on a time."}
+            </div>
+          )}
+
+          {error && (
+            <div className="rounded-xl border border-rose-800 bg-rose-900/40 p-4 text-sm text-rose-200">
+              {error}
+            </div>
+          )}
+          {notice && (
+            <div className="rounded-xl border border-emerald-800 bg-emerald-900/40 p-4 text-sm text-emerald-200">
+              {notice}
+            </div>
+          )}
+
+          {activeTab === "Setup" && goods.isOwner && goods.isCurrentSeason && (
+            <SectionCard
+              title="Schedule setup"
+              action={
+                scheduleMode === "automatic" ? (
+                  <button
+                    type="button"
+                    disabled={generateDisabled}
+                    onClick={handleGenerateSchedule}
+                    className="rounded-xl bg-amber-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Generate schedule
+                  </button>
+                ) : null
+              }
+            >
+              <div className="mb-5 flex flex-wrap items-center gap-2">
+                <span className="text-sm text-slate-400">Schedule method</span>
+                {(
+                  [
+                    ["automatic", "Automatic"],
+                    ["manual", "Manual"],
+                  ] as const
+                ).map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setScheduleMode(value)}
+                    className={`rounded-lg border px-3 py-1.5 text-sm transition ${
+                      scheduleMode === value
+                        ? "border-amber-500/60 bg-amber-500/15 text-amber-200"
+                        : "border-slate-700 text-slate-300 hover:border-slate-500 hover:text-white"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+                <Field label="Regular season weeks">
+                  <input
+                    type="number"
+                    min={1}
+                    max={52}
+                    value={form.weeks}
+                    onChange={(event) =>
+                      setForm({ ...form, weeks: Number(event.target.value) })
+                    }
+                    className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-500"
+                  />
+                </Field>
+                <Field label="Match format">
+                  <select
+                    value={form.matchFormat}
+                    onChange={(event) =>
+                      setForm({
+                        ...form,
+                        matchFormat: event.target.value as
+                          | "single"
+                          | "best_of_3",
+                      })
+                    }
+                    className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-500"
+                  >
+                    <option value="single">Single Game</option>
+                    <option value="best_of_3">Best of 3</option>
+                  </select>
+                </Field>
+                <Field label={`Playoff teams (max ${maxPlayoffTeams})`}>
+                  <input
+                    type="number"
+                    min={0}
+                    max={maxPlayoffTeams}
+                    value={form.playoffTeams}
+                    onChange={(event) =>
+                      setForm({
+                        ...form,
+                        playoffTeams: Number(event.target.value),
+                      })
+                    }
+                    className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-500"
+                  />
+                </Field>
+                <Field label="Playoff match format">
+                  <select
+                    value={form.playoffMatchFormat}
+                    onChange={(event) =>
+                      setForm({
+                        ...form,
+                        playoffMatchFormat: event.target.value as
+                          | "single"
+                          | "best_of_3",
+                      })
+                    }
+                    className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-500"
+                  >
+                    <option value="single">Single Game</option>
+                    <option value="best_of_3">Best of 3</option>
+                  </select>
+                </Field>
+                <Field label="Playoff format">
+                  <select
+                    value={form.playoffFormat}
+                    onChange={(event) =>
+                      setForm({
+                        ...form,
+                        playoffFormat: event.target.value as
+                          | "single_elimination"
+                          | "double_elimination",
+                      })
+                    }
+                    className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-500"
+                  >
+                    <option value="single_elimination">
+                      Single Elimination
+                    </option>
+                    <option value="double_elimination">
+                      Double Elimination
+                    </option>
+                  </select>
+                </Field>
+                <Field label="First-round byes (calculated)">
+                  <div className="rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-300">
+                    {form.playoffTeams >= 2 &&
+                    form.playoffTeams <= maxPlayoffTeams
+                      ? byes
+                      : "—"}
+                  </div>
+                </Field>
+              </div>
+
+              <div className="mt-5 rounded-xl border border-slate-800 bg-slate-950/60 p-3">
+                <label className="flex items-center justify-between gap-3 text-sm text-slate-200">
+                  <span>Toilet Bowl bracket</span>
+                  <input
+                    type="checkbox"
+                    checked={goods.settings?.enable_toilet_bowl === true}
+                    disabled={isSavingToilet}
+                    onChange={(event) =>
+                      void handleToggleToiletBowl(event.target.checked)
+                    }
+                    className="h-4 w-4 accent-amber-500"
+                  />
+                </label>
+                <p className="mt-2 text-xs text-slate-500">
+                  Every team that misses the playoff field plays its own
+                  single-elimination consolation bracket, seeded by the regular
+                  season standings. It appears on the Playoffs tab and advances
+                  with the same button. Its winner does not get the champion
+                  crown.
+                </p>
+              </div>
+              {scheduleMode === "automatic" ? (
+                <p className="mt-4 text-sm text-slate-400">
+                  Generate button is enabled once regular season weeks is a
+                  valid integer of at least 1. Generating replaces the current
+                  season&apos;s schedule and draws every matchup and home/away
+                  side at random, so regenerating produces a different schedule.
+                  Each team meets each other team once per round-robin pass, so
+                  weeks beyond a full pass re-draw the matchups instead of
+                  replaying them. The playoff bracket is advanced from the
+                  Playoffs tab once the draft is complete.
+                </p>
+              ) : (
+                <div className="mt-6 border-t border-slate-800 pt-5">
+                  <ManualScheduleEditor
+                    teams={goods.teams.map((team) => ({
+                      id: team.id,
+                      name: team.owner_name?.trim() || team.team_name,
+                    }))}
+                    weeks={Math.max(1, form.weeks)}
+                    initialGames={goods.matches
+                      .filter(
+                        (match) => !match.is_playoff && !isByeMatch(match),
+                      )
+                      .map((match) => ({
+                        week: match.week_number,
+                        player_1_team_id: match.player_1_team_id,
+                        player_2_team_id: match.player_2_team_id ?? "",
+                      }))
+                      .filter(
+                        (game) =>
+                          // A scheduled bye has no second side, so it is not a pairing
+                          // to carry back into the editor.
+                          game.player_2_team_id !== "",
+                      )}
+                    saving={isSavingManual}
+                    onSave={handleSaveManualSchedule}
+                  />
+                </div>
+              )}
+            </SectionCard>
+          )}
+
+          {activeTab === "Schedule" && (
+            <>
+              <SectionCard
+                title="Matchup"
+                action={
                   <MatchupPicker
                     caption="Week / matchup"
                     options={matchPickerOptions}
@@ -3027,1402 +3092,1467 @@ function SchedulePageContent({
                       setEditingResultId(null);
                     }}
                   />
-                </div>
-              }
-            >
-              {!selectedMatch ? (
-                <p className="text-sm text-slate-400">
-                  No matches have been generated yet.
-                </p>
-              ) : (
-                <div className="space-y-5">
-                  <div className="flex flex-col items-center gap-4 rounded-xl border border-slate-800 bg-slate-950/60 p-5">
-                    <div className="flex w-full items-center justify-between gap-3">
-                      <div className="flex flex-1 flex-col items-center gap-1 text-center">
-                        <Avatar
-                          name={selectedMatch.player_1_name}
-                          nameColor={selectedMatch.player_1_name_color}
-                          avatarUrl={selectedMatch.player_1_avatar_url}
-                          initials={selectedMatch.player_1_avatar_initials}
-                          size={88}
-                          winner={
-                            !hideSpoilers &&
-                            selectedMatch.winner_team_id ===
-                              selectedMatch.player_1_team_id
-                          }
-                        />
-                        <MemberName
-                          name={selectedMatch.player_1_name}
-                          color={selectedMatch.player_1_name_color}
-                          className="font-semibold text-slate-100"
-                        />
-                        {playerOneRecord && (
-                          <Spoiler hidden={hideSpoilers}>
-                            <span className="text-sm text-slate-400">
-                              {playerOneRecord}
-                            </span>
-                          </Spoiler>
-                        )}
-                        <div className="mt-1">
-                          <RosterSprites
-                            showNames
-                            roster={
-                              goods.rostersByTeam[
+                }
+              >
+                {!selectedMatch ? (
+                  <p className="text-sm text-slate-400">
+                    No matches have been generated yet.
+                  </p>
+                ) : (
+                  <div className="space-y-5">
+                    <div className="flex flex-col items-center gap-4 rounded-xl border border-slate-800 bg-slate-950/60 p-5">
+                      <div className="flex w-full items-center justify-between gap-3">
+                        <div className="flex flex-1 flex-col items-center gap-1 text-center">
+                          <Avatar
+                            name={selectedMatch.player_1_name}
+                            nameColor={selectedMatch.player_1_name_color}
+                            avatarUrl={selectedMatch.player_1_avatar_url}
+                            initials={selectedMatch.player_1_avatar_initials}
+                            size={88}
+                            winner={
+                              !hideSpoilers &&
+                              selectedMatch.winner_team_id ===
                                 selectedMatch.player_1_team_id
-                              ] ?? []
                             }
                           />
+                          <div className="flex items-center gap-1.5">
+                            <MemberName
+                              name={selectedMatch.player_1_name}
+                              color={selectedMatch.player_1_name_color}
+                              className="font-semibold text-slate-100"
+                              showdownUsername={
+                                selectedMatch.player_1_showdown_username
+                              }
+                            />
+                            {teamRecord(selectedMatch.player_1_team_id) && (
+                              <span className="shrink-0 rounded-full bg-slate-800 px-1.5 py-0.5 text-[10px] font-semibold text-slate-300">
+                                {teamRecord(selectedMatch.player_1_team_id)}
+                              </span>
+                            )}
+                          </div>
+                          {playerOneRecord && (
+                            <Spoiler hidden={hideSpoilers}>
+                              <span className="text-sm text-slate-400">
+                                {playerOneRecord}
+                              </span>
+                            </Spoiler>
+                          )}
+                          <div className="mt-1">
+                            <RosterSprites
+                              showNames
+                              roster={
+                                goods.rostersByTeam[
+                                  selectedMatch.player_1_team_id
+                                ] ?? []
+                              }
+                            />
+                          </div>
+                          {goods.isCurrentSeason &&
+                            selectedPredictionLock === null && (
+                              <div className="mt-3 flex w-full justify-center">
+                                <MatchPredictionButton
+                                  side={{
+                                    teamId: selectedMatch.player_1_team_id,
+                                    name: selectedMatch.player_1_name,
+                                  }}
+                                  predictedTeamId={
+                                    selectedMatch.my_prediction_team_id
+                                  }
+                                  predictionCounts={
+                                    selectedMatch.prediction_counts
+                                  }
+                                  disabled={isBusy}
+                                  onPick={(teamId) =>
+                                    void handlePredict(selectedMatch.id, teamId)
+                                  }
+                                />
+                              </div>
+                            )}
                         </div>
-                      </div>
-                      <div className="flex flex-col items-center gap-1">
-                        <span className="text-xs font-bold uppercase tracking-widest text-slate-500">
-                          vs
-                        </span>
-                        <span className="rounded-full bg-slate-800 px-3 py-1 text-xs font-semibold text-slate-300">
-                          {matchFormat === "single" ? "Single" : "Best of 3"}
-                        </span>
-                        <StatusBadge status={selectedMatch.status} />
-                      </div>
-                      <div className="flex flex-1 flex-col items-center gap-1 text-center">
-                        <Avatar
-                          name={selectedMatch.player_2_name}
-                          nameColor={selectedMatch.player_2_name_color}
-                          avatarUrl={selectedMatch.player_2_avatar_url}
-                          initials={selectedMatch.player_2_avatar_initials}
-                          size={88}
-                          winner={
-                            !hideSpoilers &&
-                            selectedMatch.winner_team_id ===
-                              selectedMatch.player_2_team_id
-                          }
-                        />
-                        <MemberName
-                          name={selectedMatch.player_2_name}
-                          color={selectedMatch.player_2_name_color}
-                          className="font-semibold text-slate-100"
-                        />
-                        {playerTwoRecord && (
-                          <Spoiler hidden={hideSpoilers}>
-                            <span className="text-sm text-slate-400">
-                              {playerTwoRecord}
-                            </span>
-                          </Spoiler>
-                        )}
-                        <div className="mt-1">
-                          <RosterSprites
-                            showNames
-                            roster={
-                              goods.rostersByTeam[
-                                selectedMatch.player_2_team_id ?? ""
-                              ] ?? []
+                        <div className="flex flex-col items-center gap-1">
+                          <span className="text-xs font-bold uppercase tracking-widest text-slate-500">
+                            vs
+                          </span>
+                          <span className="rounded-full bg-slate-800 px-3 py-1 text-xs font-semibold text-slate-300">
+                            {matchFormat === "single" ? "Single" : "Best of 3"}
+                          </span>
+                          <StatusBadge status={selectedMatch.status} />
+                        </div>
+                        <div className="flex flex-1 flex-col items-center gap-1 text-center">
+                          <Avatar
+                            name={selectedMatch.player_2_name}
+                            nameColor={selectedMatch.player_2_name_color}
+                            avatarUrl={selectedMatch.player_2_avatar_url}
+                            initials={selectedMatch.player_2_avatar_initials}
+                            size={88}
+                            winner={
+                              !hideSpoilers &&
+                              selectedMatch.winner_team_id ===
+                                selectedMatch.player_2_team_id
                             }
                           />
+                          <div className="flex items-center gap-1.5">
+                            <MemberName
+                              name={selectedMatch.player_2_name}
+                              color={selectedMatch.player_2_name_color}
+                              className="font-semibold text-slate-100"
+                              showdownUsername={
+                                selectedMatch.player_2_showdown_username
+                              }
+                            />
+                            {teamRecord(selectedMatch.player_2_team_id) && (
+                              <span className="shrink-0 rounded-full bg-slate-800 px-1.5 py-0.5 text-[10px] font-semibold text-slate-300">
+                                {teamRecord(selectedMatch.player_2_team_id)}
+                              </span>
+                            )}
+                          </div>
+                          {playerTwoRecord && (
+                            <Spoiler hidden={hideSpoilers}>
+                              <span className="text-sm text-slate-400">
+                                {playerTwoRecord}
+                              </span>
+                            </Spoiler>
+                          )}
+                          <div className="mt-1">
+                            <RosterSprites
+                              showNames
+                              roster={
+                                goods.rostersByTeam[
+                                  selectedMatch.player_2_team_id ?? ""
+                                ] ?? []
+                              }
+                            />
+                          </div>
+                          {goods.isCurrentSeason &&
+                            selectedPredictionLock === null &&
+                            selectedMatch.player_2_team_id && (
+                              <div className="mt-3 flex w-full justify-center">
+                                <MatchPredictionButton
+                                  side={{
+                                    teamId: selectedMatch.player_2_team_id,
+                                    name: selectedMatch.player_2_name,
+                                  }}
+                                  predictedTeamId={
+                                    selectedMatch.my_prediction_team_id
+                                  }
+                                  predictionCounts={
+                                    selectedMatch.prediction_counts
+                                  }
+                                  disabled={isBusy}
+                                  onPick={(teamId) =>
+                                    void handlePredict(selectedMatch.id, teamId)
+                                  }
+                                />
+                              </div>
+                            )}
                         </div>
                       </div>
-                    </div>
 
-                    {/*
-                     * The time line is the whole point of the agreement flow, so
-                     * it says which of the three states the matchup is in: no
-                     * time, a time waiting on the opponent, or an agreed time.
-                     */}
-                    {pendingProposal ? (
-                      <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm">
-                        <p className="font-semibold text-amber-200">
+                      {/*
+                       * The time line is the whole point of the agreement flow, so
+                       * it says which of the three states the matchup is in: no
+                       * time, a time waiting on the opponent, or an agreed time.
+                       */}
+                      {pendingProposal ? (
+                        <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm">
+                          <p className="font-semibold text-amber-200">
+                            {formatDateTimeInZone(
+                              pendingProposal.proposed_at,
+                              timeZone,
+                            )}
+                          </p>
+                          <p className="mt-1 text-amber-200/80">
+                            <MemberName
+                              name={proposalAuthor.name}
+                              color={proposalAuthor.color}
+                            />{" "}
+                            proposed this time.{" "}
+                            {proposalIsMine
+                              ? "Waiting for your opponent to accept."
+                              : "Accept or decline it below."}
+                          </p>
+                        </div>
+                      ) : selectedMatch.scheduled_at ? (
+                        <p className="text-sm text-slate-300">
                           {formatDateTimeInZone(
-                            pendingProposal.proposed_at,
+                            selectedMatch.scheduled_at,
                             timeZone,
                           )}
-                        </p>
-                        <p className="mt-1 text-amber-200/80">
-                          <MemberName
-                            name={proposalAuthor.name}
-                            color={proposalAuthor.color}
-                          />{" "}
-                          proposed this time.{" "}
-                          {proposalIsMine
-                            ? "Waiting for your opponent to accept."
-                            : "Accept or decline it below."}
-                        </p>
-                      </div>
-                    ) : selectedMatch.scheduled_at ? (
-                      <p className="text-sm text-slate-300">
-                        {formatDateTimeInZone(
-                          selectedMatch.scheduled_at,
-                          timeZone,
-                        )}
-                        <span className="ml-2 text-xs text-emerald-300">
-                          agreed by both players
-                        </span>
-                      </p>
-                    ) : (
-                      <p className="text-sm text-slate-500">
-                        No time agreed yet — both players have to agree before
-                        this matchup is scheduled.
-                      </p>
-                    )}
-                    {selectedMatch.status === "forfeit" &&
-                      selectedMatch.forfeited_by_name && (
-                        <p className="text-center text-xs text-slate-500">
-                          Forfeited by{" "}
-                          <MemberName
-                            name={selectedMatch.forfeited_by_name}
-                            color={selectedMatch.forfeited_by_name_color}
-                          />
-                        </p>
-                      )}
-                    {selectedMatch.notes && (
-                      <p className="text-sm italic text-slate-400">
-                        “{selectedMatch.notes}”
-                      </p>
-                    )}
-
-                    {/*
-                     * Every member may predict, not just the two participants.
-                     * The pick is stored per match and member, and the card says
-                     * why it is closed rather than silently hiding the control.
-                     */}
-                    <div className="w-full rounded-xl border border-slate-800 bg-slate-950/60 p-4">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <p className="text-sm font-semibold text-slate-200">
-                          Winner prediction
-                        </p>
-                        <span
-                          className={`text-xs font-medium ${
-                            goods.isCurrentSeason &&
-                            selectedPredictionLock === null
-                              ? "text-emerald-300"
-                              : "text-slate-500"
-                          }`}
-                        >
-                          {goods.isCurrentSeason &&
-                          selectedPredictionLock === null
-                            ? "Correct pick = +1 PP"
-                            : "Closed"}
-                        </span>
-                      </div>
-
-                      {selectedPredictionLock ? (
-                        <p className="mt-2 text-sm text-slate-500">
-                          {predictionLockMessage(selectedPredictionLock)}
-                        </p>
-                      ) : !goods.isCurrentSeason ? (
-                        <p className="mt-2 text-sm text-slate-500">
-                          Predictions are closed for past seasons.
+                          <span className="ml-2 text-xs text-emerald-300">
+                            agreed by both players
+                          </span>
                         </p>
                       ) : (
-                        <>
-                          <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                            {predictionSides.map((side) => {
-                              const picked =
-                                selectedMatch.my_prediction_team_id ===
-                                side.teamId;
-                              const count =
-                                selectedMatch.prediction_counts[side.teamId] ??
-                                0;
-
-                              return (
-                                <button
-                                  key={side.teamId}
-                                  type="button"
-                                  disabled={isBusy}
-                                  aria-pressed={picked}
-                                  onClick={() =>
-                                    void handlePredict(
-                                      selectedMatch.id,
-                                      side.teamId,
-                                    )
-                                  }
-                                  className={`rounded-xl border px-3 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50 ${
-                                    picked
-                                      ? "border-emerald-500 bg-emerald-500/15 text-emerald-200"
-                                      : "border-slate-700 bg-slate-800 text-slate-200 hover:border-amber-500/60 hover:bg-slate-700"
-                                  }`}
-                                >
-                                  <span className="flex items-center justify-between gap-2">
-                                    <span>
-                                      {picked ? "Your pick: " : "Pick "}
-                                      {side.name}
-                                    </span>
-                                    <span
-                                      className={`shrink-0 text-xs font-semibold ${
-                                        picked
-                                          ? "text-emerald-300/80"
-                                          : "text-slate-400"
-                                      }`}
-                                    >
-                                      {count} {count === 1 ? "pick" : "picks"}
-                                    </span>
-                                  </span>
-                                </button>
-                              );
-                            })}
-                          </div>
-                          <p className="mt-2 text-xs text-slate-500">
-                            {selectedMatch.my_prediction_team_id
-                              ? "You can change this pick until the scheduled time or the first submitted game."
-                              : "Pick the team you think will win. You can change it until the scheduled time or the first submitted game."}
+                        <p className="text-sm text-slate-500">
+                          No time agreed yet — both players have to agree before
+                          this matchup is scheduled.
+                        </p>
+                      )}
+                      {selectedMatch.status === "forfeit" &&
+                        selectedMatch.forfeited_by_name && (
+                          <p className="text-center text-xs text-slate-500">
+                            Forfeited by{" "}
+                            <MemberName
+                              name={selectedMatch.forfeited_by_name}
+                              color={selectedMatch.forfeited_by_name_color}
+                            />
                           </p>
-                        </>
+                        )}
+                      {selectedMatch.notes && (
+                        <p className="text-sm italic text-slate-400">
+                          “{selectedMatch.notes}”
+                        </p>
                       )}
 
-                      {selectedPredictionLock !== null ||
-                      !goods.isCurrentSeason ? (
-                        predictionPickName ? (
-                          <p className="mt-2 text-xs text-slate-400">
-                            Your pick: {predictionPickName}
+                      {/*
+                       * Every member may predict, not just the two participants.
+                       * The pick is stored per match and member, and the card says
+                       * why it is closed rather than silently hiding the control.
+                       */}
+                      <div className="w-full rounded-xl border border-slate-800 bg-slate-950/60 p-4">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <p className="text-sm font-semibold text-slate-200">
+                            Winner prediction
                           </p>
-                        ) : null
-                      ) : null}
-                    </div>
-
-                    {canAct && (
-                      <div className="flex flex-wrap justify-center gap-2">
-                        {/* The player who proposed cannot answer their own question. */}
-                        {pendingProposal && !proposalIsMine ? (
-                          <>
-                            <button
-                              type="button"
-                              disabled={isBusy}
-                              onClick={() =>
-                                handleRespondToProposal(selectedMatch.id, true)
-                              }
-                              className="rounded-xl bg-emerald-500 px-3.5 py-2 text-sm font-semibold text-slate-950 transition hover:bg-emerald-400 disabled:opacity-50"
-                            >
-                              Accept time
-                            </button>
-                            <button
-                              type="button"
-                              disabled={isBusy}
-                              onClick={() =>
-                                handleRespondToProposal(selectedMatch.id, false)
-                              }
-                              className="rounded-xl border border-rose-800 bg-rose-950/50 px-3.5 py-2 text-sm font-medium text-rose-300 transition hover:bg-rose-900/50 disabled:opacity-50"
-                            >
-                              Decline
-                            </button>
-                          </>
-                        ) : (
-                          <button
-                            type="button"
-                            disabled={isBusy}
-                            onClick={openScheduling}
-                            className="rounded-xl bg-amber-500 px-3.5 py-2 text-sm font-semibold text-slate-950 transition hover:bg-amber-400 disabled:opacity-50"
+                          <span
+                            className={`text-xs font-medium ${
+                              goods.isCurrentSeason &&
+                              selectedPredictionLock === null
+                                ? "text-emerald-300"
+                                : "text-slate-500"
+                            }`}
                           >
-                            {proposalIsMine
-                              ? "Change proposed time"
-                              : selectedMatch.scheduled_at
-                                ? "Propose a new time"
-                                : "Propose a time"}
-                          </button>
+                            {goods.isCurrentSeason &&
+                            selectedPredictionLock === null
+                              ? "Correct pick = +1 PP"
+                              : "Closed"}
+                          </span>
+                        </div>
+
+                        {selectedPredictionLock ? (
+                          <p className="mt-2 text-sm text-slate-500">
+                            {predictionLockMessage(selectedPredictionLock)}
+                          </p>
+                        ) : !goods.isCurrentSeason ? (
+                          <p className="mt-2 text-sm text-slate-500">
+                            Predictions are closed for past seasons.
+                          </p>
+                        ) : (
+                          <>
+                            <p className="mt-2 text-xs text-slate-500">
+                              {selectedMatch.my_prediction_team_id
+                                ? "You can change this pick until the scheduled time or the first submitted game."
+                                : "Pick the team you think will win. You can change it until the scheduled time or the first submitted game."}
+                            </p>
+                          </>
                         )}
 
-                        {proposalIsMine && (
+                        {selectedPredictionLock !== null ||
+                        !goods.isCurrentSeason ? (
+                          predictionPickName ? (
+                            <p className="mt-2 text-xs text-slate-400">
+                              Your pick: {predictionPickName}
+                            </p>
+                          ) : null
+                        ) : null}
+                      </div>
+
+                      {canAct && (
+                        <div className="flex flex-wrap justify-center gap-2">
+                          {/* The player who proposed cannot answer their own question. */}
+                          {pendingProposal && !proposalIsMine ? (
+                            <>
+                              <button
+                                type="button"
+                                disabled={isBusy}
+                                onClick={() =>
+                                  handleRespondToProposal(
+                                    selectedMatch.id,
+                                    true,
+                                  )
+                                }
+                                className="rounded-xl bg-emerald-500 px-3.5 py-2 text-sm font-semibold text-slate-950 transition hover:bg-emerald-400 disabled:opacity-50"
+                              >
+                                Accept time
+                              </button>
+                              <button
+                                type="button"
+                                disabled={isBusy}
+                                onClick={() =>
+                                  handleRespondToProposal(
+                                    selectedMatch.id,
+                                    false,
+                                  )
+                                }
+                                className="rounded-xl border border-rose-800 bg-rose-950/50 px-3.5 py-2 text-sm font-medium text-rose-300 transition hover:bg-rose-900/50 disabled:opacity-50"
+                              >
+                                Decline
+                              </button>
+                            </>
+                          ) : (
+                            <button
+                              type="button"
+                              disabled={isBusy}
+                              onClick={openScheduling}
+                              className="rounded-xl bg-amber-500 px-3.5 py-2 text-sm font-semibold text-slate-950 transition hover:bg-amber-400 disabled:opacity-50"
+                            >
+                              {proposalIsMine
+                                ? "Change proposed time"
+                                : selectedMatch.scheduled_at
+                                  ? "Propose a new time"
+                                  : "Propose a time"}
+                            </button>
+                          )}
+
+                          {proposalIsMine && (
+                            <button
+                              type="button"
+                              disabled={isBusy}
+                              onClick={() =>
+                                handleCancelProposal(selectedMatch.id)
+                              }
+                              className="rounded-xl border border-slate-700 bg-slate-800 px-3.5 py-2 text-sm font-medium text-slate-100 transition hover:bg-slate-700 disabled:opacity-50"
+                            >
+                              Withdraw
+                            </button>
+                          )}
+
                           <button
                             type="button"
                             disabled={isBusy}
-                            onClick={() =>
-                              handleCancelProposal(selectedMatch.id)
-                            }
+                            onClick={openReporting}
                             className="rounded-xl border border-slate-700 bg-slate-800 px-3.5 py-2 text-sm font-medium text-slate-100 transition hover:bg-slate-700 disabled:opacity-50"
                           >
-                            Withdraw
+                            Add Replay
                           </button>
-                        )}
-
-                        <button
-                          type="button"
-                          disabled={isBusy}
-                          onClick={openReporting}
-                          className="rounded-xl border border-slate-700 bg-slate-800 px-3.5 py-2 text-sm font-medium text-slate-100 transition hover:bg-slate-700 disabled:opacity-50"
-                        >
-                          Add Replay
-                        </button>
-                        <button
-                          type="button"
-                          disabled={isBusy}
-                          onClick={handleForfeit}
-                          className="rounded-xl border border-rose-800 bg-rose-950/50 px-3.5 py-2 text-sm font-medium text-rose-300 transition hover:bg-rose-900/50 disabled:opacity-50"
-                        >
-                          Forfeit
-                        </button>
-                      </div>
-                    )}
-                  </div>
-
-                  {canOwnerActs && (
-                    <div className="flex flex-wrap justify-center gap-2">
-                      {!myMatch && (
-                        <button
-                          type="button"
-                          disabled={isBusy}
-                          onClick={openReporting}
-                          className="rounded-xl border border-slate-700 bg-slate-800 px-3.5 py-2 text-sm font-medium text-slate-100 transition hover:bg-slate-700 disabled:opacity-50"
-                        >
-                          Add Replay
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        disabled={isBusy}
-                        onClick={() => handleOwnerForfeit("player_1")}
-                        className="rounded-xl border border-rose-800 bg-rose-950/50 px-3.5 py-2 text-sm font-medium text-rose-300 transition hover:bg-rose-900/50 disabled:opacity-50"
-                      >
-                        Forfeit{" "}
-                        <MemberName
-                          name={selectedMatch.player_1_name}
-                          color={selectedMatch.player_1_name_color}
-                        />
-                      </button>
-                      <button
-                        type="button"
-                        disabled={isBusy}
-                        onClick={() => handleOwnerForfeit("player_2")}
-                        className="rounded-xl border border-rose-800 bg-rose-950/50 px-3.5 py-2 text-sm font-medium text-rose-300 transition hover:bg-rose-900/50 disabled:opacity-50"
-                      >
-                        Forfeit{" "}
-                        <MemberName
-                          name={selectedMatch.player_2_name}
-                          color={selectedMatch.player_2_name_color}
-                        />
-                      </button>
-                      <button
-                        type="button"
-                        disabled={isBusy}
-                        onClick={() => handleOwnerForfeit("both")}
-                        className="rounded-xl border border-rose-800 bg-rose-950/50 px-3.5 py-2 text-sm font-medium text-rose-300 transition hover:bg-rose-900/50 disabled:opacity-50"
-                      >
-                        Forfeit both
-                      </button>
-                    </div>
-                  )}
-
-                  {goods.canEditMatchups &&
-                    goods.isCurrentSeason &&
-                    selectedMatch.status === "forfeit" && (
-                      <div className="flex flex-wrap justify-center gap-2">
-                        <button
-                          type="button"
-                          disabled={isBusy}
-                          onClick={handleRevertForfeit}
-                          className="rounded-xl border border-slate-700 bg-slate-800 px-3.5 py-2 text-sm font-medium text-slate-100 transition hover:bg-slate-700 disabled:opacity-50"
-                        >
-                          Revert forfeit
-                        </button>
-                      </div>
-                    )}
-
-                  {schedulingMatchId === selectedMatch.id && (
-                    <div className="grid gap-4 rounded-xl border border-slate-700 bg-slate-950/60 p-4 md:grid-cols-2">
-                      {/*
-                       * Not built with Field: that wraps its control in a
-                       * <label>, and a button inside a label would activate the
-                       * input as well, so the two would fight over the click.
-                       */}
-                      <div>
-                        <label
-                          htmlFor="propose-date"
-                          className="mb-1 block text-xs font-semibold uppercase tracking-[0.15em] text-slate-400"
-                        >
-                          Date ({formatTimeZoneLabel(timeZone)})
-                        </label>
-                        {/*
-                         * The button sits against the input's right edge, between
-                         * the date and the time, so the pair reads as one control
-                         * and the eye lands on it from the time field.
-                         */}
-                        <div className="flex gap-2">
-                          <input
-                            id="propose-date"
-                            ref={scheduleDateRef}
-                            type="date"
-                            value={datePartOfInputValue(scheduleTime)}
-                            onChange={handleScheduleDateChange}
-                            onBlur={handleScheduleDateBlur}
-                            className="min-w-0 flex-1 rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-500 [&::-webkit-calendar-picker-indicator]:hidden"
-                          />
                           <button
                             type="button"
-                            onMouseDown={(event) => event.preventDefault()}
-                            onClick={handleOpenDatePicker}
-                            aria-label="Open the calendar to pick a date"
-                            aria-expanded={isDatePickerOpen}
-                            title="Open the calendar"
-                            className="shrink-0 rounded-xl border border-slate-700 bg-slate-950 px-2.5 text-slate-300 transition hover:border-amber-500 hover:text-amber-400"
+                            disabled={isBusy}
+                            onClick={handleForfeit}
+                            className="rounded-xl border border-rose-800 bg-rose-950/50 px-3.5 py-2 text-sm font-medium text-rose-300 transition hover:bg-rose-900/50 disabled:opacity-50"
                           >
-                            <svg
-                              viewBox="0 0 24 24"
-                              aria-hidden="true"
-                              className="h-4 w-4 fill-current"
-                            >
-                              <path d="M7 1.8a1 1 0 0 1 1 1v1.4h8V2.8a1 1 0 1 1 2 0v1.4h1.6A2.4 2.4 0 0 1 22 6.6V9H2V6.6a2.4 2.4 0 0 1 2.4-2.4H6V2.8a1 1 0 0 1 1-1ZM2 11h20v9.4A2.4 2.4 0 0 1 19.6 23H4.4A2.4 2.4 0 0 1 2 20.4V11Zm4.5 1.5a1.3 1.3 0 1 0 0 2.6 1.3 1.3 0 0 0 0-2.6Zm5.5 0a1.3 1.3 0 1 0 0 2.6 1.3 1.3 0 0 0 0-2.6Zm5.5 0a1.3 1.3 0 1 0 0 2.6 1.3 1.3 0 0 0 0-2.6ZM6.5 16a1.3 1.3 0 1 0 0 2.6 1.3 1.3 0 0 0 0-2.6Zm5.5 0a1.3 1.3 0 1 0 0 2.6 1.3 1.3 0 0 0 0-2.6Zm5.5 0a1.3 1.3 0 1 0 0 2.6 1.3 1.3 0 0 0 0-2.6Z" />
-                            </svg>
+                            Forfeit
                           </button>
                         </div>
-                        <span className="mt-1 block text-xs text-slate-400">
-                          Pick a day. The time is separate, next to it.
-                        </span>
+                      )}
+                    </div>
+
+                    {canOwnerActs && (
+                      <div className="flex flex-wrap justify-center gap-2">
+                        {!myMatch && (
+                          <button
+                            type="button"
+                            disabled={isBusy}
+                            onClick={openReporting}
+                            className="rounded-xl border border-slate-700 bg-slate-800 px-3.5 py-2 text-sm font-medium text-slate-100 transition hover:bg-slate-700 disabled:opacity-50"
+                          >
+                            Add Replay
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          disabled={isBusy}
+                          onClick={() => handleOwnerForfeit("player_1")}
+                          className="rounded-xl border border-rose-800 bg-rose-950/50 px-3.5 py-2 text-sm font-medium text-rose-300 transition hover:bg-rose-900/50 disabled:opacity-50"
+                        >
+                          Forfeit{" "}
+                          <MemberName
+                            name={selectedMatch.player_1_name}
+                            color={selectedMatch.player_1_name_color}
+                          />
+                        </button>
+                        <button
+                          type="button"
+                          disabled={isBusy}
+                          onClick={() => handleOwnerForfeit("player_2")}
+                          className="rounded-xl border border-rose-800 bg-rose-950/50 px-3.5 py-2 text-sm font-medium text-rose-300 transition hover:bg-rose-900/50 disabled:opacity-50"
+                        >
+                          Forfeit{" "}
+                          <MemberName
+                            name={selectedMatch.player_2_name}
+                            color={selectedMatch.player_2_name_color}
+                          />
+                        </button>
+                        <button
+                          type="button"
+                          disabled={isBusy}
+                          onClick={() => handleOwnerForfeit("both")}
+                          className="rounded-xl border border-rose-800 bg-rose-950/50 px-3.5 py-2 text-sm font-medium text-rose-300 transition hover:bg-rose-900/50 disabled:opacity-50"
+                        >
+                          Forfeit both
+                        </button>
                       </div>
-                      <Field
-                        label={`Time (${formatTimeZoneLabel(timeZone)})`}
-                        hint={
-                          scheduleFit === null
-                            ? null
-                            : scheduleFit === "inside"
-                              ? "Inside the time your opponent is available."
-                              : scheduleFit === "unavailable"
-                                ? `${opponent?.name} marked that day unavailable.`
-                                : `Outside the window ${opponent?.name} is available.`
-                        }
-                      >
-                        <input
-                          type="time"
-                          value={timePartOfInputValue(scheduleTime)}
-                          onChange={(event) =>
-                            setScheduleTime(
-                              withInputValueTime(
-                                scheduleTime,
-                                event.target.value,
-                              ),
-                            )
+                    )}
+
+                    {goods.canEditMatchups &&
+                      goods.isCurrentSeason &&
+                      selectedMatch.status === "forfeit" && (
+                        <div className="flex flex-wrap justify-center gap-2">
+                          <button
+                            type="button"
+                            disabled={isBusy}
+                            onClick={handleRevertForfeit}
+                            className="rounded-xl border border-slate-700 bg-slate-800 px-3.5 py-2 text-sm font-medium text-slate-100 transition hover:bg-slate-700 disabled:opacity-50"
+                          >
+                            Revert forfeit
+                          </button>
+                        </div>
+                      )}
+
+                    {schedulingMatchId === selectedMatch.id && (
+                      <div className="grid gap-4 rounded-xl border border-slate-700 bg-slate-950/60 p-4 md:grid-cols-2">
+                        {/*
+                         * Not built with Field: that wraps its control in a
+                         * <label>, and a button inside a label would activate the
+                         * input as well, so the two would fight over the click.
+                         */}
+                        <div>
+                          <label
+                            htmlFor="propose-date"
+                            className="mb-1 block text-xs font-semibold uppercase tracking-[0.15em] text-slate-400"
+                          >
+                            Date ({formatTimeZoneLabel(timeZone)})
+                          </label>
+                          {/*
+                           * The button sits against the input's right edge, between
+                           * the date and the time, so the pair reads as one control
+                           * and the eye lands on it from the time field.
+                           */}
+                          <div className="flex gap-2">
+                            <input
+                              id="propose-date"
+                              ref={scheduleDateRef}
+                              type="date"
+                              value={datePartOfInputValue(scheduleTime)}
+                              onChange={handleScheduleDateChange}
+                              onBlur={handleScheduleDateBlur}
+                              className="min-w-0 flex-1 rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-500 [&::-webkit-calendar-picker-indicator]:hidden"
+                            />
+                            <button
+                              type="button"
+                              onMouseDown={(event) => event.preventDefault()}
+                              onClick={handleOpenDatePicker}
+                              aria-label="Open the calendar to pick a date"
+                              aria-expanded={isDatePickerOpen}
+                              title="Open the calendar"
+                              className="shrink-0 rounded-xl border border-slate-700 bg-slate-950 px-2.5 text-slate-300 transition hover:border-amber-500 hover:text-amber-400"
+                            >
+                              <svg
+                                viewBox="0 0 24 24"
+                                aria-hidden="true"
+                                className="h-4 w-4 fill-current"
+                              >
+                                <path d="M7 1.8a1 1 0 0 1 1 1v1.4h8V2.8a1 1 0 1 1 2 0v1.4h1.6A2.4 2.4 0 0 1 22 6.6V9H2V6.6a2.4 2.4 0 0 1 2.4-2.4H6V2.8a1 1 0 0 1 1-1ZM2 11h20v9.4A2.4 2.4 0 0 1 19.6 23H4.4A2.4 2.4 0 0 1 2 20.4V11Zm4.5 1.5a1.3 1.3 0 1 0 0 2.6 1.3 1.3 0 0 0 0-2.6Zm5.5 0a1.3 1.3 0 1 0 0 2.6 1.3 1.3 0 0 0 0-2.6Zm5.5 0a1.3 1.3 0 1 0 0 2.6 1.3 1.3 0 0 0 0-2.6ZM6.5 16a1.3 1.3 0 1 0 0 2.6 1.3 1.3 0 0 0 0-2.6Zm5.5 0a1.3 1.3 0 1 0 0 2.6 1.3 1.3 0 0 0 0-2.6Zm5.5 0a1.3 1.3 0 1 0 0 2.6 1.3 1.3 0 0 0 0-2.6Z" />
+                              </svg>
+                            </button>
+                          </div>
+                          <span className="mt-1 block text-xs text-slate-400">
+                            Pick a day. The time is separate, next to it.
+                          </span>
+                        </div>
+                        <Field
+                          label={`Time (${formatTimeZoneLabel(timeZone)})`}
+                          hint={
+                            scheduleFit === null
+                              ? null
+                              : scheduleFit === "inside"
+                                ? "Inside the time your opponent is available."
+                                : scheduleFit === "unavailable"
+                                  ? `${opponent?.name} marked that day unavailable.`
+                                  : `Outside the window ${opponent?.name} is available.`
                           }
-                          className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-500"
-                        />
-                      </Field>
-                      <div className="md:col-span-2">
-                        <Field label="Notes">
+                        >
                           <input
-                            type="text"
-                            value={scheduleNotes}
-                            placeholder="Replay room notes, etc."
+                            type="time"
+                            value={timePartOfInputValue(scheduleTime)}
                             onChange={(event) =>
-                              setScheduleNotes(event.target.value)
+                              setScheduleTime(
+                                withInputValueTime(
+                                  scheduleTime,
+                                  event.target.value,
+                                ),
+                              )
                             }
                             className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-500"
                           />
                         </Field>
-                      </div>
+                        <div className="md:col-span-2">
+                          <Field label="Notes">
+                            <input
+                              type="text"
+                              value={scheduleNotes}
+                              placeholder="Replay room notes, etc."
+                              onChange={(event) =>
+                                setScheduleNotes(event.target.value)
+                              }
+                              className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-500"
+                            />
+                          </Field>
+                        </div>
 
-                      {/*
-                       * The opponent's declared week, translated into the
-                       * reader's zone so it can be compared with the input above
-                       * without doing the conversion by hand.
-                       */}
-                      <div className="md:col-span-2">
-                        <p className="text-sm font-medium text-slate-300">
-                          <MemberName
-                            name={opponent?.name}
-                            color={opponent?.color}
-                            fallback="Your opponent"
-                          />
-                          &apos;s availability
-                        </p>
-                        {isLoadingAvailability ? (
-                          <p className="mt-2 text-sm text-slate-500">
-                            <LoadingGif label="Loading availability" />
+                        {/*
+                         * The opponent's declared week, translated into the
+                         * reader's zone so it can be compared with the input above
+                         * without doing the conversion by hand.
+                         */}
+                        <div className="md:col-span-2">
+                          <p className="text-sm font-medium text-slate-300">
+                            <MemberName
+                              name={opponent?.name}
+                              color={opponent?.color}
+                              fallback="Your opponent"
+                            />
+                            &apos;s availability
                           </p>
-                        ) : availabilityError ? (
-                          <p className="mt-2 text-sm text-slate-500">
-                            Availability could not be loaded. You can still
-                            schedule the match.
-                          </p>
-                        ) : !opponentAvailability?.week ? (
-                          <p className="mt-2 text-sm text-slate-500">
-                            {opponent
-                              ? `${opponent.name} has not set availability yet.`
-                              : "Only match participants can schedule a match."}
-                          </p>
-                        ) : (
-                          <>
-                            <p className="mt-1 text-xs text-slate-500">
-                              Converted from {opponentAvailability.timeZone}{" "}
-                              into your time zone (
-                              {formatTimeZoneLabel(timeZone)}).
+                          {isLoadingAvailability ? (
+                            <p className="mt-2 text-sm text-slate-500">
+                              <LoadingGif label="Loading availability" />
                             </p>
-                            <div className="mt-3 space-y-1.5">
-                              {WEEKDAY_LABELS.map((label, dayOfWeek) => {
-                                const dayWindows = windowsForWeekday(
-                                  opponentWindows,
-                                  dayOfWeek,
-                                );
-
-                                return (
-                                  <div
-                                    key={dayOfWeek}
-                                    className={`flex items-center justify-between gap-3 rounded-lg border px-3 py-1.5 text-sm ${
-                                      dayOfWeek === today
-                                        ? "border-amber-500/50 bg-slate-900"
-                                        : "border-slate-800 bg-slate-950/50"
-                                    }`}
-                                  >
-                                    <span className="text-slate-300">
-                                      {label}
-                                      {dayOfWeek === today && (
-                                        <span className="ml-2 text-xs text-amber-400">
-                                          today
-                                        </span>
-                                      )}
-                                    </span>
-                                    <span className="text-right text-slate-400">
-                                      {dayWindows.length === 0
-                                        ? "Unavailable"
-                                        : dayWindows
-                                            .map((window) =>
-                                              formatAvailabilityWindow(window),
-                                            )
-                                            .join(", ")}
-                                    </span>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </>
-                        )}
-                      </div>
-
-                      <div className="flex gap-2 md:col-span-2">
-                        <button
-                          type="button"
-                          disabled={
-                            isBusy || !timePartOfInputValue(scheduleTime)
-                          }
-                          onClick={handleProposeTime}
-                          className="rounded-xl bg-amber-500 px-3.5 py-2 text-sm font-semibold text-slate-950 transition hover:bg-amber-400 disabled:opacity-50"
-                        >
-                          Send proposal
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSchedulingMatchId(null);
-                            setOpponentAvailability(null);
-                            setAvailabilityError(false);
-                            // A change held while the form was open is applied
-                            // now that the member is done editing.
-                            flushRealtime();
-                          }}
-                          className="rounded-xl border border-slate-700 px-3.5 py-2 text-sm text-slate-300 transition hover:bg-slate-800"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  {reportingMatchId === selectedMatch.id && (
-                    <div className="grid gap-4 rounded-xl border border-slate-700 bg-slate-950/60 p-4 md:grid-cols-2">
-                      <Field label="Game">
-                        <select
-                          value={reportGame}
-                          onChange={(event) =>
-                            setReportGame(event.target.value)
-                          }
-                          className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-500"
-                        >
-                          {[1, 2, 3]
-                            .slice(0, matchFormat === "single" ? 1 : 3)
-                            .filter(
-                              (game) =>
-                                !selectedMatch.results.some(
-                                  (result) => result.game_number === game,
-                                ),
-                            )
-                            .map((game) => (
-                              <option key={game} value={game}>
-                                Game {game}
-                              </option>
-                            ))}
-                        </select>
-                      </Field>
-                      <Field label="Winner">
-                        <select
-                          value={reportWinner}
-                          onChange={(event) =>
-                            setReportWinner(event.target.value)
-                          }
-                          className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-500"
-                        >
-                          <option value="">Select the winner</option>
-                          <option value={selectedMatch.player_1_team_id}>
-                            {selectedMatch.player_1_name}
-                          </option>
-                          {selectedMatch.player_2_team_id && (
-                            <option value={selectedMatch.player_2_team_id}>
-                              {selectedMatch.player_2_name}
-                            </option>
-                          )}
-                        </select>
-                      </Field>
-                      <Field
-                        label="Replay link (optional)"
-                        hint={
-                          replayRead.status === "loading"
-                            ? "Reading the battle log..."
-                            : null
-                        }
-                      >
-                        <input
-                          type="url"
-                          value={reportUrl}
-                          placeholder="https://replay.pokemonshowdown.com/..."
-                          onChange={(event) => {
-                            setReportUrl(event.target.value);
-                            setReplayRead({ status: "idle" });
-                          }}
-                          className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-500"
-                        />
-                      </Field>
-                      <Field
-                        label="Winner's surviving Pokemon (optional)"
-                        hint={
-                          reportDifferential == null
-                            ? null
-                            : `Your KO differential for this game: ${reportDifferential > 0 ? "+" : ""}${reportDifferential}`
-                        }
-                      >
-                        <input
-                          type="number"
-                          min={0}
-                          max={6}
-                          value={reportAlive}
-                          onChange={(event) =>
-                            setReportAlive(
-                              event.target.value.replace(/[^0-9]/g, ""),
-                            )
-                          }
-                          className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-500"
-                        />
-                      </Field>
-                      <div className="flex flex-wrap items-center gap-2 md:col-span-2">
-                        <button
-                          type="button"
-                          onClick={handleReadReplay}
-                          disabled={
-                            isBusy ||
-                            !reportUrl.trim() ||
-                            replayRead.status === "loading"
-                          }
-                          className="rounded-xl border border-amber-500/60 px-3.5 py-2 text-sm font-semibold text-amber-300 transition hover:border-amber-400 hover:text-amber-200 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          Read replay
-                        </button>
-                        {replayRead.status === "done" &&
-                          (replayRead.note ? (
-                            <span className="text-xs text-amber-300">
-                              {replayRead.note}
-                            </span>
-                          ) : replayRead.winnerResolved ? (
-                            <span className="text-xs text-emerald-300">
-                              Filled in the winner and surviving Pokemon from
-                              the replay. Check them before submitting.
-                            </span>
+                          ) : availabilityError ? (
+                            <p className="mt-2 text-sm text-slate-500">
+                              Availability could not be loaded. You can still
+                              schedule the match.
+                            </p>
+                          ) : !opponentAvailability?.week ? (
+                            <p className="mt-2 text-sm text-slate-500">
+                              {opponent
+                                ? `${opponent.name} has not set availability yet.`
+                                : "Only match participants can schedule a match."}
+                            </p>
                           ) : (
-                            <span className="text-xs text-amber-300">
-                              Winner could not be matched to a team. Set it
-                              manually.
-                            </span>
-                          ))}
-                      </div>
-                      <div className="flex gap-2 md:col-span-2">
-                        <button
-                          type="button"
-                          disabled={isBusy || !reportWinner}
-                          onClick={handleSubmitResult}
-                          className="rounded-xl bg-amber-500 px-3.5 py-2 text-sm font-semibold text-slate-950 transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          Submit result
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setReportingMatchId(null);
-                            flushRealtime();
-                          }}
-                          className="rounded-xl border border-slate-700 px-3.5 py-2 text-sm text-slate-300 transition hover:bg-slate-800"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    </div>
-                  )}
+                            <>
+                              <p className="mt-1 text-xs text-slate-500">
+                                Converted from {opponentAvailability.timeZone}{" "}
+                                into your time zone (
+                                {formatTimeZoneLabel(timeZone)}).
+                              </p>
+                              <div className="mt-3 space-y-1.5">
+                                {WEEKDAY_LABELS.map((label, dayOfWeek) => {
+                                  const dayWindows = windowsForWeekday(
+                                    opponentWindows,
+                                    dayOfWeek,
+                                  );
 
-                  {gameRows.length > 0 && (
-                    <div>
-                      <h3 className="mb-2 text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">
-                        Games
-                      </h3>
-                      <div className="space-y-2">
-                        {gameRows.map(({ result, mirrored }) => {
-                          const winner = sideByTeamId(
-                            selectedMatch,
-                            result.winner_team_id,
-                          );
-                          if (editingResultId === result.id) {
+                                  return (
+                                    <div
+                                      key={dayOfWeek}
+                                      className={`flex items-center justify-between gap-3 rounded-lg border px-3 py-1.5 text-sm ${
+                                        dayOfWeek === today
+                                          ? "border-amber-500/50 bg-slate-900"
+                                          : "border-slate-800 bg-slate-950/50"
+                                      }`}
+                                    >
+                                      <span className="text-slate-300">
+                                        {label}
+                                        {dayOfWeek === today && (
+                                          <span className="ml-2 text-xs text-amber-400">
+                                            today
+                                          </span>
+                                        )}
+                                      </span>
+                                      <span className="text-right text-slate-400">
+                                        {dayWindows.length === 0
+                                          ? "Unavailable"
+                                          : dayWindows
+                                              .map((window) =>
+                                                formatAvailabilityWindow(
+                                                  window,
+                                                ),
+                                              )
+                                              .join(", ")}
+                                      </span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </>
+                          )}
+                        </div>
+
+                        <div className="flex gap-2 md:col-span-2">
+                          <button
+                            type="button"
+                            disabled={
+                              isBusy || !timePartOfInputValue(scheduleTime)
+                            }
+                            onClick={handleProposeTime}
+                            className="rounded-xl bg-amber-500 px-3.5 py-2 text-sm font-semibold text-slate-950 transition hover:bg-amber-400 disabled:opacity-50"
+                          >
+                            Send proposal
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSchedulingMatchId(null);
+                              setOpponentAvailability(null);
+                              setAvailabilityError(false);
+                              // A change held while the form was open is applied
+                              // now that the member is done editing.
+                              flushRealtime();
+                            }}
+                            className="rounded-xl border border-slate-700 px-3.5 py-2 text-sm text-slate-300 transition hover:bg-slate-800"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {reportingMatchId === selectedMatch.id && (
+                      <div className="grid gap-4 rounded-xl border border-slate-700 bg-slate-950/60 p-4 md:grid-cols-2">
+                        <Field label="Game">
+                          <select
+                            value={reportGame}
+                            onChange={(event) =>
+                              setReportGame(event.target.value)
+                            }
+                            className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-500"
+                          >
+                            {[1, 2, 3]
+                              .slice(0, matchFormat === "single" ? 1 : 3)
+                              .filter(
+                                (game) =>
+                                  !selectedMatch.results.some(
+                                    (result) => result.game_number === game,
+                                  ),
+                              )
+                              .map((game) => (
+                                <option key={game} value={game}>
+                                  Game {game}
+                                </option>
+                              ))}
+                          </select>
+                        </Field>
+                        <Field label="Winner">
+                          <select
+                            value={reportWinner}
+                            onChange={(event) =>
+                              setReportWinner(event.target.value)
+                            }
+                            className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-500"
+                          >
+                            <option value="">Select the winner</option>
+                            <option value={selectedMatch.player_1_team_id}>
+                              {selectedMatch.player_1_name}
+                            </option>
+                            {selectedMatch.player_2_team_id && (
+                              <option value={selectedMatch.player_2_team_id}>
+                                {selectedMatch.player_2_name}
+                              </option>
+                            )}
+                          </select>
+                        </Field>
+                        <Field
+                          label="Replay link (optional)"
+                          hint={
+                            replayRead.status === "loading"
+                              ? "Reading the battle log..."
+                              : null
+                          }
+                        >
+                          <input
+                            type="url"
+                            value={reportUrl}
+                            placeholder="https://replay.pokemonshowdown.com/..."
+                            onChange={(event) => {
+                              setReportUrl(event.target.value);
+                              setReplayRead({ status: "idle" });
+                            }}
+                            className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-500"
+                          />
+                        </Field>
+                        <Field
+                          label="Winner's surviving Pokemon (optional)"
+                          hint={
+                            reportDifferential == null
+                              ? null
+                              : `Your KO differential for this game: ${reportDifferential > 0 ? "+" : ""}${reportDifferential}`
+                          }
+                        >
+                          <input
+                            type="number"
+                            min={0}
+                            max={6}
+                            value={reportAlive}
+                            onChange={(event) =>
+                              setReportAlive(
+                                event.target.value.replace(/[^0-9]/g, ""),
+                              )
+                            }
+                            className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-500"
+                          />
+                        </Field>
+                        <div className="flex flex-wrap items-center gap-2 md:col-span-2">
+                          <button
+                            type="button"
+                            onClick={handleReadReplay}
+                            disabled={
+                              isBusy ||
+                              !reportUrl.trim() ||
+                              replayRead.status === "loading"
+                            }
+                            className="rounded-xl border border-amber-500/60 px-3.5 py-2 text-sm font-semibold text-amber-300 transition hover:border-amber-400 hover:text-amber-200 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            Read replay
+                          </button>
+                          {replayRead.status === "done" &&
+                            (replayRead.note ? (
+                              <span className="text-xs text-amber-300">
+                                {replayRead.note}
+                              </span>
+                            ) : replayRead.winnerResolved ? (
+                              <span className="text-xs text-emerald-300">
+                                Filled in the winner and surviving Pokemon from
+                                the replay. Check them before submitting.
+                              </span>
+                            ) : (
+                              <span className="text-xs text-amber-300">
+                                Winner could not be matched to a team. Set it
+                                manually.
+                              </span>
+                            ))}
+                        </div>
+                        <div className="flex gap-2 md:col-span-2">
+                          <button
+                            type="button"
+                            disabled={isBusy || !reportWinner}
+                            onClick={handleSubmitResult}
+                            className="rounded-xl bg-amber-500 px-3.5 py-2 text-sm font-semibold text-slate-950 transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            Submit result
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setReportingMatchId(null);
+                              flushRealtime();
+                            }}
+                            className="rounded-xl border border-slate-700 px-3.5 py-2 text-sm text-slate-300 transition hover:bg-slate-800"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {gameRows.length > 0 && (
+                      <div>
+                        <h3 className="mb-2 text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">
+                          Games
+                        </h3>
+                        <div className="space-y-2">
+                          {gameRows.map(({ result, mirrored }) => {
+                            const winner = sideByTeamId(
+                              selectedMatch,
+                              result.winner_team_id,
+                            );
+                            if (editingResultId === result.id) {
+                              return (
+                                <div
+                                  key={result.id}
+                                  className="grid gap-3 rounded-xl border border-slate-700 bg-slate-950/60 p-4 md:grid-cols-3"
+                                >
+                                  <Field label="Winner">
+                                    <select
+                                      value={editWinner}
+                                      onChange={(event) =>
+                                        setEditWinner(event.target.value)
+                                      }
+                                      className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-500"
+                                    >
+                                      <option
+                                        value={selectedMatch.player_1_team_id}
+                                      >
+                                        {selectedMatch.player_1_name}
+                                      </option>
+                                      {selectedMatch.player_2_team_id && (
+                                        <option
+                                          value={selectedMatch.player_2_team_id}
+                                        >
+                                          {selectedMatch.player_2_name}
+                                        </option>
+                                      )}
+                                    </select>
+                                  </Field>
+                                  <Field label="Replay link">
+                                    <input
+                                      type="url"
+                                      value={editUrl}
+                                      onChange={(event) =>
+                                        setEditUrl(event.target.value)
+                                      }
+                                      className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-500"
+                                    />
+                                  </Field>
+                                  <Field label="Surviving Pokemon">
+                                    <input
+                                      type="number"
+                                      min={0}
+                                      max={6}
+                                      value={editAlive}
+                                      onChange={(event) =>
+                                        setEditAlive(
+                                          event.target.value.replace(
+                                            /[^0-9]/g,
+                                            "",
+                                          ),
+                                        )
+                                      }
+                                      className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-500"
+                                    />
+                                  </Field>
+                                  <div className="flex gap-2 md:col-span-3">
+                                    <button
+                                      type="button"
+                                      disabled={isBusy}
+                                      onClick={() =>
+                                        handleSaveEditResult(result)
+                                      }
+                                      className="rounded-xl bg-amber-500 px-3.5 py-2 text-sm font-semibold text-slate-950 transition hover:bg-amber-400 disabled:opacity-50"
+                                    >
+                                      Save edit
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setEditingResultId(null);
+                                        flushRealtime();
+                                      }}
+                                      className="rounded-xl border border-slate-700 px-3.5 py-2 text-sm text-slate-300 transition hover:bg-slate-800"
+                                    >
+                                      Cancel
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            }
                             return (
                               <div
                                 key={result.id}
-                                className="grid gap-3 rounded-xl border border-slate-700 bg-slate-950/60 p-4 md:grid-cols-3"
+                                className="flex items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-950/50 p-3 text-sm"
                               >
-                                <Field label="Winner">
-                                  <select
-                                    value={editWinner}
-                                    onChange={(event) =>
-                                      setEditWinner(event.target.value)
-                                    }
-                                    className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-500"
-                                  >
-                                    <option
-                                      value={selectedMatch.player_1_team_id}
+                                <div className="flex items-center gap-2">
+                                  <span className="rounded-full bg-slate-800 px-2 py-0.5 text-xs font-semibold text-slate-300">
+                                    Game {result.game_number}
+                                  </span>
+                                  <Spoiler hidden={hideSpoilers}>
+                                    <span className="font-semibold text-emerald-300">
+                                      <MemberName
+                                        name={winner.name}
+                                        color={winner.color}
+                                        className="font-semibold text-emerald-300"
+                                      />{" "}
+                                      wins
+                                    </span>
+                                  </Spoiler>
+                                  {result.pokemon_left_alive != null && (
+                                    <Spoiler hidden={hideSpoilers}>
+                                      <span className="text-slate-400">
+                                        • {result.pokemon_left_alive} alive
+                                      </span>
+                                    </Spoiler>
+                                  )}
+                                  {result.reporter_name && (
+                                    <span className="text-xs text-slate-500">
+                                      Submitted by{" "}
+                                      <MemberName
+                                        name={result.reporter_name}
+                                        color={result.reporter_name_color}
+                                      />
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  {result.replay_url && (
+                                    <a
+                                      href={result.replay_url}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="text-sky-400 underline decoration-sky-700 hover:text-sky-300"
                                     >
-                                      {selectedMatch.player_1_name}
-                                    </option>
-                                    {selectedMatch.player_2_team_id && (
-                                      <option value={selectedMatch.player_2_team_id}>
-                                        {selectedMatch.player_2_name}
-                                      </option>
-                                    )}
-                                  </select>
-                                </Field>
-                                <Field label="Replay link">
-                                  <input
-                                    type="url"
-                                    value={editUrl}
-                                    onChange={(event) =>
-                                      setEditUrl(event.target.value)
-                                    }
-                                    className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-500"
-                                  />
-                                </Field>
-                                <Field label="Surviving Pokemon">
-                                  <input
-                                    type="number"
-                                    min={0}
-                                    max={6}
-                                    value={editAlive}
-                                    onChange={(event) =>
-                                      setEditAlive(
-                                        event.target.value.replace(
-                                          /[^0-9]/g,
-                                          "",
-                                        ),
-                                      )
-                                    }
-                                    className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-500"
-                                  />
-                                </Field>
-                                <div className="flex gap-2 md:col-span-3">
-                                  <button
-                                    type="button"
-                                    disabled={isBusy}
-                                    onClick={() => handleSaveEditResult(result)}
-                                    className="rounded-xl bg-amber-500 px-3.5 py-2 text-sm font-semibold text-slate-950 transition hover:bg-amber-400 disabled:opacity-50"
-                                  >
-                                    Save edit
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setEditingResultId(null);
-                                      flushRealtime();
-                                    }}
-                                    className="rounded-xl border border-slate-700 px-3.5 py-2 text-sm text-slate-300 transition hover:bg-slate-800"
-                                  >
-                                    Cancel
-                                  </button>
+                                      Replay
+                                    </a>
+                                  )}
+                                  {/* A mirrored game has no stored result to correct. */}
+                                  {goods.isStaff && !mirrored && (
+                                    <button
+                                      type="button"
+                                      disabled={isBusy}
+                                      onClick={() => openEditResult(result)}
+                                      className="rounded-lg border border-slate-700 px-2.5 py-1 text-xs text-slate-300 transition hover:bg-slate-800"
+                                    >
+                                      Edit
+                                    </button>
+                                  )}
                                 </div>
                               </div>
                             );
-                          }
-                          return (
-                            <div
-                              key={result.id}
-                              className="flex items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-950/50 p-3 text-sm"
-                            >
-                              <div className="flex items-center gap-2">
-                                <span className="rounded-full bg-slate-800 px-2 py-0.5 text-xs font-semibold text-slate-300">
-                                  Game {result.game_number}
-                                </span>
-                                <Spoiler hidden={hideSpoilers}>
-                                  <span className="font-semibold text-emerald-300">
-                                    <MemberName
-                                      name={winner.name}
-                                      color={winner.color}
-                                      className="font-semibold text-emerald-300"
-                                    />{" "}
-                                    wins
-                                  </span>
-                                </Spoiler>
-                                {result.pokemon_left_alive != null && (
-                                  <Spoiler hidden={hideSpoilers}>
-                                    <span className="text-slate-400">
-                                      • {result.pokemon_left_alive} alive
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </SectionCard>
+
+              <SectionCard
+                title="Upcoming matches"
+                action={
+                  upcomingWeekOptions.length > 0 ? (
+                    <select
+                      aria-label="Week"
+                      value={activeUpcomingWeekKey ?? ""}
+                      onChange={(event) =>
+                        setUpcomingWeekKey(event.target.value)
+                      }
+                      className="rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-100 focus:border-amber-500 focus:outline-none"
+                    >
+                      {upcomingWeekOptions.map((option) => (
+                        <option key={option.key} value={option.key}>
+                          {option.label}
+                          {option.key === defaultUpcomingWeekKey
+                            ? " (current)"
+                            : ""}
+                        </option>
+                      ))}
+                    </select>
+                  ) : null
+                }
+              >
+                {upcomingMatches.length === 0 ? (
+                  <p className="text-sm text-slate-400">
+                    No upcoming matches in the regular season.
+                  </p>
+                ) : visibleUpcomingMatches.length === 0 ? (
+                  <p className="text-sm text-slate-400">
+                    No upcoming matches in this week.
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {visibleUpcomingMatches.map((match) => (
+                      <div
+                        key={match.id}
+                        className={`rounded-xl border p-3 transition ${
+                          selectedMatchId === match.id
+                            ? "border-amber-500/60 bg-slate-800/80"
+                            : "border-slate-700 bg-slate-800/50 hover:bg-slate-800"
+                        }`}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => setSelectedMatchId(match.id)}
+                          className="flex w-full flex-col text-left"
+                        >
+                          <div className="flex w-full items-start justify-between gap-3">
+                            <p className="font-semibold text-slate-100">
+                              {matchWeekLabel(match, firstPlayoffWeek)}
+                            </p>
+                            <StatusBadge status={match.status} />
+                          </div>
+                          {match.scheduled_at && (
+                            <p className="mt-0.5 text-sm text-slate-400">
+                              {formatDateTimeInZone(
+                                match.scheduled_at,
+                                timeZone,
+                              )}
+                            </p>
+                          )}
+                          <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center">
+                            <div className="flex min-w-0 flex-1 flex-col items-center">
+                              <div className="flex min-w-0 max-w-full items-center justify-center gap-2">
+                                <Avatar
+                                  name={match.player_1_name}
+                                  nameColor={match.player_1_name_color}
+                                  avatarUrl={match.player_1_avatar_url}
+                                  initials={match.player_1_avatar_initials}
+                                  size={48}
+                                />
+                                <div className="flex min-w-0 items-center gap-1.5">
+                                  <MemberName
+                                    name={match.player_1_name}
+                                    color={match.player_1_name_color}
+                                    className="min-w-0 truncate text-xs font-medium text-slate-400"
+                                    showdownUsername={
+                                      match.player_1_showdown_username
+                                    }
+                                  />
+                                  {teamRecord(match.player_1_team_id) && (
+                                    <span className="shrink-0 rounded-full bg-slate-800 px-1.5 py-0.5 text-[10px] font-semibold text-slate-300">
+                                      {teamRecord(match.player_1_team_id)}
                                     </span>
-                                  </Spoiler>
-                                )}
-                                {result.reporter_name && (
-                                  <span className="text-xs text-slate-500">
-                                    Submitted by{" "}
-                                    <MemberName
-                                      name={result.reporter_name}
-                                      color={result.reporter_name_color}
-                                    />
-                                  </span>
-                                )}
+                                  )}
+                                </div>
                               </div>
-                              <div className="flex items-center gap-2">
-                                {result.replay_url && (
-                                  <a
-                                    href={result.replay_url}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="text-sky-400 underline decoration-sky-700 hover:text-sky-300"
-                                  >
-                                    Replay
-                                  </a>
-                                )}
-                                {/* A mirrored game has no stored result to correct. */}
-                                {goods.isStaff && !mirrored && (
-                                  <button
-                                    type="button"
+                              <div className="mt-1 w-full">
+                                <RosterSprites
+                                  roster={
+                                    goods.rostersByTeam[
+                                      match.player_1_team_id
+                                    ] ?? []
+                                  }
+                                  splitRows
+                                />
+                              </div>
+                            </div>
+                            <span className="flex shrink-0 items-center justify-center self-center text-center text-xs font-bold uppercase tracking-widest text-slate-500">
+                              vs
+                            </span>
+                            <div className="flex min-w-0 flex-1 flex-col items-center">
+                              <div className="flex min-w-0 max-w-full items-center justify-center gap-2">
+                                <Avatar
+                                  name={match.player_2_name}
+                                  nameColor={match.player_2_name_color}
+                                  avatarUrl={match.player_2_avatar_url}
+                                  initials={match.player_2_avatar_initials}
+                                  size={48}
+                                />
+                                <div className="flex min-w-0 items-center gap-1.5">
+                                  <MemberName
+                                    name={match.player_2_name}
+                                    color={match.player_2_name_color}
+                                    className="min-w-0 truncate text-xs font-medium text-slate-400"
+                                    showdownUsername={
+                                      match.player_2_showdown_username
+                                    }
+                                  />
+                                  {teamRecord(match.player_2_team_id) && (
+                                    <span className="shrink-0 rounded-full bg-slate-800 px-1.5 py-0.5 text-[10px] font-semibold text-slate-300">
+                                      {teamRecord(match.player_2_team_id)}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="mt-1 w-full">
+                                <RosterSprites
+                                  roster={
+                                    goods.rostersByTeam[
+                                      match.player_2_team_id ?? ""
+                                    ] ?? []
+                                  }
+                                  splitRows
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        </button>
+
+                        {goods.isCurrentSeason && predictionIsOpen(match) ? (
+                          <div className="mt-2 border-t border-slate-700/60 pt-2">
+                            <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.15em] text-slate-500">
+                              Winner prediction
+                            </p>
+                            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                              <div className="flex justify-center">
+                                <MatchPredictionButton
+                                  side={{
+                                    teamId: match.player_1_team_id,
+                                    name: match.player_1_name,
+                                  }}
+                                  predictedTeamId={match.my_prediction_team_id}
+                                  predictionCounts={match.prediction_counts}
+                                  disabled={isBusy}
+                                  onPick={(teamId) =>
+                                    void handlePredict(match.id, teamId)
+                                  }
+                                />
+                              </div>
+                              <div className="flex justify-center">
+                                {match.player_2_team_id && (
+                                  <MatchPredictionButton
+                                    side={{
+                                      teamId: match.player_2_team_id,
+                                      name: match.player_2_name,
+                                    }}
+                                    predictedTeamId={
+                                      match.my_prediction_team_id
+                                    }
+                                    predictionCounts={match.prediction_counts}
                                     disabled={isBusy}
-                                    onClick={() => openEditResult(result)}
-                                    className="rounded-lg border border-slate-700 px-2.5 py-1 text-xs text-slate-300 transition hover:bg-slate-800"
-                                  >
-                                    Edit
-                                  </button>
+                                    onPick={(teamId) =>
+                                      void handlePredict(match.id, teamId)
+                                    }
+                                  />
                                 )}
                               </div>
                             </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </SectionCard>
-
-            <SectionCard
-              title="Upcoming matches"
-              action={
-                upcomingWeekOptions.length > 0 ? (
-                  <select
-                    aria-label="Week"
-                    value={activeUpcomingWeekKey ?? ""}
-                    onChange={(event) => setUpcomingWeekKey(event.target.value)}
-                    className="rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-100 focus:border-amber-500 focus:outline-none"
-                  >
-                    {upcomingWeekOptions.map((option) => (
-                      <option key={option.key} value={option.key}>
-                        {option.label}
-                        {option.key === defaultUpcomingWeekKey
-                          ? " (current)"
-                          : ""}
-                      </option>
-                    ))}
-                  </select>
-                ) : null
-              }
-            >
-              {upcomingMatches.length === 0 ? (
-                <p className="text-sm text-slate-400">
-                  No upcoming matches in the regular season.
-                </p>
-              ) : visibleUpcomingMatches.length === 0 ? (
-                <p className="text-sm text-slate-400">
-                  No upcoming matches in this week.
-                </p>
-              ) : (
-                <div className="space-y-2">
-                  {visibleUpcomingMatches.map((match) => (
-                    <div
-                      key={match.id}
-                      className={`rounded-xl border p-3 transition ${
-                        selectedMatchId === match.id
-                          ? "border-amber-500/60 bg-slate-800/80"
-                          : "border-slate-700 bg-slate-800/50 hover:bg-slate-800"
-                      }`}
-                    >
-                      <button
-                        type="button"
-                        onClick={() => setSelectedMatchId(match.id)}
-                        className="flex w-full flex-col text-left"
-                      >
-                      <div className="flex w-full items-start justify-between gap-3">
-                        <p className="flex flex-wrap items-center gap-x-1 font-semibold text-slate-100">
-                          <span>
-                            {matchWeekLabel(match, firstPlayoffWeek)}
-                          </span>
-                          <span>•</span>
-                          <MemberName
-                            name={match.player_1_name}
-                            color={match.player_1_name_color}
-                          />
-                          <span>vs</span>
-                          <MemberName
-                            name={match.player_2_name}
-                            color={match.player_2_name_color}
-                          />
-                        </p>
-                        <StatusBadge status={match.status} />
-                      </div>
-                      {match.scheduled_at && (
-                        <p className="mt-0.5 text-sm text-slate-400">
-                          {formatDateTimeInZone(match.scheduled_at, timeZone)}
-                        </p>
-                      )}
-                      <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center">
-                        <div className="flex min-w-0 flex-1 flex-col items-center">
-                          <div className="flex min-w-0 max-w-full items-center justify-center gap-2">
-                            <Avatar
-                              name={match.player_1_name}
-                              nameColor={match.player_1_name_color}
-                              avatarUrl={match.player_1_avatar_url}
-                              initials={match.player_1_avatar_initials}
-                              size={48}
-                            />
-                            <p className="truncate text-xs font-medium text-slate-400">
-                              <MemberName
-                                name={match.player_1_name}
-                                color={match.player_1_name_color}
-                                className="truncate text-xs font-medium text-slate-400"
-                              />
-                            </p>
                           </div>
-                          <div className="mt-1 w-full">
-                            <RosterSprites
-                              roster={
-                                goods.rostersByTeam[match.player_1_team_id] ??
-                                []
-                              }
-                              splitRows
-                            />
-                          </div>
-                        </div>
-                        <span className="flex shrink-0 items-center justify-center self-center text-center text-xs font-bold uppercase tracking-widest text-slate-500">
-                          vs
-                        </span>
-                        <div className="flex min-w-0 flex-1 flex-col items-center">
-                          <div className="flex min-w-0 max-w-full items-center justify-center gap-2">
-                            <Avatar
-                              name={match.player_2_name}
-                              nameColor={match.player_2_name_color}
-                              avatarUrl={match.player_2_avatar_url}
-                              initials={match.player_2_avatar_initials}
-                              size={48}
-                            />
-                            <p className="truncate text-xs font-medium text-slate-400">
-                              <MemberName
-                                name={match.player_2_name}
-                                color={match.player_2_name_color}
-                                className="truncate text-xs font-medium text-slate-400"
-                              />
-                            </p>
-                          </div>
-                          <div className="mt-1 w-full">
-                            <RosterSprites
-                              roster={
-                                goods.rostersByTeam[match.player_2_team_id ?? ""] ??
-                                []
-                              }
-                              splitRows
-                            />
-                          </div>
-                        </div>
-                      </div>
-                      </button>
-
-                      {goods.isCurrentSeason && predictionIsOpen(match) ? (
-                        <div className="mt-2 border-t border-slate-700/60 pt-2">
-                          <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.15em] text-slate-500">
-                            Winner prediction
+                        ) : match.my_prediction_team_id ? (
+                          <p className="mt-2 border-t border-slate-700/60 pt-2 text-xs font-medium text-amber-200/80">
+                            Your pick:{" "}
+                            {match.my_prediction_team_id ===
+                            match.player_1_team_id
+                              ? match.player_1_name
+                              : match.player_2_name}
                           </p>
-                          <MatchPredictionButtons
-                            playerOne={{
-                              teamId: match.player_1_team_id,
-                              name: match.player_1_name,
-                            }}
-                            playerTwo={
-                              match.player_2_team_id
-                                ? {
-                                    teamId: match.player_2_team_id,
-                                    name: match.player_2_name,
-                                  }
-                                : null
-                            }
-                            predictedTeamId={match.my_prediction_team_id}
-                            predictionCounts={match.prediction_counts}
-                            disabled={isBusy}
-                            onPick={(teamId) =>
-                              void handlePredict(match.id, teamId)
-                            }
-                          />
-                        </div>
-                      ) : match.my_prediction_team_id ? (
-                        <p className="mt-2 border-t border-slate-700/60 pt-2 text-xs font-medium text-amber-200/80">
-                          Your pick:{" "}
-                          {match.my_prediction_team_id ===
-                          match.player_1_team_id
-                            ? match.player_1_name
-                            : match.player_2_name}
-                        </p>
-                      ) : null}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </SectionCard>
-
-            <SectionCard
-              title="Match history"
-              action={
-                historyWeekOptions.length > 0 ? (
-                  <select
-                    aria-label="Week"
-                    value={activeHistoryWeekKey ?? ""}
-                    onChange={(event) => setHistoryWeekKey(event.target.value)}
-                    className="rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-100 focus:border-amber-500 focus:outline-none"
-                  >
-                    {historyWeekOptions.map((option) => (
-                      <option key={option.key} value={option.key}>
-                        {option.label}
-                      </option>
+                        ) : null}
+                      </div>
                     ))}
-                  </select>
-                ) : null
+                  </div>
+                )}
+              </SectionCard>
+
+              <SectionCard
+                title="Match history"
+                action={
+                  historyWeekOptions.length > 0 ? (
+                    <select
+                      aria-label="Week"
+                      value={activeHistoryWeekKey ?? ""}
+                      onChange={(event) =>
+                        setHistoryWeekKey(event.target.value)
+                      }
+                      className="rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-100 focus:border-amber-500 focus:outline-none"
+                    >
+                      {historyWeekOptions.map((option) => (
+                        <option key={option.key} value={option.key}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  ) : null
+                }
+              >
+                {completedMatches.length === 0 ? (
+                  <p className="text-sm text-slate-400">
+                    No completed matchups yet.
+                  </p>
+                ) : visibleCompletedMatches.length === 0 ? (
+                  <p className="text-sm text-slate-400">
+                    No completed matchups in this week.
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    {visibleCompletedMatches.map((match) => (
+                      <MatchupHistoryCard
+                        key={match.id}
+                        match={match}
+                        matchFormat={formatFor(match)}
+                        timeZone={timeZone}
+                        hideSpoilers={hideSpoilers}
+                        selected={selectedMatchId === match.id}
+                        rostersByTeam={goods.rostersByTeam}
+                        firstPlayoffWeek={firstPlayoffWeek}
+                        onSelect={() => {
+                          setSelectedMatchId(match.id);
+                          setSchedulingMatchId(null);
+                          setReportingMatchId(null);
+                          setEditingResultId(null);
+                        }}
+                      />
+                    ))}
+                  </div>
+                )}
+              </SectionCard>
+            </>
+          )}
+
+          {activeTab === "Standings" && (
+            <SectionCard title="Standings">
+              <div className="overflow-x-auto rounded-xl border border-slate-800">
+                <table className="min-w-full divide-y divide-slate-800 text-sm">
+                  <thead className="bg-slate-950 text-slate-300">
+                    <tr>
+                      <th className="px-4 py-3 text-left font-semibold">
+                        Rank
+                      </th>
+                      <th className="px-4 py-3 text-left font-semibold">
+                        Player
+                      </th>
+                      <th className="px-4 py-3 text-center font-semibold">W</th>
+                      <th className="px-4 py-3 text-center font-semibold">L</th>
+                      <th className="px-4 py-3 text-center font-semibold">
+                        KO Diff
+                      </th>
+                      <th
+                        className="px-4 py-3 text-center font-semibold"
+                        title="Prediction points: one per correct winner pick"
+                      >
+                        PP
+                      </th>
+                      <th className="px-4 py-3 text-left font-semibold">
+                        Pokemon
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800 bg-slate-900">
+                    {goods.standings.map((row, index) => (
+                      <tr key={row.team_id} className="hover:bg-slate-800/80">
+                        <td className="px-4 py-3 font-medium text-slate-100">
+                          {index + 1}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-3">
+                            <Avatar
+                              name={teamLabel(row.team_id, row.team_name)}
+                              nameColor={teamColor(row.team_id)}
+                              avatarUrl={
+                                goods.teams.find(
+                                  (team) => team.id === row.team_id,
+                                )?.owner_avatar_url ?? null
+                              }
+                              initials={teamInitials(row.team_id)}
+                              size={28}
+                            />
+                            <span className="font-medium text-slate-100">
+                              <MemberName
+                                name={teamLabel(row.team_id, row.team_name)}
+                                color={teamColor(row.team_id)}
+                                className="font-medium text-slate-100"
+                                userId={teamOwnerId(row.team_id)}
+                              />
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-center text-slate-300">
+                          {row.wins}
+                        </td>
+                        <td className="px-4 py-3 text-center text-slate-300">
+                          {row.losses}
+                        </td>
+                        <td className="px-4 py-3 text-center font-medium text-slate-100">
+                          {row.ko_diff}
+                        </td>
+                        <td className="px-4 py-3 text-center font-medium text-white">
+                          {row.prediction_points}
+                        </td>
+                        <td className="px-4 py-3">
+                          <ul className="flex flex-wrap items-center gap-1.5">
+                            {(goods.rostersByTeam[row.team_id] ?? []).map(
+                              (pokemon) => (
+                                <li key={pokemon.id}>
+                                  {pokemon.spriteId > 0 ? (
+                                    <img
+                                      src={getSpriteUrl(pokemon.spriteId)}
+                                      alt={pokemon.name}
+                                      title={pokemon.name}
+                                      width={56}
+                                      height={56}
+                                      loading="lazy"
+                                      className="h-14 w-14 object-contain"
+                                    />
+                                  ) : (
+                                    <span className="flex h-14 w-14 items-center justify-center rounded-full bg-slate-700 text-base text-slate-400">
+                                      ?
+                                    </span>
+                                  )}
+                                </li>
+                              ),
+                            )}
+                          </ul>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p className="mt-3 text-xs text-slate-500">
+                PP = prediction points: one for each correct winner pick,
+                credited to the picker&apos;s team.
+              </p>
+            </SectionCard>
+          )}
+
+          {activeTab === "Playoffs" && (
+            <SectionCard
+              title="Playoff bracket"
+              action={
+                goods.isOwner &&
+                goods.isCurrentSeason &&
+                goods.season?.status === "draft_complete" ? (
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={isBusy}
+                      onClick={handleResetPlayoffs}
+                      title="Delete every playoff match and result so the bracket can be rebuilt"
+                      className="rounded-xl border border-slate-700 bg-slate-800 px-3.5 py-2 text-sm font-medium text-slate-300 transition hover:border-rose-800 hover:text-rose-300 disabled:opacity-50"
+                    >
+                      Reset playoffs
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isBusy}
+                      onClick={handleAdvancePlayoffs}
+                      className="rounded-xl bg-amber-500 px-3.5 py-2 text-sm font-semibold text-slate-950 transition hover:bg-amber-400 disabled:opacity-50"
+                    >
+                      Advance playoffs
+                    </button>
+                  </div>
+                ) : undefined
               }
             >
-              {completedMatches.length === 0 ? (
-                <p className="text-sm text-slate-400">
-                  No completed matchups yet.
+              {goods.settings && (
+                <p className="mb-4 text-sm text-slate-400">
+                  {goods.settings.playoff_team_count} teams •{" "}
+                  {goods.settings.playoff_format === "single_elimination"
+                    ? "Single elimination"
+                    : "Double elimination"}{" "}
+                  •{" "}
+                  {goods.settings.playoff_match_format === "single"
+                    ? "Single games"
+                    : "Best of 3"}
                 </p>
-              ) : visibleCompletedMatches.length === 0 ? (
+              )}
+              {playoffTemplateRows.length === 0 ? (
                 <p className="text-sm text-slate-400">
-                  No completed matchups in this week.
+                  {goods.playoffTemplate?.unavailableReason ??
+                    (goods.season?.status === "draft_complete"
+                      ? "No bracket is defined for this league yet."
+                      : "The playoff bracket appears after the draft is complete.")}
                 </p>
               ) : (
-                <div className="space-y-3">
-                  {visibleCompletedMatches.map((match) => (
-                    <MatchupHistoryCard
-                      key={match.id}
-                      match={match}
-                      matchFormat={formatFor(match)}
-                      timeZone={timeZone}
-                      hideSpoilers={hideSpoilers}
-                      selected={selectedMatchId === match.id}
-                      rostersByTeam={goods.rostersByTeam}
-                      firstPlayoffWeek={firstPlayoffWeek}
-                      onSelect={() => {
-                        setSelectedMatchId(match.id);
-                        setSchedulingMatchId(null);
-                        setReportingMatchId(null);
-                        setEditingResultId(null);
-                      }}
+                <PlayoffBracket
+                  rows={playoffTemplateRows}
+                  matches={goods.matches.filter((match) => match.is_playoff)}
+                  resolveTeam={playoffTeamResolver}
+                />
+              )}
+
+              {championWinner && (
+                <p className="mt-4 rounded-xl border border-emerald-800 bg-emerald-900/30 p-3 text-sm text-emerald-200">
+                  Champion:{" "}
+                  <strong>
+                    <MemberName
+                      name={championWinner.name}
+                      color={championWinner.color}
                     />
-                  ))}
-                </div>
-              )}
-            </SectionCard>
-          </>
-        )}
-
-        {activeTab === "Standings" && (
-          <SectionCard title="Standings">
-            <div className="overflow-x-auto rounded-xl border border-slate-800">
-              <table className="min-w-full divide-y divide-slate-800 text-sm">
-                <thead className="bg-slate-950 text-slate-300">
-                  <tr>
-                    <th className="px-4 py-3 text-left font-semibold">Rank</th>
-                    <th className="px-4 py-3 text-left font-semibold">
-                      Player
-                    </th>
-                    <th className="px-4 py-3 text-center font-semibold">W</th>
-                    <th className="px-4 py-3 text-center font-semibold">L</th>
-                    <th className="px-4 py-3 text-center font-semibold">
-                      KO Diff
-                    </th>
-                    <th
-                      className="px-4 py-3 text-center font-semibold"
-                      title="Prediction points: one per correct winner pick"
-                    >
-                      PP
-                    </th>
-                    <th className="px-4 py-3 text-left font-semibold">
-                      Pokemon
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-800 bg-slate-900">
-                  {goods.standings.map((row, index) => (
-                    <tr key={row.team_id} className="hover:bg-slate-800/80">
-                      <td className="px-4 py-3 font-medium text-slate-100">
-                        {index + 1}
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-3">
-                          <Avatar
-                            name={teamLabel(row.team_id, row.team_name)}
-                            nameColor={teamColor(row.team_id)}
-                            avatarUrl={
-                              goods.teams.find(
-                                (team) => team.id === row.team_id,
-                              )?.owner_avatar_url ?? null
-                            }
-                            initials={teamInitials(row.team_id)}
-                            size={28}
-                          />
-                          <span className="font-medium text-slate-100">
-                            <MemberName
-                              name={teamLabel(row.team_id, row.team_name)}
-                              color={teamColor(row.team_id)}
-                              className="font-medium text-slate-100"
-                            />
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-center text-slate-300">
-                        {row.wins}
-                      </td>
-                      <td className="px-4 py-3 text-center text-slate-300">
-                        {row.losses}
-                      </td>
-                      <td className="px-4 py-3 text-center font-medium text-slate-100">
-                        {row.ko_diff}
-                      </td>
-                      <td className="px-4 py-3 text-center font-medium text-white">
-                        {row.prediction_points}
-                      </td>
-                      <td className="px-4 py-3">
-                        <ul className="flex flex-wrap items-center gap-1.5">
-                          {(goods.rostersByTeam[row.team_id] ?? []).map(
-                            (pokemon) => (
-                              <li key={pokemon.id}>
-                                {pokemon.spriteId > 0 ? (
-                                  <img
-                                    src={getSpriteUrl(pokemon.spriteId)}
-                                    alt={pokemon.name}
-                                    title={pokemon.name}
-                                    width={56}
-                                    height={56}
-                                    loading="lazy"
-                                    className="h-14 w-14 object-contain"
-                                  />
-                                ) : (
-                                  <span className="flex h-14 w-14 items-center justify-center rounded-full bg-slate-700 text-base text-slate-400">
-                                    ?
-                                  </span>
-                                )}
-                              </li>
-                            ),
-                          )}
-                        </ul>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <p className="mt-3 text-xs text-slate-500">
-              PP = prediction points: one for each correct winner pick, credited
-              to the picker&apos;s team.
-            </p>
-          </SectionCard>
-        )}
-
-        {activeTab === "Playoffs" && (
-          <SectionCard
-            title="Playoff bracket"
-            action={
-              goods.isOwner &&
-              goods.isCurrentSeason &&
-              goods.season?.status === "draft_complete" ? (
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    disabled={isBusy}
-                    onClick={handleResetPlayoffs}
-                    title="Delete every playoff match and result so the bracket can be rebuilt"
-                    className="rounded-xl border border-slate-700 bg-slate-800 px-3.5 py-2 text-sm font-medium text-slate-300 transition hover:border-rose-800 hover:text-rose-300 disabled:opacity-50"
-                  >
-                    Reset playoffs
-                  </button>
-                  <button
-                    type="button"
-                    disabled={isBusy}
-                    onClick={handleAdvancePlayoffs}
-                    className="rounded-xl bg-amber-500 px-3.5 py-2 text-sm font-semibold text-slate-950 transition hover:bg-amber-400 disabled:opacity-50"
-                  >
-                    Advance playoffs
-                  </button>
-                </div>
-              ) : undefined
-            }
-          >
-            {goods.settings && (
-              <p className="mb-4 text-sm text-slate-400">
-                {goods.settings.playoff_team_count} teams •{" "}
-                {goods.settings.playoff_format === "single_elimination"
-                  ? "Single elimination"
-                  : "Double elimination"}{" "}
-                •{" "}
-                {goods.settings.playoff_match_format === "single"
-                  ? "Single games"
-                  : "Best of 3"}
-              </p>
-            )}
-            {playoffTemplateRows.length === 0 ? (
-              <p className="text-sm text-slate-400">
-                {goods.playoffTemplate?.unavailableReason ??
-                  (goods.season?.status === "draft_complete"
-                    ? "No bracket is defined for this league yet."
-                    : "The playoff bracket appears after the draft is complete.")}
-              </p>
-            ) : (
-              <PlayoffBracket
-                rows={playoffTemplateRows}
-                matches={goods.matches.filter((match) => match.is_playoff)}
-                resolveTeam={playoffTeamResolver}
-              />
-            )}
-
-            {championWinner && (
-              <p className="mt-4 rounded-xl border border-emerald-800 bg-emerald-900/30 p-3 text-sm text-emerald-200">
-                Champion:{" "}
-                <strong>
-                  <MemberName
-                    name={championWinner.name}
-                    color={championWinner.color}
-                  />
-                </strong>{" "}
-                <span className="text-emerald-400">— League champion</span>
-              </p>
-            )}
-          </SectionCard>
-        )}
-
-        {activeTab === "History" && (
-          <>
-            <SectionCard title="Match history">
-              {history.length === 0 ? (
-                <p className="text-sm text-slate-400">
-                  No games have been posted yet.
+                  </strong>{" "}
+                  <span className="text-emerald-400">— League champion</span>
                 </p>
-              ) : (
-                <div className="space-y-2">
-                  {history.map(
-                    ({
-                      match,
-                      id,
-                      winner_team_id,
-                      game_number,
-                      replay_url,
-                      submitted_at,
-                      reporter_name,
-                      reporter_name_color,
-                    }) => {
-                      const winner = sideByTeamId(match, winner_team_id);
-
-                      return (
-                        <div
-                          key={id}
-                          className="flex items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-950/50 p-3 text-sm"
-                        >
-                          <div>
-                            <p className="font-semibold text-slate-100">
-                              <span className="inline-flex flex-wrap items-baseline gap-x-1">
-                                <MemberName
-                                  name={match.player_1_name}
-                                  color={match.player_1_name_color}
-                                />
-                                <span>vs</span>
-                                <MemberName
-                                  name={match.player_2_name}
-                                  color={match.player_2_name_color}
-                                />
-                              </span>
-                              <span className="ml-2 rounded-full bg-slate-800 px-2 py-0.5 text-xs font-semibold text-slate-300">
-                                {matchWeekLabel(match, firstPlayoffWeek)} • Game{" "}
-                                {game_number}
-                              </span>
-                            </p>
-                            <p className="mt-0.5 text-slate-400">
-                              <span className="text-emerald-300">
-                                <MemberName
-                                  name={winner.name}
-                                  color={winner.color}
-                                />
-                              </span>{" "}
-                              won • {formatDateTimeInZone(submitted_at, timeZone)}
-                            </p>
-                            {reporter_name && (
-                              <p className="mt-0.5 text-xs text-slate-500">
-                                Submitted by{" "}
-                                <MemberName
-                                  name={reporter_name}
-                                  color={reporter_name_color}
-                                />
-                              </p>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-2">
-                            {replay_url && (
-                              <a
-                                href={replay_url}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="text-sky-400 underline decoration-sky-700 hover:text-sky-300"
-                              >
-                                Replay
-                              </a>
-                            )}
-                            {goods.isStaff && goods.isCurrentSeason && (
-                              <button
-                                type="button"
-                                disabled={isBusy}
-                                onClick={() => handleDeleteMatch(match)}
-                                className="rounded-lg border border-rose-800 px-2.5 py-1 text-xs text-rose-300 transition hover:bg-rose-900/40"
-                              >
-                                Delete
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    },
-                  )}
-                </div>
               )}
             </SectionCard>
+          )}
 
-            {/*
-             * Owner-only, and gated on ownership twice over: the panel is not
-             * rendered at all for a member, and the database would refuse the log
-             * to one anyway. It sits under the match history because the two
-             * answer the same question at different resolutions, one per game
-             * played and one per time proposed.
-             */}
-            {goods.isOwner && (
-              <ProposalHistoryPanel
-                groups={proposalHistoryGroups}
-                firstPlayoffWeek={firstPlayoffWeek}
-                timeZone={timeZone}
-                /*
-                 * Still loading until the first read for this league and season
-                 * comes back. Deriving it from the absence of a matching log
-                 * rather than from a separate flag keeps the panel from claiming
-                 * to be empty in the gap before the first response arrives.
-                 */
-                isLoading={
-                  Boolean(proposalHistoryKey) &&
-                  proposalHistory?.isLoading !== false
-                }
-                loadError={proposalHistory?.error ?? null}
-              />
-            )}
-          </>
-        )}
+          {activeTab === "History" && (
+            <>
+              <SectionCard title="Match history">
+                {history.length === 0 ? (
+                  <p className="text-sm text-slate-400">
+                    No games have been posted yet.
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {history.map(
+                      ({
+                        match,
+                        id,
+                        winner_team_id,
+                        game_number,
+                        replay_url,
+                        submitted_at,
+                        reporter_name,
+                        reporter_name_color,
+                      }) => {
+                        const winner = sideByTeamId(match, winner_team_id);
 
-        {confirmDialog}
+                        return (
+                          <div
+                            key={id}
+                            className="flex items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-950/50 p-3 text-sm"
+                          >
+                            <div>
+                              <p className="font-semibold text-slate-100">
+                                <span className="inline-flex flex-wrap items-baseline gap-x-1">
+                                  <MemberName
+                                    name={match.player_1_name}
+                                    color={match.player_1_name_color}
+                                    showdownUsername={
+                                      match.player_1_showdown_username
+                                    }
+                                  />
+                                  <span>vs</span>
+                                  <MemberName
+                                    name={match.player_2_name}
+                                    color={match.player_2_name_color}
+                                    showdownUsername={
+                                      match.player_2_showdown_username
+                                    }
+                                  />
+                                </span>
+                                <span className="ml-2 rounded-full bg-slate-800 px-2 py-0.5 text-xs font-semibold text-slate-300">
+                                  {matchWeekLabel(match, firstPlayoffWeek)} •
+                                  Game {game_number}
+                                </span>
+                              </p>
+                              <p className="mt-0.5 text-slate-400">
+                                <span className="text-emerald-300">
+                                  <MemberName
+                                    name={winner.name}
+                                    color={winner.color}
+                                  />
+                                </span>{" "}
+                                won •{" "}
+                                {formatDateTimeInZone(submitted_at, timeZone)}
+                              </p>
+                              {reporter_name && (
+                                <p className="mt-0.5 text-xs text-slate-500">
+                                  Submitted by{" "}
+                                  <MemberName
+                                    name={reporter_name}
+                                    color={reporter_name_color}
+                                  />
+                                </p>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {replay_url && (
+                                <a
+                                  href={replay_url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-sky-400 underline decoration-sky-700 hover:text-sky-300"
+                                >
+                                  Replay
+                                </a>
+                              )}
+                              {goods.isStaff && goods.isCurrentSeason && (
+                                <button
+                                  type="button"
+                                  disabled={isBusy}
+                                  onClick={() => handleDeleteMatch(match)}
+                                  className="rounded-lg border border-rose-800 px-2.5 py-1 text-xs text-rose-300 transition hover:bg-rose-900/40"
+                                >
+                                  Delete
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      },
+                    )}
+                  </div>
+                )}
+              </SectionCard>
+
+              {/*
+               * Owner-only, and gated on ownership twice over: the panel is not
+               * rendered at all for a member, and the database would refuse the log
+               * to one anyway. It sits under the match history because the two
+               * answer the same question at different resolutions, one per game
+               * played and one per time proposed.
+               */}
+              {goods.isOwner && (
+                <ProposalHistoryPanel
+                  groups={proposalHistoryGroups}
+                  firstPlayoffWeek={firstPlayoffWeek}
+                  timeZone={timeZone}
+                  /*
+                   * Still loading until the first read for this league and season
+                   * comes back. Deriving it from the absence of a matching log
+                   * rather than from a separate flag keeps the panel from claiming
+                   * to be empty in the gap before the first response arrives.
+                   */
+                  isLoading={
+                    Boolean(proposalHistoryKey) &&
+                    proposalHistory?.isLoading !== false
+                  }
+                  loadError={proposalHistory?.error ?? null}
+                />
+              )}
+            </>
+          )}
+
+          {confirmDialog}
         </div>
       </CrownProvider>
     </main>

@@ -18,6 +18,7 @@
 "use client";
 
 import type { ScheduleMatch } from "@/lib/supabase/schedule";
+import { MemberName } from "@/components/member-name";
 import type { SchedulePlayoffTemplateRow } from "@/lib/supabase/schedule";
 
 import {
@@ -240,7 +241,7 @@ export function PlayoffBracket({ rows, matches, resolveTeam }: PlayoffBracketPro
               : "text-slate-300"
           }`}
         >
-          <span className="truncate">{team.name}</span>
+          <MemberName name={team.name} color={team.color} className="truncate" />
           {isWinner && <span className="text-emerald-400">&#10003;</span>}
         </div>
       );

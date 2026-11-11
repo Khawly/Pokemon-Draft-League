@@ -7,7 +7,9 @@
  * that automatically closes each week and moves the league to the next week or
  * the playoffs. The weekly deadline section also enables the weekly token
  * allowance. Everything persists through Supabase (direct writes for the
- * metadata and image URL, owner RPCs for the deadline).
+ * metadata and image URL, owner RPCs for the deadline). A single Save Changes
+ * button in the header saves the whole page, and that header stays pinned below
+ * the app nav so the action is always reachable.
  */
 "use client";
 
@@ -22,6 +24,7 @@ import {
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import { useConfirm } from "@/components/confirm-dialog";
+import { DateFieldWithCalendar } from "@/components/date-field-with-calendar";
 import {
   browserTimeZone,
   formatInTimeZone,
@@ -627,60 +630,6 @@ function LeagueSettingsPageContent() {
   }, [refreshDeadlineSettings, refreshProgressState]);
 
   /**
-   * Saves the league format and the recurring weekly deadline through the owner
-   * RPCs, then re-reads the stored row.
-   *
-   * @throws If the league format or deadline RPC rejects the change.
-   */
-  async function handleSaveDeadline() {
-    if (!isCurrentSeason) {
-      setDeadlineError("This is a past season, so its deadline cannot be changed.");
-      return;
-    }
-
-    if (!leagueId) {
-      setDeadlineError("Select a league before saving the deadline.");
-      return;
-    }
-
-    if (deadlineEnabled && !deadlinePreview) {
-      setDeadlineError(
-        "That deadline does not exist in the selected time zone (daylight-saving gap). Pick another time or date.",
-      );
-      return;
-    }
-
-    setIsDeadlineSaving(true);
-    setDeadlineError(null);
-    setDeadlineMessage(null);
-
-    try {
-      await saveLeagueFormat(leagueId, leagueFormat);
-      await saveWeekDeadline(leagueId, {
-        enabled: deadlineEnabled,
-        firstDeadlineDate: deadlineDate,
-        time: deadlineTime,
-        timeZone: deadlineTimeZone,
-      });
-      await saveWeeklyAllowance(leagueId, weeklyAllowanceEnabled);
-      await refreshDeadlineState();
-      setDeadlineMessage(
-        deadlineEnabled
-          ? "Weekly deadline saved. It repeats every 7 days in the selected time zone."
-          : "Weekly deadline turned off. Weeks will no longer close automatically.",
-      );
-    } catch (caughtError) {
-      setDeadlineError(
-        caughtError instanceof Error
-          ? caughtError.message
-          : "Unable to save the weekly deadline.",
-      );
-    } finally {
-      setIsDeadlineSaving(false);
-    }
-  }
-
-  /**
    * Pauses or resumes the weekly deadline. Resuming evaluates the deadline
    * immediately, so an already-overdue week closes right away.
    *
@@ -1027,9 +976,46 @@ function LeagueSettingsPageContent() {
       return;
     }
 
+    if (deadlineEnabled && !deadlinePreview) {
+      setError(
+        "That weekly deadline does not exist in the selected time zone (daylight-saving gap). Pick another time or date.",
+      );
+      return;
+    }
+
+    /*
+     * Only call the deadline RPCs when their fields actually moved. In
+     * particular, `set_week_deadline` seeds `current_week` and clears the paused
+     * flag, so replaying it on every settings save would be a side effect the
+     * owner never asked for.
+     */
+    const initialDeadlineDate = deadlineSettings
+      ? (deadlineSettings.week_deadline_anchor_date ??
+        defaultFirstDeadlineDate(
+          deadlineSettings.week_deadline_time,
+          deadlineSettings.week_deadline_timezone,
+        ))
+      : "";
+    const formatChanged =
+      deadlineSettings != null &&
+      leagueFormat !== deadlineSettings.league_format;
+    const allowanceChanged =
+      deadlineSettings != null &&
+      weeklyAllowanceEnabled !== deadlineSettings.weekly_allowance_enabled;
+    const weekDeadlineChanged =
+      deadlineSettings != null &&
+      (deadlineEnabled !== deadlineSettings.week_deadline_enabled ||
+        deadlineDate !== initialDeadlineDate ||
+        deadlineTime !== deadlineSettings.week_deadline_time ||
+        deadlineTimeZone !== deadlineSettings.week_deadline_timezone);
+    const deadlineChanged =
+      formatChanged || allowanceChanged || weekDeadlineChanged;
+
     setIsSaving(true);
     setError(null);
     setSuccessMessage(null);
+    setDeadlineError(null);
+    setDeadlineMessage(null);
 
     try {
       let latestSupportsNumberOfPlayers = supportsNumberOfPlayers;
@@ -1215,6 +1201,35 @@ function LeagueSettingsPageContent() {
         throw new Error(settingsError.message);
       }
 
+      /*
+       * Format and weekly deadline live behind owner RPCs rather than the
+       * league_settings upsert above. Saving them here keeps one Save Changes
+       * button responsible for the whole page; the RPCs remain the authority on
+       * ordering and week progression. The deadline section is absent on a
+       * database that predates those columns, so skip it rather than failing the
+       * unrelated settings.
+       */
+      if (formatChanged && deadlineSettings) {
+        await saveLeagueFormat(leagueId, leagueFormat);
+      }
+
+      if (weekDeadlineChanged && deadlineSettings) {
+        await saveWeekDeadline(leagueId, {
+          enabled: deadlineEnabled,
+          firstDeadlineDate: deadlineDate,
+          time: deadlineTime,
+          timeZone: deadlineTimeZone,
+        });
+      }
+
+      if (allowanceChanged && deadlineSettings) {
+        await saveWeeklyAllowance(leagueId, weeklyAllowanceEnabled);
+      }
+
+      if (deadlineChanged) {
+        await refreshDeadlineState();
+      }
+
       if (latestSupportsSeasonName) {
         await saveSeasonName(leagueId, trimmedSeasonName);
       }
@@ -1379,7 +1394,10 @@ function LeagueSettingsPageContent() {
   return (
     <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
       <div className="mx-auto max-w-[96rem] space-y-6">
-        <header className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-2xl sm:p-6 shadow-slate-950/40">
+        <header
+          className="sticky z-30 rounded-2xl border border-slate-800 bg-slate-900/90 p-4 shadow-2xl backdrop-blur-md sm:p-6 shadow-slate-950/40"
+          style={{ top: "calc(var(--app-nav-height, 4rem) + 1rem)" }}
+        >
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
               <h1 className="text-3xl font-bold text-white">League Settings</h1>
@@ -1712,14 +1730,15 @@ function LeagueSettingsPageContent() {
                   <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.15em] text-slate-400">
                     Trades close
                   </label>
-                  <input
+                  <DateFieldWithCalendar
                     type="datetime-local"
                     value={tradeDeadlineInput}
-                    onChange={(event) => {
-                      setTradeDeadlineInput(event.target.value);
+                    onChange={(value) => {
+                      setTradeDeadlineInput(value);
                       setHasUnsavedChanges(true);
                     }}
-                    className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-slate-100 outline-none transition focus:border-amber-400"
+                    ariaLabel="Trades close"
+                    disabled={isSaving}
                   />
                 </div>
               )}
@@ -1753,14 +1772,15 @@ function LeagueSettingsPageContent() {
                   <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.15em] text-slate-400">
                     Pickups close
                   </label>
-                  <input
+                  <DateFieldWithCalendar
                     type="datetime-local"
                     value={freeAgencyDeadlineInput}
-                    onChange={(event) => {
-                      setFreeAgencyDeadlineInput(event.target.value);
+                    onChange={(value) => {
+                      setFreeAgencyDeadlineInput(value);
                       setHasUnsavedChanges(true);
                     }}
-                    className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-slate-100 outline-none transition focus:border-amber-400"
+                    ariaLabel="Pickups close"
+                    disabled={isSaving}
                   />
                 </div>
               )}
@@ -1779,25 +1799,14 @@ function LeagueSettingsPageContent() {
         </section>
 
         <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-lg sm:p-6 shadow-slate-950/30">
-          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-            <div>
-              <h2 className="text-xl font-bold text-white">
-                League Format &amp; Weekly Deadline
-              </h2>
-              <p className="mt-1 text-sm text-slate-400">
-                When the deadline passes, unreported matches are settled and the
-                league moves on to the next week automatically.
-              </p>
-            </div>
-
-            <button
-              type="button"
-              disabled={isDeadlineSaving || !deadlineSettings}
-              onClick={handleSaveDeadline}
-              className="self-start rounded-xl bg-amber-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {isDeadlineSaving ? "Saving..." : "Save format & deadline"}
-            </button>
+          <div>
+            <h2 className="text-xl font-bold text-white">
+              League Format &amp; Weekly Deadline
+            </h2>
+            <p className="mt-1 text-sm text-slate-400">
+              When the deadline passes, unreported matches are settled and the
+              league moves on to the next week automatically.
+            </p>
           </div>
 
           {!deadlineSettings && (
@@ -1835,10 +1844,11 @@ function LeagueSettingsPageContent() {
                 </label>
                 <select
                   value={leagueFormat}
-                  disabled={isDeadlineSaving}
-                  onChange={(event) =>
-                    setLeagueFormat(event.target.value as LeagueFormat)
-                  }
+                  disabled={isDeadlineSaving || isSaving}
+                  onChange={(event) => {
+                    setLeagueFormat(event.target.value as LeagueFormat);
+                    setHasUnsavedChanges(true);
+                  }}
                   className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-slate-100 outline-none transition focus:border-amber-400 disabled:opacity-50"
                 >
                   <option value="6v6">6v6</option>
@@ -1859,8 +1869,11 @@ function LeagueSettingsPageContent() {
                 <input
                   type="checkbox"
                   checked={deadlineEnabled}
-                  disabled={isDeadlineSaving}
-                  onChange={(event) => setDeadlineEnabled(event.target.checked)}
+                  disabled={isDeadlineSaving || isSaving}
+                  onChange={(event) => {
+                    setDeadlineEnabled(event.target.checked);
+                    setHasUnsavedChanges(true);
+                  }}
                   className="h-4 w-4 accent-amber-500 disabled:opacity-50"
                 />
               </label>
@@ -1871,12 +1884,15 @@ function LeagueSettingsPageContent() {
                     <label className="mb-2 block text-sm font-medium text-slate-300">
                       First deadline date
                     </label>
-                    <input
+                    <DateFieldWithCalendar
                       type="date"
                       value={deadlineDate}
-                      disabled={isDeadlineSaving}
-                      onChange={(event) => setDeadlineDate(event.target.value)}
-                      className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-slate-100 outline-none transition focus:border-amber-400 disabled:opacity-50"
+                      onChange={(value) => {
+                        setDeadlineDate(value);
+                        setHasUnsavedChanges(true);
+                      }}
+                      ariaLabel="First deadline date"
+                      disabled={isDeadlineSaving || isSaving}
                     />
                     <p className="mt-2 text-xs text-slate-400">
                       The deadline repeats every 7 days from this date.
@@ -1890,8 +1906,11 @@ function LeagueSettingsPageContent() {
                     <input
                       type="time"
                       value={deadlineTime}
-                      disabled={isDeadlineSaving}
-                      onChange={(event) => setDeadlineTime(event.target.value)}
+                      disabled={isDeadlineSaving || isSaving}
+                      onChange={(event) => {
+                        setDeadlineTime(event.target.value);
+                        setHasUnsavedChanges(true);
+                      }}
                       className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-slate-100 outline-none transition focus:border-amber-400 disabled:opacity-50"
                     />
                   </div>
@@ -1902,10 +1921,11 @@ function LeagueSettingsPageContent() {
                     </label>
                     <select
                       value={deadlineTimeZone}
-                      disabled={isDeadlineSaving}
-                      onChange={(event) =>
-                        setDeadlineTimeZone(event.target.value)
-                      }
+                      disabled={isDeadlineSaving || isSaving}
+                      onChange={(event) => {
+                        setDeadlineTimeZone(event.target.value);
+                        setHasUnsavedChanges(true);
+                      }}
                       className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-slate-100 outline-none transition focus:border-amber-400 disabled:opacity-50"
                     >
                       {timeZoneOptionElements}
@@ -1919,17 +1939,18 @@ function LeagueSettingsPageContent() {
                 <input
                   type="checkbox"
                   checked={weeklyAllowanceEnabled}
-                  disabled={isDeadlineSaving || !isCurrentSeason}
-                  onChange={(event) =>
-                    setWeeklyAllowanceEnabled(event.target.checked)
-                  }
+                  disabled={isDeadlineSaving || isSaving || !isCurrentSeason}
+                  onChange={(event) => {
+                    setWeeklyAllowanceEnabled(event.target.checked);
+                    setHasUnsavedChanges(true);
+                  }}
                   className="h-4 w-4 accent-amber-500 disabled:opacity-50"
                 />
               </label>
               <p className="text-xs text-slate-400">
                 When on, every team is credited one token each time a week
                 closes, whether that happens at the weekly deadline or when the
-                week&apos;s last match is settled. Save above to apply.
+                week&apos;s last match is settled. Use Save Changes above to apply.
               </p>
             </div>
 
@@ -2078,7 +2099,7 @@ function LeagueSettingsPageContent() {
               {deadlineSettings?.week_deadline_enabled && (
                 <button
                   type="button"
-                  disabled={isDeadlineSaving}
+                  disabled={isDeadlineSaving || isSaving}
                   onClick={() =>
                     handleToggleDeadlinePause(
                       !deadlineSettings.week_deadline_paused,

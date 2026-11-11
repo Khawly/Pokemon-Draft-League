@@ -153,6 +153,9 @@ export type DashboardMatch = {
   /** Each side's stored name colour, raw, or null when the owner has none set. */
   player_1_name_color: string | null;
   player_2_name_color: string | null;
+  /** Each side's Pokemon Showdown handle, or null when they have not set one. */
+  player_1_showdown_username: string | null;
+  player_2_showdown_username: string | null;
   /** Each side's stored avatar initials, raw, or null when the owner has none set. */
   player_1_avatar_initials: string | null;
   player_2_avatar_initials: string | null;
@@ -214,6 +217,8 @@ export type DashboardRosterSprite = {
 /** One of the signed-in member's notifications. */
 export type DashboardNotification = {
   id: string;
+  /** Notification kind, e.g. `draft_live`, used for panel actions. */
+  type: string;
   message: string;
   is_read: boolean;
   created_at: string;
@@ -578,7 +583,7 @@ export async function loadDashboardData(
       supabase
         .from("matches")
         .select(
-          "id, week_number, is_playoff, scheduled_at, status, player_1_team_id, player_2_team_id, results:match_results (id), player_1: player_1_team_id (team_name, owner_user_id, owner: owner_user_id (display_name, avatar_url, name_color, avatar_initials)), player_2: player_2_team_id (team_name, owner_user_id, owner: owner_user_id (display_name, avatar_url, name_color, avatar_initials))",
+          "id, week_number, is_playoff, scheduled_at, status, player_1_team_id, player_2_team_id, results:match_results (id), player_1: player_1_team_id (team_name, owner_user_id, owner: owner_user_id (display_name, pokemon_showdown_username, avatar_url, name_color, avatar_initials)), player_2: player_2_team_id (team_name, owner_user_id, owner: owner_user_id (display_name, pokemon_showdown_username, avatar_url, name_color, avatar_initials))",
         )
         .eq("league_id", leagueId)
         .eq("season_id", season.id)
@@ -707,6 +712,7 @@ export async function loadDashboardData(
       owner_user_id?: string;
       owner?: {
         display_name?: string | null;
+        pokemon_showdown_username?: string | null;
         avatar_url?: string | null;
         name_color?: string | null;
         avatar_initials?: string | null;
@@ -717,6 +723,7 @@ export async function loadDashboardData(
       owner_user_id?: string;
       owner?: {
         display_name?: string | null;
+        pokemon_showdown_username?: string | null;
         avatar_url?: string | null;
         name_color?: string | null;
         avatar_initials?: string | null;
@@ -737,6 +744,10 @@ export async function loadDashboardData(
     player_2_avatar_url: row.player_2?.owner?.avatar_url ?? null,
     player_1_name_color: row.player_1?.owner?.name_color ?? null,
     player_2_name_color: row.player_2?.owner?.name_color ?? null,
+    player_1_showdown_username:
+      row.player_1?.owner?.pokemon_showdown_username ?? null,
+    player_2_showdown_username:
+      row.player_2?.owner?.pokemon_showdown_username ?? null,
     player_1_avatar_initials: row.player_1?.owner?.avatar_initials ?? null,
     player_2_avatar_initials: row.player_2?.owner?.avatar_initials ?? null,
     player_1_user_id: row.player_1?.owner_user_id ?? null,
@@ -818,7 +829,7 @@ export async function loadDashboardData(
         .or(`proposer_user_id.eq.${userId},recipient_user_id.eq.${userId}`),
       supabase
         .from("notifications")
-        .select("id, message, is_read, created_at")
+        .select("id, type, message, is_read, created_at")
         .eq("league_id", leagueId)
         .eq("season_id", season.id)
         .eq("recipient_user_id", userId)
@@ -929,11 +940,13 @@ export async function loadDashboardData(
 
   const notifications = ((notificationResult.data ?? []) as {
     id: string;
+    type: string;
     message: string;
     is_read: boolean;
     created_at: string;
   }[]).map<DashboardNotification>((row) => ({
     id: row.id,
+    type: row.type,
     message: row.message,
     is_read: row.is_read,
     created_at: row.created_at,

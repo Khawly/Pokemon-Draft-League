@@ -19,7 +19,7 @@ import { Fragment } from "react";
 import { getSpriteUrl } from "@/lib/pokeapi";
 import { MemberName } from "@/components/member-name";
 import { MemberAvatar } from "@/components/member-avatar";
-import { MatchPredictionButtons } from "@/components/match-prediction-buttons";
+import { MatchPredictionButton } from "@/components/match-prediction-buttons";
 import { routeFor } from "@/lib/league-routes";
 import { predictionIsOpen } from "@/lib/predictions";
 import {
@@ -242,6 +242,10 @@ interface SideLabelProps {
    * The player's stored avatar initials, or null to derive them from their name.
    */
   initials?: string | null;
+  /** The player's Pokemon Showdown handle, shown in parentheses after the name. */
+  showdownUsername?: string | null;
+  /** The player's season record, e.g. "5-2", shown after the name. */
+  record?: string | null;
 }
 
 /**
@@ -255,7 +259,14 @@ interface SideLabelProps {
  * @param props - {@link SideLabelProps}
  * @returns A single-line avatar and name, truncated to fit its column.
  */
-function SideLabel({ name, nameColor, avatarUrl, initials }: SideLabelProps) {
+function SideLabel({
+  name,
+  nameColor,
+  avatarUrl,
+  initials,
+  showdownUsername,
+  record,
+}: SideLabelProps) {
   return (
     <div className="flex min-w-0 items-center justify-center gap-2">
       <MemberAvatar
@@ -268,8 +279,14 @@ function SideLabel({ name, nameColor, avatarUrl, initials }: SideLabelProps) {
       <MemberName
         name={name}
         color={nameColor}
-        className="truncate text-xs font-medium text-slate-400"
+        className="min-w-0 truncate text-xs font-medium text-slate-400"
+        showdownUsername={showdownUsername}
       />
+      {record && (
+        <span className="shrink-0 rounded-full bg-slate-800 px-1.5 py-0.5 text-[10px] font-semibold text-slate-300">
+          {record}
+        </span>
+      )}
     </div>
   );
 }
@@ -422,6 +439,19 @@ export function DashboardShell({
    */
   const teamNameColor = (teamId: string) =>
     goods.teams.find((entry) => entry.id === teamId)?.owner_name_color ?? null;
+
+  /** A team's season record as "W-L", or null when the standings lack that team. */
+  const teamRecord = (teamId: string) => {
+    const standing = goods.standings.find((row) => row.team_id === teamId);
+    return standing ? `${standing.wins}-${standing.losses}` : null;
+  };
+
+  /*
+   * The owner's member id for a standings row, so the champion crown can match on
+   * the exact id rather than relying on the display-name fallback.
+   */
+  const teamOwnerId = (teamId: string) =>
+    goods.teams.find((entry) => entry.id === teamId)?.owner_user_id ?? null;
 
   const matchFormatLabel =
     goods.matchFormat === "single" ? "Single game" : "Best of 3";
@@ -582,11 +612,20 @@ export function DashboardShell({
                           item.is_read ? "bg-slate-600" : "bg-amber-400"
                         }`}
                       />
-                      <div>
+                      <div className="min-w-0 flex-1">
                         <p>{item.message}</p>
                         <p className="mt-1 text-xs text-slate-500">
                           {formatNotificationAge(item.created_at, timeZone)}
                         </p>
+                        {item.type === "draft_live" && (
+                          <button
+                            type="button"
+                            onClick={() => router.push(draftRoute)}
+                            className="mt-2 rounded-lg border border-amber-500/60 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-200 transition hover:bg-amber-500/20"
+                          >
+                            Open draft
+                          </button>
+                        )}
                       </div>
                     </li>
                   ))}
@@ -647,27 +686,7 @@ export function DashboardShell({
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                          {/*
-                          Split rather than interpolated: one element can only carry
-                          one text colour, so the two sides would otherwise
-                          collapse onto whichever colour the container happened to
-                          have. `items-baseline` keeps them on a shared baseline
-                          now that they are flex items instead of one text run.
-                        */}
-                          <p className="flex flex-wrap items-baseline gap-x-2 font-semibold text-slate-100">
-                            <MemberName
-                              name={match.player_1_name}
-                              color={match.player_1_name_color}
-                              userId={match.player_1_user_id}
-                            />
-                            <span>vs</span>
-                            <MemberName
-                              name={match.player_2_name}
-                              color={match.player_2_name_color}
-                              userId={match.player_2_user_id}
-                            />
-                          </p>
-                          <p className="mt-1 text-sm text-slate-400">
+                          <p className="text-sm text-slate-400">
                             {[
                               match.is_playoff
                                 ? "Postseason"
@@ -697,6 +716,8 @@ export function DashboardShell({
                             nameColor: match.player_1_name_color,
                             avatarUrl: match.player_1_avatar_url,
                             initials: match.player_1_avatar_initials,
+                            showdownUsername: match.player_1_showdown_username,
+                            record: teamRecord(match.player_1_team_id),
                           },
                           {
                             teamId: match.player_2_team_id,
@@ -704,6 +725,8 @@ export function DashboardShell({
                             nameColor: match.player_2_name_color,
                             avatarUrl: match.player_2_avatar_url,
                             initials: match.player_2_avatar_initials,
+                            showdownUsername: match.player_2_showdown_username,
+                            record: teamRecord(match.player_2_team_id),
                           },
                         ].map((side, index) => (
                           <Fragment key={side.teamId}>
@@ -714,38 +737,43 @@ export function DashboardShell({
                                 nameColor={side.nameColor}
                                 avatarUrl={side.avatarUrl}
                                 initials={side.initials}
+                                showdownUsername={side.showdownUsername}
+                                record={side.record}
                               />
                               <LineupSprites
                                 roster={goods.rostersByTeam[side.teamId] ?? []}
                               />
+                              {onPredict &&
+                                isCurrentSeason &&
+                                predictionIsOpen(match) && (
+                                  <div className="mt-2 flex justify-center">
+                                    <MatchPredictionButton
+                                      side={{
+                                        teamId: side.teamId,
+                                        name: side.name,
+                                      }}
+                                      predictedTeamId={
+                                        match.my_prediction_team_id
+                                      }
+                                      predictionCounts={
+                                        match.prediction_counts
+                                      }
+                                      disabled={
+                                        predictingMatchId === match.id
+                                      }
+                                      onPick={(teamId) =>
+                                        onPredict(match.id, teamId)
+                                      }
+                                    />
+                                  </div>
+                                )}
                             </div>
                           </Fragment>
                         ))}
                       </div>
 
-                      {onPredict &&
-                      isCurrentSeason &&
-                      predictionIsOpen(match) ? (
-                        <div className="border-t border-slate-700/60 pt-3">
-                          <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.15em] text-slate-500">
-                            Winner prediction
-                          </p>
-                          <MatchPredictionButtons
-                            playerOne={{
-                              teamId: match.player_1_team_id,
-                              name: match.player_1_name,
-                            }}
-                            playerTwo={{
-                              teamId: match.player_2_team_id,
-                              name: match.player_2_name,
-                            }}
-                            predictedTeamId={match.my_prediction_team_id}
-                            predictionCounts={match.prediction_counts}
-                            disabled={predictingMatchId === match.id}
-                            onPick={(teamId) => onPredict(match.id, teamId)}
-                          />
-                        </div>
-                      ) : match.my_prediction_team_id ? (
+                      {!(onPredict && isCurrentSeason && predictionIsOpen(match)) &&
+                      match.my_prediction_team_id ? (
                         <p className="border-t border-slate-700/60 pt-3 text-xs font-medium text-amber-200/80">
                           Your pick:{" "}
                           {match.my_prediction_team_id ===
@@ -767,18 +795,7 @@ export function DashboardShell({
                 </p>
                 {goods.nextMatch ? (
                   <>
-                    <h3 className="mt-3 flex flex-wrap items-baseline gap-x-2 text-xl font-bold text-white">
-                      <MemberName
-                        name={goods.nextMatch.player_1_name}
-                        color={goods.nextMatch.player_1_name_color}
-                      />
-                      <span>vs</span>
-                      <MemberName
-                        name={goods.nextMatch.player_2_name}
-                        color={goods.nextMatch.player_2_name_color}
-                      />
-                    </h3>
-                    <p className="mt-2 text-sm text-slate-300">
+                    <p className="mt-3 text-sm text-slate-300">
                       {[
                         goods.nextMatch.is_playoff
                           ? "Postseason"
@@ -803,6 +820,9 @@ export function DashboardShell({
                           nameColor: goods.nextMatch.player_1_name_color,
                           avatarUrl: goods.nextMatch.player_1_avatar_url,
                           initials: goods.nextMatch.player_1_avatar_initials,
+                          showdownUsername:
+                            goods.nextMatch.player_1_showdown_username,
+                          record: teamRecord(goods.nextMatch.player_1_team_id),
                         },
                         {
                           teamId: goods.nextMatch.player_2_team_id,
@@ -810,6 +830,9 @@ export function DashboardShell({
                           nameColor: goods.nextMatch.player_2_name_color,
                           avatarUrl: goods.nextMatch.player_2_avatar_url,
                           initials: goods.nextMatch.player_2_avatar_initials,
+                          showdownUsername:
+                            goods.nextMatch.player_2_showdown_username,
+                          record: teamRecord(goods.nextMatch.player_2_team_id),
                         },
                       ].map((side, index) => (
                         <Fragment key={side.teamId}>
@@ -820,6 +843,8 @@ export function DashboardShell({
                               nameColor={side.nameColor}
                               avatarUrl={side.avatarUrl}
                               initials={side.initials}
+                              showdownUsername={side.showdownUsername}
+                              record={side.record}
                             />
                             <LineupSprites
                               roster={goods.rostersByTeam[side.teamId] ?? []}
@@ -908,6 +933,7 @@ export function DashboardShell({
                                 name={teamLabel(row.team_id, row.team_name)}
                                 color={teamNameColor(row.team_id)}
                                 className="font-medium text-slate-100"
+                                userId={teamOwnerId(row.team_id)}
                               />
                             </td>
                             <td className="px-4 py-3 text-slate-300">

@@ -104,6 +104,78 @@ const TYPE_STYLES: Record<string, string> = {
 };
 
 /**
+ * Renders one draft-pool type filter chip.
+ *
+ * The chips sit flush against each other in a wrapping bar, so the selected
+ * ring is inset: an offset ring would overlap the neighbouring chips.
+ *
+ * @param props.type - The type name, or null for the All chip.
+ * @param props.count - How many Pokemon of the type remain in the pool.
+ * @param props.selected - True when this chip is the active filter.
+ * @param props.dimmed - True while another chip is active.
+ * @param props.onSelect - Selects this chip (or clears the filter for All).
+ * @returns The filter chip button.
+ */
+function TypeFilterChip({
+  type,
+  count,
+  selected,
+  dimmed,
+  onSelect,
+}: {
+  type: string | null;
+  count?: number;
+  selected: boolean;
+  dimmed: boolean;
+  onSelect: () => void;
+}) {
+  const label = type ? type.charAt(0).toUpperCase() + type.slice(1) : "All";
+
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      title={
+        type
+          ? `${count} ${type}-type Pokémon left in the pool`
+          : "Show every type"
+      }
+      className={`min-w-0 rounded-full px-1.5 py-1 text-[11px] font-semibold transition sm:px-2.5 sm:text-xs ${
+        type ? (TYPE_STYLES[type] ?? "bg-slate-700 text-slate-200") : ""
+      } ${
+        selected
+          ? type
+            ? "ring-2 ring-inset ring-amber-400"
+            : "bg-amber-500/15 text-amber-300"
+          : dimmed
+            ? "opacity-50 hover:opacity-100"
+            : type
+              ? "hover:brightness-110"
+              : "bg-slate-800 text-slate-400 hover:bg-slate-700"
+      }`}
+    >
+      <span className="flex min-w-0 items-center justify-center gap-1 sm:gap-1.5">
+        <span className="truncate">{label}</span>
+        {type && (
+          /*
+           * Remaining count for the type. Dimmed to 0 once the type is
+           * exhausted, so a chip reads as spent rather than as data the page
+           * forgot to load.
+           */
+          <span
+            className={`shrink-0 rounded-full bg-slate-900/70 px-1 text-[9px] font-bold tabular-nums sm:px-1.5 sm:text-[10px] ${
+              count === 0 ? "text-slate-500" : "text-slate-300"
+            }`}
+          >
+            {count}
+          </span>
+        )}
+      </span>
+    </button>
+  );
+}
+
+/**
  * Renders a Pokemon sprite from the bundled sprite set, or a placeholder square
  * when the sprite id is unknown.
  *
@@ -197,6 +269,8 @@ const STATUS_LABELS: Record<string, string> = {
 type PoolActions = {
   /** Submits a draft pick (null pokemon = pass) for the on-clock team. */
   onPick: (pokemonId: string | null) => void;
+  /** Opens the mobile round picker to pin a pool Pokemon to the priority list. */
+  onAddToPriority: (pokemonId: string) => void;
 };
 
 /** Actions the arena page passes down to the priority panel. */
@@ -684,9 +758,12 @@ type PickBoardRow = {
 function usePickBoardRows(goods: DraftGoods): PickBoardRow[] {
   const slice = computeDraftSlice(goods);
 
-  const onClockOwnerUserId = !slice.isOver
-    ? (slice.currentTeam?.owner_user_id ?? null)
-    : null;
+  // "On clock" is a live-draft state, not a preview label. A pending season
+  // still shows the draft order, but nobody is actually on the clock yet.
+  const onClockOwnerUserId =
+    goods.season?.status === "draft_active" && !slice.isOver
+      ? (slice.currentTeam?.owner_user_id ?? null)
+      : null;
 
   // Teams by owner so each player can show its drafted team name once the season
   // has started; players still resolve before start via their member row.
@@ -1301,17 +1378,24 @@ const SORT_LABELS: Record<SortKey, string> = {
  * object stable means the full pool table only re-renders when the draft state
  * or the pick handler actually changes, not once a second during a live draft.
  *
+ * On touch devices a tap doubles as the drag-and-drop gesture: a pickable row
+ * still opens the draft confirmation, while every other available row opens the
+ * round picker that pins it to the priority list.
+ *
  * @param props - {@link DraftGoods} plus the {@link PoolActions} it may trigger.
  * @returns The pool panel markup.
  */
 const PoolPanel = memo(function PoolPanel({
   goods,
   actions,
+  isTouch,
 }: {
   /** The complete loaded draft state. */
   goods: DraftGoods;
-  /** The pick action for a table row or tier card. */
+  /** The pick/priority actions for a table row or tier card. */
   actions: PoolActions;
+  /** True when the primary pointer is coarse, so taps replace drag-and-drop. */
+  isTouch: boolean;
 }) {
   const [query, setQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState<string | null>(null);
@@ -1372,15 +1456,6 @@ const PoolPanel = memo(function PoolPanel({
       .map(([type, count]) => ({ type, count: Math.max(0, count) }))
       .sort((a, b) => a.type.localeCompare(b.type));
   }, [goods.poolRows, goods.picks]);
-
-  /*
-   * Split the type chips into two even rows, matching the Pokemon page. The All
-   * chip leads the first row so the type chips themselves stay balanced.
-   */
-  const typeRows = useMemo(() => {
-    const splitAt = Math.ceil(typeOptions.length / 2);
-    return [typeOptions.slice(0, splitAt), typeOptions.slice(splitAt)];
-  }, [typeOptions]);
 
   const picked = useMemo(
     () => new Set(goods.picks.map((pick) => pick.pokemon_id)),
@@ -1484,12 +1559,14 @@ const PoolPanel = memo(function PoolPanel({
     }
   }
 
-  // Whether this row can be drafted right now (must be the user's turn, the
-  // Pokemon still in the pool, and affordable under the salary budget). Shared
-  // by the table rows and the tier list cards.
+  // Whether this row can be drafted right now (must be the user's turn in a
+  // live draft, the Pokemon still in the pool, and affordable under the salary
+  // budget). Shared by the table rows and the tier list cards. A pending
+  // season is a preview of the order, so it must not make rows pickable.
   function canPickRow(row: DraftPoolRow): boolean {
     const isTaken = picked.has(row.pokemon_id);
     if (isTaken || goods.userRole === null) return false;
+    if (goods.season?.status !== "draft_active") return false;
     if (!sliceOf(goods).isMyTurn) return false;
     return (
       mySalary?.remaining != null &&
@@ -1500,10 +1577,17 @@ const PoolPanel = memo(function PoolPanel({
 
   // Clicking a row/card while not freshly dragging requests a pick (the arena
   // validates turn/salary/picked state before showing the confirmation dialog).
+  // On touch devices the same tap adds an available Pokemon to the priority
+  // list instead, since there is no drag gesture to do it with; picked Pokemon
+  // stay inert because they can no longer be added meaningfully.
   function handleRowClick(row: DraftPoolRow) {
     if (rowDragEndedRecentlyRef.current) return;
     if (canPickRow(row)) {
       actions.onPick(row.pokemon_id);
+      return;
+    }
+    if (isTouch && !picked.has(row.pokemon_id)) {
+      actions.onAddToPriority(row.pokemon_id);
     }
   }
 
@@ -1521,7 +1605,7 @@ const PoolPanel = memo(function PoolPanel({
   }
 
   return (
-    <section className="flex min-h-0 flex-col rounded-2xl border border-slate-800 bg-slate-900/80 shadow-xl shadow-slate-950/30">
+    <section className="flex w-full min-h-0 min-w-0 flex-col rounded-2xl border border-slate-800 bg-slate-900/80 shadow-xl shadow-slate-950/30">
       <div className="flex flex-wrap items-center gap-3 border-b border-slate-800 p-4">
         <input
           type="search"
@@ -1534,67 +1618,33 @@ const PoolPanel = memo(function PoolPanel({
           aria-label="Search the draft pool"
           className="w-56 rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-2 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-amber-400"
         />
-        <div className="flex flex-col gap-1.5">
-          {typeRows.map((row, rowIndex) => (
-            <div
-              key={rowIndex}
-              className="flex flex-wrap items-center gap-1.5"
-            >
-              {rowIndex === 0 && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setTypeFilter(null);
-                    setPage(1);
-                  }}
-                  className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
-                    typeFilter == null
-                      ? "bg-amber-500/15 text-amber-300"
-                      : "bg-slate-800 text-slate-400 hover:bg-slate-700"
-                  }`}
-                >
-                  All
-                </button>
-              )}
-              {row.map(({ type, count }) => (
-                <button
-                  key={type}
-                  type="button"
-                  onClick={() => {
-                    setTypeFilter((current) =>
-                      current === type ? null : type,
-                    );
-                    setPage(1);
-                  }}
-                  title={`${count} ${type}-type Pokémon left in the pool`}
-                  className={`rounded-full px-2.5 py-1 text-xs font-semibold transition ${
-                    TYPE_STYLES[type] ?? "bg-slate-700 text-slate-200"
-                  } ${
-                    typeFilter === type
-                      ? "ring-2 ring-amber-400 ring-offset-2 ring-offset-slate-950"
-                      : typeFilter == null
-                        ? "hover:brightness-110"
-                        : "opacity-50 hover:opacity-100"
-                  }`}
-                >
-                  <span className="flex items-center gap-1.5">
-                    {type.charAt(0).toUpperCase() + type.slice(1)}
-                    {/*
-                      Remaining count for the type. Dimmed to 0 once the type is
-                      exhausted, so a chip reads as spent rather than as data the
-                      page forgot to load.
-                    */}
-                    <span
-                      className={`rounded-full bg-slate-900/70 px-1.5 text-[10px] font-bold tabular-nums ${
-                        count === 0 ? "text-slate-500" : "text-slate-300"
-                      }`}
-                    >
-                      {count}
-                    </span>
-                  </span>
-                </button>
-              ))}
-            </div>
+        {/*
+         * One wrapping row of intrinsically sized chips with no gaps: the bar
+         * packs as many filters per line as the width allows, so it needs the
+         * fewest rows possible without scrolling sideways.
+         */}
+        <div className="flex w-full flex-wrap items-center gap-0">
+          <TypeFilterChip
+            type={null}
+            selected={typeFilter == null}
+            dimmed={false}
+            onSelect={() => {
+              setTypeFilter(null);
+              setPage(1);
+            }}
+          />
+          {typeOptions.map(({ type, count }) => (
+            <TypeFilterChip
+              key={type}
+              type={type}
+              count={count}
+              selected={typeFilter === type}
+              dimmed={typeFilter != null && typeFilter !== type}
+              onSelect={() => {
+                setTypeFilter((current) => (current === type ? null : type));
+                setPage(1);
+              }}
+            />
           ))}
         </div>
       </div>
@@ -1622,7 +1672,7 @@ const PoolPanel = memo(function PoolPanel({
       </div>
 
       {tab === "table" && (
-        <div className="min-h-0 flex-1 overflow-auto">
+        <div className="min-h-0 w-full min-w-0 flex-1 overflow-auto">
           <table className="w-full divide-y divide-slate-800 text-center text-sm">
             <thead className="sticky top-0 z-10 bg-slate-900 text-slate-400">
               <tr>
@@ -1699,7 +1749,7 @@ const PoolPanel = memo(function PoolPanel({
                     className={`${
                       isTaken
                         ? "opacity-45"
-                        : canPick
+                        : canPick || isTouch
                           ? "cursor-pointer hover:bg-slate-800/50"
                           : "cursor-grab hover:bg-slate-800/50 active:cursor-grabbing"
                     }`}
@@ -1838,7 +1888,7 @@ const PoolPanel = memo(function PoolPanel({
                           className={`flex items-center gap-3 rounded-xl border border-slate-800 bg-slate-950/60 p-3 transition ${
                             isTaken
                               ? "opacity-45"
-                              : canPick
+                              : canPick || isTouch
                                 ? "cursor-pointer hover:border-amber-500/60 hover:bg-slate-900"
                                 : "cursor-grab hover:border-slate-600 hover:bg-slate-900 active:cursor-grabbing"
                           }`}
@@ -1886,11 +1936,18 @@ const PoolPanel = memo(function PoolPanel({
         <span>
           {rows.length} of {goods.poolRows.length} in the pool
         </span>
-        {sliceOf(goods).isMyTurn && mySalary && (
-          <span className="font-medium text-slate-300">
-            Salary: {mySalary.remaining.toLocaleString()} remaining
+        {isTouch && (
+          <span className="text-slate-500">
+            Tap a Pokémon to add it to your priority list.
           </span>
         )}
+        {goods.season?.status === "draft_active" &&
+          sliceOf(goods).isMyTurn &&
+          mySalary && (
+            <span className="font-medium text-slate-300">
+              Salary: {mySalary.remaining.toLocaleString()} remaining
+            </span>
+          )}
       </div>
     </section>
   );
@@ -1992,6 +2049,133 @@ function PickConfirm({
 }
 
 /*
+ * The mobile round picker: the touch-device replacement for dragging a pool
+ * Pokemon into a priority round. Tapping a pool row without a pick opens it,
+ * and choosing a round pins the Pokemon there in one tap.
+ */
+
+/**
+ * Renders the modal that asks which priority round a tapped pool Pokemon
+ * should be added to.
+ *
+ * Rounds already holding the Pokemon are marked and disabled so a tap cannot
+ * silently no-op, while every other round shows how many Pokemon it already
+ * has. Selecting a round adds the Pokemon and closes the dialog.
+ *
+ * @param props - The tapped pool row, the draft's round count, per-round entry
+ *   counts, rounds that already contain the Pokemon, and select/cancel callbacks.
+ * @returns The round picker markup.
+ */
+function RoundPicker({
+  row,
+  totalRounds,
+  roundCounts,
+  existingRounds,
+  onSelect,
+  onCancel,
+}: {
+  /** The pool row being pinned to the priority list. */
+  row: DraftPoolRow;
+  /** The draft's total round count, used to build the round buttons. */
+  totalRounds: number;
+  /** Number of priority entries already in each round (round number key). */
+  roundCounts: Map<number, number>;
+  /** Rounds that already contain this Pokemon. */
+  existingRounds: Set<number>;
+  /** Adds the Pokemon to the chosen round and closes the dialog. */
+  onSelect: (round: number) => void;
+  /** Dismisses the dialog without adding the Pokemon. */
+  onCancel: () => void;
+}) {
+  const rounds = Array.from({ length: totalRounds }, (_, index) => index + 1);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4"
+      onClick={onCancel}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Add ${row.species_name} to a priority round`}
+        className="max-h-[calc(100dvh-2rem)] w-full max-w-sm overflow-y-auto rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl shadow-slate-950/60"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <h2 className="text-lg font-bold text-white">Add to priority list</h2>
+        <p className="mt-1 text-sm text-slate-400">
+          Choose the round to add this Pokémon to.
+        </p>
+
+        <div className="mt-4 flex items-center gap-4 rounded-xl border border-slate-800 bg-slate-950/50 p-4">
+          <Sprite spriteId={row.dex} name={row.species_name} size={48} />
+          <div className="min-w-0 flex-1">
+            <p className="truncate font-semibold text-slate-100">
+              {row.species_name}
+            </p>
+            <div className="mt-1 flex flex-wrap items-center gap-1">
+              {[row.type_primary, row.type_secondary]
+                .filter(Boolean)
+                .map((type) => (
+                  <span
+                    key={type}
+                    className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${
+                      TYPE_STYLES[type ?? ""] ?? "bg-slate-700 text-slate-200"
+                    }`}
+                  >
+                    {type}
+                  </span>
+                ))}
+              {row.tier_value > 0 && (
+                <span className="text-[10px] font-bold text-amber-300">
+                  T{row.tier_value}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-4 grid max-h-64 grid-cols-3 gap-2 overflow-auto">
+          {rounds.map((round) => {
+            const added = existingRounds.has(round);
+            const count = roundCounts.get(round) ?? 0;
+            return (
+              <button
+                key={round}
+                type="button"
+                onClick={() => onSelect(round)}
+                disabled={added}
+                className={`rounded-xl border px-2 py-3 text-sm font-semibold transition ${
+                  added
+                    ? "cursor-default border-emerald-700/60 bg-emerald-950/40 text-emerald-300"
+                    : "border-slate-700 bg-slate-950/60 text-slate-200 hover:border-amber-400 hover:bg-amber-500/10"
+                }`}
+              >
+                <span className="block">Round {round}</span>
+                <span
+                  className={`mt-0.5 block text-[10px] font-normal ${
+                    added ? "text-emerald-400" : "text-slate-500"
+                  }`}
+                >
+                  {added ? "Added" : `${count} Pokémon`}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        <button
+          type="button"
+          onClick={onCancel}
+          className="mt-5 w-full rounded-xl border border-slate-700 px-4 py-2.5 text-sm font-bold text-slate-300 transition hover:bg-slate-800"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/*
  * The priority panel: the current user's per-round priority listsestr. Circular
  * lists are stored by round_number; entries within a round are order-sensitive
  * (leftmost = highest priority). Reordering stays client-side until Save.
@@ -2016,6 +2200,9 @@ function sliceOf(goods: DraftGoods) {
  * space to remove it. Every change auto-saves to the user's account, and each
  * card shows the Pokemon's typing chips and tier.
  *
+ * Touch devices have no drag gesture, so a tap on a card removes it from the
+ * list and a tap on a pool row adds one (the pool panel opens the round picker).
+ *
  * @param props - {@link ArenaPanelProps} plus {@link PriorityActions}.
  * @returns The priority panel markup.
  */
@@ -2026,6 +2213,7 @@ function PriorityPanel({
   entries,
   error,
   isSaving,
+  isTouch,
   roundFlags,
 }: ArenaPanelProps & {
   actions: PriorityActions;
@@ -2035,6 +2223,8 @@ function PriorityPanel({
   error: string | null;
   /** True while a save is in flight. */
   isSaving: boolean;
+  /** True when the primary pointer is coarse, so a tap drops a card. */
+  isTouch: boolean;
   /** Per-round Auto-Pick / Skip-Pick flag state (round number key). */
   roundFlags: Map<number, { autoPick: boolean; skipPick: boolean }>;
 }) {
@@ -2098,11 +2288,16 @@ function PriorityPanel({
   }
 
   // Clicking a card while not dragging requests a pick (the arena validates
-  // turn/salary/picked state before showing the confirmation dialog). A click
-  // shortly after a drag is treated as the drag's synthetic cleanup rather
-  // than a genuine pick intent.
+  // turn/salary/picked state before showing the confirmation dialog). On a
+  // touch device the tap instead drops the card from the list, since dragging
+  // it out is not available. A click shortly after a drag is treated as the
+  // drag's synthetic cleanup rather than a genuine intent.
   function handleCardClick(entry: DraftPriorityEntry) {
     if (dragEndedRecentlyRef.current) return;
+    if (isTouch) {
+      actions.onRemove(entryKey(entry));
+      return;
+    }
     actions.onPick(entry.pokemon_id);
   }
 
@@ -2199,7 +2394,9 @@ function PriorityPanel({
         <span className="text-xs text-slate-500">
           {draggingEntry
             ? "Drop on empty space to remove"
-            : "Topmost = highest priority"}
+            : isTouch
+              ? "Tap a Pokémon to remove it"
+              : "Topmost = highest priority"}
         </span>
       </div>
 
@@ -2267,7 +2464,9 @@ function PriorityPanel({
                       : "border-slate-800"
                   }`}
                 >
-                  Empty — drag Pokémon from the pool into this round.
+                  {isTouch
+                    ? "Tap a Pokémon in the pool, then choose this round to add it."
+                    : "Empty — drag Pokémon from the pool into this round."}
                 </div>
               ) : (
                 <ol className="mt-2 space-y-1.5">
@@ -2292,7 +2491,11 @@ function PriorityPanel({
                       onDrop={(event) =>
                         handleCardDrop(event, entry, index, round)
                       }
-                      className={`flex cursor-grab items-center gap-2 rounded-xl border bg-slate-950/50 p-2 transition active:cursor-grabbing ${
+                      className={`flex items-center gap-2 rounded-xl border bg-slate-950/50 p-2 transition ${
+                        isTouch
+                          ? "cursor-pointer active:bg-slate-900"
+                          : "cursor-grab active:cursor-grabbing"
+                      } ${
                         overCard === entryKey(entry)
                           ? "border-amber-400 bg-amber-500/10"
                           : overRound === round
@@ -2307,7 +2510,13 @@ function PriorityPanel({
                       />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
-                          <p className="min-w-0 flex-1 truncate text-sm font-medium text-slate-100">
+                          {/*
+                           * No flex-1 here: the name keeps its natural width so
+                           * the type/tier/BST chips sit right beside it instead
+                           * of being pushed to the far edge of a full-width
+                           * mobile card. It still truncates when long.
+                           */}
+                          <p className="min-w-0 truncate text-sm font-medium text-slate-100">
                             {entry.species_name}
                           </p>
                           <div className="flex shrink-0 items-center gap-1">
@@ -2460,6 +2669,29 @@ const TICK_INTERVAL_MS = 1000;
 const URGENT_THRESHOLD_MS = 60_000;
 
 /**
+ * Tracks whether the device's primary pointer is coarse (a finger rather than
+ * a mouse), which is the arena's signal to swap drag-and-drop for taps.
+ *
+ * The initial render reports `false` so the server and first client render
+ * agree; the media query is read once the component mounts.
+ *
+ * @returns True while the primary pointer is coarse.
+ */
+function useCoarsePointer(): boolean {
+  const [coarse, setCoarse] = useState(false);
+
+  useEffect(() => {
+    const query = window.matchMedia("(pointer: coarse)");
+    const update = () => setCoarse(query.matches);
+    update();
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, []);
+
+  return coarse;
+}
+
+/**
  * Main arena content: owns polling, the countdown timer, notifications, and the
  * pick/priority mutations.
  *
@@ -2469,6 +2701,7 @@ const URGENT_THRESHOLD_MS = 60_000;
 function DraftArena({ leagueId }: { leagueId: string }) {
   const router = useRouter();
   const { confirm, confirmDialog } = useConfirm();
+  const isTouch = useCoarsePointer();
   const [goods, setGoods] = useState<DraftGoods | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
@@ -2485,6 +2718,8 @@ function DraftArena({ leagueId }: { leagueId: string }) {
   const [busyPause, setBusyPause] = useState(false);
   // Pokemon id awaiting the pick confirmation dialog, or null when none.
   const [pendingPickId, setPendingPickId] = useState<string | null>(null);
+  // Pokemon id awaiting the mobile round picker (add to priority), or null.
+  const [pendingAddId, setPendingAddId] = useState<string | null>(null);
   const audioRef = useRef<AudioContext | null>(null);
   const prevDeadlineRef = useRef<number | null>(null);
   const warnedRef = useRef(false);
@@ -2580,6 +2815,39 @@ function DraftArena({ leagueId }: { leagueId: string }) {
         : null,
     [goods, pendingPickId],
   );
+
+  // The pool row backing the mobile round picker, if any.
+  const pendingAddRow = useMemo(
+    () =>
+      goods && pendingAddId
+        ? (goods.poolRows.find((row) => row.pokemon_id === pendingAddId) ??
+          null)
+        : null,
+    [goods, pendingAddId],
+  );
+
+  // How many priority entries each round already holds, for the round picker's
+  // per-round counts.
+  const priorityRoundCounts = useMemo(() => {
+    const counts = new Map<number, number>();
+    priorityEntries.forEach((entry) => {
+      counts.set(entry.round_number, (counts.get(entry.round_number) ?? 0) + 1);
+    });
+    return counts;
+  }, [priorityEntries]);
+
+  // Rounds that already contain the Pokemon awaiting the round picker, so they
+  // can be marked instead of silently ignoring a tap.
+  const pendingAddRounds = useMemo(() => {
+    if (!pendingAddId) {
+      return new Set<number>();
+    }
+    return new Set(
+      priorityEntries
+        .filter((entry) => entry.pokemon_id === pendingAddId)
+        .map((entry) => entry.round_number),
+    );
+  }, [priorityEntries, pendingAddId]);
 
   // Refresh draft state on the poll interval, and tick the wall clock.
   useEffect(() => {
@@ -2735,11 +3003,13 @@ function DraftArena({ leagueId }: { leagueId: string }) {
   }, [goods, slice, deadline, now, myRemaining, refreshGoods]);
 
   // Opens the confirmation dialog for a pending pick, guarded to only when the
-  // Pokemon is a valid, unpicked, affordable choice on the user's turn. Memoized
-  // so the pool panel's action prop keeps a stable identity between clock ticks.
+  // draft is live and the Pokemon is a valid, unpicked, affordable choice on the
+  // user's turn. Memoized so the pool panel's action prop keeps a stable identity
+  // between clock ticks.
   const requestPick = useCallback(
     (pokemonId: string | null) => {
       if (!goods || busyPick || !pokemonId || !goods.isCurrentSeason) return;
+      if (goods.season?.status !== "draft_active") return;
       const row = goods.poolRows.find(
         (candidate) => candidate.pokemon_id === pokemonId,
       );
@@ -2766,14 +3036,25 @@ function DraftArena({ leagueId }: { leagueId: string }) {
     [goods, busyPick],
   );
 
+  // Opens the mobile round picker for a tapped pool Pokemon. The read-only
+  // history guard keeps a stale tap after switching seasons from opening a
+  // dialog whose save would be rejected anyway.
+  const requestPriorityAdd = useCallback(
+    (pokemonId: string) => {
+      if (!goods?.isCurrentSeason) return;
+      setPendingAddId(pokemonId);
+    },
+    [goods?.isCurrentSeason],
+  );
+
   /*
    * One stable action object for the memoized pool panel. Building it inline in
    * the JSX would give it a new identity on every render, which defeats memo and
    * puts the whole table back on the once-per-second arena clock.
    */
   const poolActions = useMemo<PoolActions>(
-    () => ({ onPick: requestPick }),
-    [requestPick],
+    () => ({ onPick: requestPick, onAddToPriority: requestPriorityAdd }),
+    [requestPick, requestPriorityAdd],
   );
 
   async function handlePick(pokemonId: string | null) {
@@ -3053,33 +3334,52 @@ function DraftArena({ leagueId }: { leagueId: string }) {
           </div>
         )}
 
-        {goods.isCurrentSeason && slice?.isMyTurn && !slice.isOver && (
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-500/40 bg-amber-500/10 px-5 py-4">
-            <div>
-              <p className="font-semibold text-amber-200">
-                You&apos;re on the clock!
-              </p>
-              <p className="mt-0.5 text-sm text-amber-200/70">
-                Pick a Pokémon from the pool, or use the bottom-right action to
-                adjust your priority list.
-              </p>
+        {/*
+         * Only a live draft can put someone on the clock. A pending season is
+         * a preview of the order, so the computed first pick must not read as
+         * an actionable turn.
+         */}
+        {goods.isCurrentSeason &&
+          goods.season?.status === "draft_active" &&
+          slice?.isMyTurn &&
+          !slice.isOver && (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-500/40 bg-amber-500/10 px-5 py-4">
+              <div>
+                <p className="font-semibold text-amber-200">
+                  You&apos;re on the clock!
+                </p>
+                <p className="mt-0.5 text-sm text-amber-200/70">
+                  Pick a Pokémon from the pool, or use the bottom-right action
+                  to adjust your priority list.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => void handlePick(null)}
+                disabled={busyPick}
+                className="rounded-xl border border-amber-500/50 px-4 py-2 text-sm font-bold text-amber-200 transition hover:bg-amber-500/15 disabled:opacity-40"
+              >
+                Pass
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={() => void handlePick(null)}
-              disabled={busyPick}
-              className="rounded-xl border border-amber-500/50 px-4 py-2 text-sm font-bold text-amber-200 transition hover:bg-amber-500/15 disabled:opacity-40"
-            >
-              Pass
-            </button>
-          </div>
-        )}
+          )}
 
         <PickBoard goods={goods} now={now} />
 
-        <div className="grid min-h-0 flex-1 gap-6 lg:grid-cols-[2.2fr_1fr]">
-          <PoolPanel goods={goods} actions={poolActions} />
-          <div className="lg:sticky lg:top-0 lg:max-h-screen">
+        {/*
+         * grid-cols-1 on mobile pins the single track to the viewport instead
+         * of letting the pool table's min-content width blow the track (and
+         * the page) wider than the screen. The table then scrolls inside its
+         * own panel rather than expanding the nav and every sibling panel.
+         */}
+        <div className="grid min-h-0 flex-1 grid-cols-1 gap-6 lg:grid-cols-[2.2fr_1fr]">
+          <PoolPanel goods={goods} actions={poolActions} isTouch={isTouch} />
+          {/*
+           * On phones the sidebar stacks under the draft board and above the
+           * pool, so the priority list stays close to the picks it plans; the
+           * grid's default order restores it to the right column on desktop.
+           */}
+          <div className="order-first w-full min-w-0 lg:order-none lg:sticky lg:top-0 lg:max-h-screen">
             {goods.isCurrentSeason ? (
               <PriorityPanel
                 goods={goods}
@@ -3087,6 +3387,7 @@ function DraftArena({ leagueId }: { leagueId: string }) {
                 entries={priorityEntries}
                 error={priorityError}
                 isSaving={isSaving}
+                isTouch={isTouch}
                 roundFlags={roundFlags}
                 actions={{
                   onAddToRound: (pokemonId, roundNumber) =>
@@ -3126,6 +3427,20 @@ function DraftArena({ leagueId }: { leagueId: string }) {
               // while the dialog held events back.
               flushDraftRealtime();
             }}
+          />
+        )}
+
+        {pendingAddRow && (
+          <RoundPicker
+            row={pendingAddRow}
+            totalRounds={goods.settings?.total_rounds ?? 1}
+            roundCounts={priorityRoundCounts}
+            existingRounds={pendingAddRounds}
+            onSelect={(round) => {
+              handleAddToPriority(pendingAddRow.pokemon_id, round);
+              setPendingAddId(null);
+            }}
+            onCancel={() => setPendingAddId(null)}
           />
         )}
       </div>

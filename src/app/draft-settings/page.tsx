@@ -52,9 +52,14 @@ function DraftSettingsPageContent() {
    */
   const [totalRounds, setTotalRounds] = useState("1");
   const [enableCosts, setEnableCosts] = useState(false);
-  const [totalTokenSalary, setTotalTokenSalary] = useState(100);
+  /**
+   * Raw input string, like total rounds, so the field can be emptied while
+   * typing; the numeric value is resolved when the form is saved.
+   */
+  const [totalTokenSalary, setTotalTokenSalary] = useState("100");
   const [allowPerTeamSalary, setAllowPerTeamSalary] = useState(false);
-  const [pickTimeLimit, setPickTimeLimit] = useState(5);
+  /** Raw input string, so the pick limit can also be cleared while typing. */
+  const [pickTimeLimit, setPickTimeLimit] = useState("5");
   const [autoPickOnTimeout, setAutoPickOnTimeout] = useState(false);
   const [skipPlayerOnTimeout, setSkipPlayerOnTimeout] = useState(false);
   const [quietHoursEnabled, setQuietHoursEnabled] = useState(false);
@@ -80,9 +85,9 @@ function DraftSettingsPageContent() {
     draftFormat: "snake",
     totalRounds: "1",
     enableCosts: false,
-    totalTokenSalary: 100,
+    totalTokenSalary: "100",
     allowPerTeamSalary: false,
-    pickTimeLimit: 5,
+    pickTimeLimit: "5",
     autoPickOnTimeout: false,
     skipPlayerOnTimeout: false,
     quietHoursEnabled: false,
@@ -171,9 +176,9 @@ function DraftSettingsPageContent() {
           draftFormat: settingsData.draft_format || "snake",
           totalRounds: String(settingsData.total_rounds || 1),
           enableCosts: Boolean(settingsData.enable_pokemon_costs),
-          totalTokenSalary: settingsData.total_token_salary ?? 100,
+          totalTokenSalary: String(settingsData.total_token_salary ?? 100),
           allowPerTeamSalary: Boolean(settingsData.allow_per_team_salary),
-          pickTimeLimit: settingsData.pick_time_limit_minutes || 5,
+          pickTimeLimit: String(settingsData.pick_time_limit_minutes || 5),
           autoPickOnTimeout: Boolean(settingsData.auto_pick_on_timeout),
           skipPlayerOnTimeout: Boolean(settingsData.skip_player_on_timeout),
           quietHoursEnabled: Boolean(settingsData.quiet_hours_enabled),
@@ -446,7 +451,7 @@ function DraftSettingsPageContent() {
                     min={0}
                     value={totalTokenSalary}
                     onChange={(event) => {
-                      setTotalTokenSalary(Number(event.target.value) || 0);
+                      setTotalTokenSalary(event.target.value);
                       setHasUnsavedChanges(true);
                     }}
                     className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-slate-100 outline-none transition focus:border-amber-400"
@@ -480,7 +485,7 @@ function DraftSettingsPageContent() {
                   min={1}
                   value={pickTimeLimit}
                   onChange={(event) => {
-                    setPickTimeLimit(Number(event.target.value) || 1);
+                    setPickTimeLimit(event.target.value);
                     setHasUnsavedChanges(true);
                   }}
                   className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-slate-100 outline-none transition focus:border-amber-400"

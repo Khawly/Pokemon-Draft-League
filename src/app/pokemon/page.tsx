@@ -964,7 +964,7 @@ function TransactionHistory({
   const timeZone = useUserTimeZone();
 
   return (
-    <aside className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-lg sm:p-6 shadow-slate-950/30">
+    <aside className="w-full min-w-0 rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-lg sm:p-6 shadow-slate-950/30">
       <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">
         Transaction history
       </p>
@@ -1232,18 +1232,6 @@ function PokemonPageContent({
     [typeCounts],
   );
 
-  /*
-   * Split the type chips into two even rows. The All chip is prepended to the
-   * first row so the type chips themselves stay balanced (9 + 9 for a full pool).
-   */
-  const typeRows = useMemo(() => {
-    const splitAt = Math.ceil(typeOptions.length / 2);
-    return [
-      typeOptions.slice(0, splitAt),
-      typeOptions.slice(splitAt),
-    ];
-  }, [typeOptions]);
-
   const filtered = useMemo(() => {
     if (!goods) {
       return [];
@@ -1365,7 +1353,7 @@ function PokemonPageContent({
 
     if (!defaultTeamId) {
       setError(
-        "No teams exist for this season yet. Teams are created when the draft starts.",
+        "No teams exist for this season yet. Players get an empty team when they join the league.",
       );
       return;
     }
@@ -1638,67 +1626,59 @@ function PokemonPageContent({
 
             {/*
              * Type chips mirror the draft page: they filter rather than sort,
-             * and each one carries how many free agents it would show. The
-             * selected chip is marked with the same amber ring the draft pool
-             * uses, so the two pages read as the same control. The chips are
-             * split into two even rows, with All leading the first.
+             * each one carries how many free agents it would show, and the
+             * selected chip uses the same inset amber ring. One wrapping row of
+             * intrinsically sized chips with no gaps packs as many filters per
+             * line as the width allows, so it needs the fewest rows possible
+             * without scrolling sideways.
              */}
-            <div className="flex flex-col gap-1.5">
-              {typeRows.map((row, rowIndex) => (
-                <div
-                  key={rowIndex}
-                  className="flex flex-wrap items-center gap-1.5"
+            <div className="flex w-full flex-wrap items-center gap-0">
+              <button
+                type="button"
+                onClick={() => {
+                  setTypeFilter(null);
+                  setPage(1);
+                }}
+                className={`rounded-full px-1.5 py-1 text-[11px] font-semibold transition sm:px-2.5 sm:text-xs ${
+                  typeFilter == null
+                    ? "bg-amber-500/15 text-amber-300"
+                    : "bg-slate-800 text-slate-400 hover:bg-slate-700"
+                }`}
+              >
+                All
+              </button>
+              {typeOptions.map(({ type, count }) => (
+                <button
+                  key={type}
+                  type="button"
+                  onClick={() => {
+                    setTypeFilter((current) =>
+                      current === type ? null : type,
+                    );
+                    setPage(1);
+                  }}
+                  title={`${count} ${type}-type Pokémon in the pool`}
+                  className={`rounded-full px-1.5 py-1 text-[11px] font-semibold transition sm:px-2.5 sm:text-xs ${
+                    TYPE_STYLES[type] ?? "bg-slate-700 text-slate-200"
+                  } ${
+                    typeFilter === type
+                      ? "ring-2 ring-inset ring-amber-400"
+                      : typeFilter == null
+                        ? "hover:brightness-110"
+                        : "opacity-50 hover:opacity-100"
+                  }`}
                 >
-                  {rowIndex === 0 && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setTypeFilter(null);
-                        setPage(1);
-                      }}
-                      className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
-                        typeFilter == null
-                          ? "bg-amber-500/15 text-amber-300"
-                          : "bg-slate-800 text-slate-400 hover:bg-slate-700"
+                  <span className="flex items-center justify-center gap-1 sm:gap-1.5">
+                    {type.charAt(0).toUpperCase() + type.slice(1)}
+                    <span
+                      className={`rounded-full bg-slate-900/70 px-1 text-[9px] font-bold tabular-nums sm:px-1.5 sm:text-[10px] ${
+                        count === 0 ? "text-slate-500" : "text-slate-300"
                       }`}
                     >
-                      All
-                    </button>
-                  )}
-                  {row.map(({ type, count }) => (
-                    <button
-                      key={type}
-                      type="button"
-                      onClick={() => {
-                        setTypeFilter((current) =>
-                          current === type ? null : type,
-                        );
-                        setPage(1);
-                      }}
-                      title={`${count} ${type}-type Pokémon in the pool`}
-                      className={`rounded-full px-2.5 py-1 text-xs font-semibold transition ${
-                        TYPE_STYLES[type] ?? "bg-slate-700 text-slate-200"
-                      } ${
-                        typeFilter === type
-                          ? "ring-2 ring-amber-400 ring-offset-2 ring-offset-slate-950"
-                          : typeFilter == null
-                            ? "hover:brightness-110"
-                            : "opacity-50 hover:opacity-100"
-                      }`}
-                    >
-                      <span className="flex items-center gap-1.5">
-                        {type.charAt(0).toUpperCase() + type.slice(1)}
-                        <span
-                          className={`rounded-full bg-slate-900/70 px-1.5 text-[10px] font-bold tabular-nums ${
-                            count === 0 ? "text-slate-500" : "text-slate-300"
-                          }`}
-                        >
-                          {count}
-                        </span>
-                      </span>
-                    </button>
-                  ))}
-                </div>
+                      {count}
+                    </span>
+                  </span>
+                </button>
               ))}
             </div>
           </div>
@@ -1728,8 +1708,15 @@ function PokemonPageContent({
           </div>
         )}
 
-        <section className="grid gap-6 xl:grid-cols-[1.5fr_0.9fr]">
-          <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-lg sm:p-6 shadow-slate-950/30">
+        {/*
+         * grid-cols-1 keeps the single mobile/tablet column pinned to the
+         * viewport instead of letting the free-agent table's min-content width
+         * blow the track out past the screen. On desktop the transaction
+         * history is deliberately narrow so the wide free-agent table gets the
+         * rest of the row and fits without an internal horizontal scrollbar.
+         */}
+        <section className="grid grid-cols-1 gap-6 xl:grid-cols-[2.6fr_0.7fr]">
+          <div className="w-full min-w-0 rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-lg sm:p-6 shadow-slate-950/30">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">

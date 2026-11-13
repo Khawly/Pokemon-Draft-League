@@ -167,15 +167,29 @@ describe("resolveQuietHours", () => {
 
   it("relabels the window into the reader's zone", () => {
     /*
-     * Stored as 20:00-09:00 in UTC, which is a 9am-10pm window in New York. The
-     * label has to follow the reader or the board tells them the wrong hours.
+     * Stored as 20:00-09:00 in UTC, which is 4pm-5am in New York in summer and
+     * 3pm-4am in winter. The label has to follow the reader's offset at the
+     * instant being rendered, not the machine's current date.
      */
-    const window = resolveQuietHours(
-      makeGoods({ enabled: true, start: "20:00", end: "09:00", timeZone: "UTC" }),
+    const goods = makeGoods({
+      enabled: true,
+      start: "20:00",
+      end: "09:00",
+      timeZone: "UTC",
+    });
+    const summer = resolveQuietHours(
+      goods,
       "America/New_York",
+      new Date("2026-07-15T12:00:00Z"),
+    );
+    const winter = resolveQuietHours(
+      goods,
+      "America/New_York",
+      new Date("2026-01-15T12:00:00Z"),
     );
 
-    expect(window.label).toBe("4:00 PM – 5:00 AM");
+    expect(summer.label).toBe("4:00 PM – 5:00 AM");
+    expect(winter.label).toBe("3:00 PM – 4:00 AM");
   });
 
   it("decides activeNow in the stored zone, not the reader's", () => {

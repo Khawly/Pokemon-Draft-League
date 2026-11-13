@@ -162,9 +162,13 @@ describe("timeZoneAcronym", () => {
   });
 
   it("leaves whole hours unpadded", () => {
-    expect(timeZoneAcronym(NEW_YORK)).toBe("GMT-4");
-    expect(timeZoneAcronym(LONDON)).toBe("GMT+1");
-    expect(timeZoneAcronym(TOKYO)).toBe("GMT+9");
+    // Pin the instant: New York and London switch offsets across the year, so
+    // an unqualified call would only pass for half of it.
+    const summer = new Date("2026-07-15T12:00:00Z");
+
+    expect(timeZoneAcronym(NEW_YORK, summer)).toBe("GMT-4");
+    expect(timeZoneAcronym(LONDON, summer)).toBe("GMT+1");
+    expect(timeZoneAcronym(TOKYO, summer)).toBe("GMT+9");
   });
 
   it("keeps the minutes for a half-hour zone", () => {
@@ -173,8 +177,14 @@ describe("timeZoneAcronym", () => {
 
   it("reflects daylight saving, so the same zone can read either way", () => {
     // January and July are on opposite sides of the New York transition.
-    const winter = timeZoneAcronymAt("2026-01-15T12:00:00Z", NEW_YORK);
-    const summer = timeZoneAcronymAt("2026-07-15T12:00:00Z", NEW_YORK);
+    const winter = timeZoneAcronym(
+      NEW_YORK,
+      new Date("2026-01-15T12:00:00Z"),
+    );
+    const summer = timeZoneAcronym(
+      NEW_YORK,
+      new Date("2026-07-15T12:00:00Z"),
+    );
 
     expect(winter).toBe("GMT-5");
     expect(summer).toBe("GMT-4");
@@ -184,36 +194,6 @@ describe("timeZoneAcronym", () => {
     expect(timeZoneAcronym("Not/AZone")).toBe("");
   });
 });
-
-/**
- * Reads an acronym at a specific instant.
- *
- * `timeZoneAcronym` reports the offset in effect now, which is right for a label
- * next to a live clock but untestable across a transition. This re-implements the
- * same arithmetic against a chosen instant so the transition can be checked.
- *
- * @param instantIso - The instant to read the offset at.
- * @param zone - IANA time zone to describe.
- * @returns The acronym at that instant.
- */
-function timeZoneAcronymAt(instantIso: string, zone: string): string {
-  const parts = toZonedParts(new Date(instantIso), zone);
-  const wallClock = Date.UTC(
-    Number(parts?.date.slice(0, 4)),
-    Number(parts?.date.slice(5, 7)) - 1,
-    Number(parts?.date.slice(8, 10)),
-    Number(parts?.time.slice(0, 2)),
-    Number(parts?.time.slice(3, 5)),
-  );
-  const offsetMinutes = (wallClock - new Date(instantIso).getTime()) / 60_000;
-  const sign = offsetMinutes < 0 ? "-" : "+";
-  const hours = Math.floor(Math.abs(offsetMinutes) / 60);
-  const minutes = Math.abs(offsetMinutes) % 60;
-
-  return minutes === 0
-    ? `GMT${sign}${hours}`
-    : `GMT${sign}${hours}:${String(minutes).padStart(2, "0")}`;
-}
 
 describe("timeZoneOffsetLabel", () => {
   it("reports a padded UTC offset", () => {

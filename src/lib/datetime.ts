@@ -514,7 +514,7 @@ export function timeZoneOffsetLabel(timeZone: string): string {
 }
 
 /**
- * Describes a time zone by the GMT offset it is on right now, e.g. `GMT+1`,
+ * Describes a time zone by its GMT offset at a given instant, e.g. `GMT+1`,
  * `GMT+5:30`, or plain `GMT` for zero.
  *
  * This is the acronym people actually recognise on a clock, and it is computed
@@ -524,17 +524,23 @@ export function timeZoneOffsetLabel(timeZone: string): string {
  * would mix two formats, and the `shortGMT` option many runtimes support is
  * rejected outright by others.
  *
- * The offset is the one in effect now, so a zone that observes daylight saving
- * reads `GMT+1` in summer and `GMT` in winter.
+ * The offset defaults to the one in effect now, so a zone that observes
+ * daylight saving reads `GMT+1` in summer and `GMT` in winter. Pass `at` to
+ * pin the answer to a specific instant, which is what makes the daylight
+ * saving transition testable.
  *
  * @param timeZone - IANA time zone to describe.
+ * @param at - Instant to read the offset at. Defaults to the current time.
  * @returns The acronym, or an empty string when the zone is unknown.
  */
-export function timeZoneAcronym(timeZone: string): string {
+export function timeZoneAcronym(
+  timeZone: string,
+  at: Date = new Date(),
+): string {
   let offset: number;
 
   try {
-    offset = zoneOffsetMs(new Date(), timeZone);
+    offset = zoneOffsetMs(at, timeZone);
   } catch {
     return "";
   }

@@ -88,6 +88,12 @@ export type TradeTeam = {
    * a rename leaves the old name in here forever, so `owner_name` is the authority.
    */
   team_name: string;
+  /**
+   * True when the owner is no longer an active league member. The team remains
+   * because it still holds a roster and draft slot, but every dropdown and card
+   * names it "No User".
+   */
+  is_vacant: boolean;
   /** The owner's live display name, which is how the member is addressed. */
   owner_name: string | null;
   owner_avatar_url: string | null;
@@ -459,6 +465,8 @@ export async function loadTradesPageData(
   const userRole =
     members.find((member) => member.user_id === user.id)?.role ?? null;
 
+  const activeMemberIds = new Set(members.map((member) => member.user_id));
+
   const teamIds = ((teamResult.data ?? []) as { id: string }[]).map(
     (row) => row.id,
   );
@@ -519,17 +527,26 @@ export async function loadTradesPageData(
         name_color?: string | null;
       } | null;
     }[]
-  ).map((row) => ({
-    id: row.id,
-    owner_user_id: row.owner_user_id,
-    team_name: row.team_name,
-    owner_name: row.profiles?.display_name ?? null,
-    owner_avatar_url: row.profiles?.avatar_url ?? null,
-    owner_name_color: row.profiles?.name_color ?? null,
-    draft_position: row.draft_position,
-    total_salary_override: row.total_salary_override,
-    roster: sortByTier(rosterByTeam.get(row.id) ?? []),
-  }));
+  ).map((row) => {
+    const isVacant = !activeMemberIds.has(row.owner_user_id);
+
+    return {
+      id: row.id,
+      owner_user_id: row.owner_user_id,
+      team_name: row.team_name,
+      is_vacant: isVacant,
+      owner_name: isVacant
+        ? "No User"
+        : (row.profiles?.display_name ?? null),
+      owner_avatar_url: isVacant ? null : (row.profiles?.avatar_url ?? null),
+      owner_name_color: isVacant
+        ? null
+        : (row.profiles?.name_color ?? null),
+      draft_position: row.draft_position,
+      total_salary_override: row.total_salary_override,
+      roster: sortByTier(rosterByTeam.get(row.id) ?? []),
+    };
+  });
 
   const myTeam = teams.find((team) => team.owner_user_id === user.id) ?? null;
 

@@ -1389,11 +1389,18 @@ function SchedulePageContent({
     }
 
     try {
+      const vacantTeamIds = new Set(
+        (goodsRef.current?.teams ?? [])
+          .filter((team) => team.is_vacant)
+          .map((team) => team.id),
+      );
+
       const matches = await loadScheduleMatches(
         leagueId,
         seasonId,
         goodsRef.current?.ownerDisplayName ?? null,
         goodsRef.current?.currentUserId ?? "",
+        vacantTeamIds,
       );
 
       const standingsMoved = movesStandings(
@@ -1643,12 +1650,17 @@ function SchedulePageContent({
    * {@link teamLabel}. Standings rows only carry a team id, and passing the owner's
    * id to `MemberName` lets the champion crown match exactly instead of by name.
    *
+   * A vacated team returns null: the row now names "No User", and its old
+   * owner's champion crown must not follow the placeholder.
+   *
    * @param teamId - The team whose owner's member id is wanted.
-   * @returns The owner's user id, or null when the team is not in the payload.
+   * @returns The owner's user id, or null when the team is missing or vacant.
    */
   const teamOwnerId = useCallback(
-    (teamId: string) =>
-      goods?.teams.find((entry) => entry.id === teamId)?.owner_user_id ?? null,
+    (teamId: string) => {
+      const team = goods?.teams.find((entry) => entry.id === teamId);
+      return team && !team.is_vacant ? team.owner_user_id : null;
+    },
     [goods?.teams],
   );
 

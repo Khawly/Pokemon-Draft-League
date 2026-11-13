@@ -67,22 +67,6 @@ type SalaryEditRow = {
   editor_color: string | null;
 };
 
-/** One weekly allowance credit, enriched with the member's display name. */
-type WeeklyAllowanceRow = {
-  id: string;
-  /** The member credited. */
-  user_id: string;
-  /** The week that closed. */
-  week_number: number;
-  /** Tokens awarded, currently always one. */
-  amount: number;
-  /** What closed the week: the deadline or the last match. */
-  trigger_source: "deadline" | "week_complete";
-  created_at: string;
-  member_name: string | null;
-  member_color: string | null;
-};
-
 /**
  * Loads one season's salary edit history, newest first.
  *
@@ -158,69 +142,6 @@ async function loadSalaryEditHistory(
 }
 
 /**
- * Loads one season's weekly allowance awards, newest first.
- *
- * @param leagueId - League whose awards to read.
- * @param seasonId - Season whose awards to read.
- * @returns The awards with the credited member's name and colour attached.
- */
-async function loadWeeklyAllowanceHistory(
-  leagueId: string,
-  seasonId: string,
-): Promise<WeeklyAllowanceRow[]> {
-  const { data, error } = await supabase
-    .from("weekly_allowance_awards")
-    .select("id, user_id, week_number, amount, trigger_source, created_at")
-    .eq("league_id", leagueId)
-    .eq("season_id", seasonId)
-    .order("created_at", { ascending: false })
-    .limit(100);
-
-  if (error || !data) {
-    return [];
-  }
-
-  const awards = data as {
-    id: string;
-    user_id: string;
-    week_number: number;
-    amount: number;
-    trigger_source: "deadline" | "week_complete";
-    created_at: string;
-  }[];
-
-  const userIds = [...new Set(awards.map((award) => award.user_id))];
-  const profileById = new Map<
-    string,
-    { display_name: string | null; name_color: string | null }
-  >();
-
-  if (userIds.length > 0) {
-    const { data: profileRows } = await supabase
-      .from("profiles")
-      .select("id, display_name, name_color")
-      .in("id", userIds);
-
-    for (const profile of (profileRows ?? []) as {
-      id: string;
-      display_name: string | null;
-      name_color: string | null;
-    }[]) {
-      profileById.set(profile.id, {
-        display_name: profile.display_name,
-        name_color: profile.name_color,
-      });
-    }
-  }
-
-  return awards.map((award) => ({
-    ...award,
-    member_name: profileById.get(award.user_id)?.display_name ?? null,
-    member_color: profileById.get(award.user_id)?.name_color ?? null,
-  }));
-}
-
-/**
  * Members settings page that suspends rendering until the client-only
  * content component has been resolved.
  */
@@ -254,10 +175,6 @@ function MembersSettingsPageContent() {
   const [members, setMembers] = useState<MemberRow[]>([]);
   /** The selected season's recorded total-token-salary changes, newest first. */
   const [salaryHistory, setSalaryHistory] = useState<SalaryEditRow[]>([]);
-  /** The selected season's weekly allowance credits, newest first. */
-  const [allowanceHistory, setAllowanceHistory] = useState<
-    WeeklyAllowanceRow[]
-  >([]);
   /**
    * The salary each member had when the page last loaded or saved, keyed by
    * user id. Compared against the editable row to show the previous value while
@@ -453,12 +370,9 @@ function MembersSettingsPageContent() {
           ),
         );
 
-        const [salaryEdits, allowanceAwards] = await Promise.all([
-          loadSalaryEditHistory(league.id, seasonData.id),
-          loadWeeklyAllowanceHistory(league.id, seasonData.id),
-        ]);
-        setSalaryHistory(salaryEdits);
-        setAllowanceHistory(allowanceAwards);
+        setSalaryHistory(
+          await loadSalaryEditHistory(league.id, seasonData.id),
+        );
 
         const userRole =
           normalizedMembers.find((member) => member.user_id === user.id)
@@ -1243,69 +1157,6 @@ function MembersSettingsPageContent() {
           )}
         </section>
 
-        <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-lg sm:p-6 shadow-slate-950/30">
-          <div>
-            <h2 className="text-xl font-bold text-white">
-              Weekly allowance history
-            </h2>
-            <p className="mt-1 text-sm text-slate-400">
-              Tokens credited when a week closed
-              {season ? ` in ${formatSeasonLabel(season)}` : ""}, newest first.
-            </p>
-          </div>
-
-          {allowanceHistory.length === 0 ? (
-            <p className="mt-4 rounded-xl border border-slate-800 bg-slate-950/50 px-4 py-3 text-sm text-slate-400">
-              No weekly allowances have been awarded for this season yet.
-            </p>
-          ) : (
-            <div className="mt-4 overflow-x-auto">
-              <table className="min-w-full text-left text-sm">
-                <thead>
-                  <tr className="border-b border-slate-800 text-xs uppercase tracking-wider text-slate-500">
-                    <th className="px-3 py-2 font-medium">Member</th>
-                    <th className="px-3 py-2 font-medium">Week</th>
-                    <th className="px-3 py-2 font-medium">Allowance</th>
-                    <th className="px-3 py-2 font-medium">Closed by</th>
-                    <th className="px-3 py-2 font-medium">When</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {allowanceHistory.map((award) => (
-                    <tr
-                      key={award.id}
-                      className="border-b border-slate-800/80 text-slate-200"
-                    >
-                      <td className="px-3 py-3">
-                        <MemberName
-                          name={award.member_name ?? "Member"}
-                          color={award.member_color}
-                          fallback="Member"
-                          className="font-medium text-white"
-                        />
-                      </td>
-                      <td className="px-3 py-3 text-slate-300">
-                        Week {award.week_number}
-                      </td>
-                      <td className="px-3 py-3 font-semibold text-emerald-300">
-                        +{award.amount}{" "}
-                        {award.amount === 1 ? "token" : "tokens"}
-                      </td>
-                      <td className="px-3 py-3 text-slate-400">
-                        {award.trigger_source === "deadline"
-                          ? "Weekly deadline"
-                          : "Week finished"}
-                      </td>
-                      <td className="px-3 py-3 text-slate-400">
-                        {formatDateTimeInZone(award.created_at, timeZone)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </section>
       </div>
 
       {confirmDialog}

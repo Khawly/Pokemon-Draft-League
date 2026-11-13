@@ -297,6 +297,16 @@ function DashboardPageContent() {
     loadLeagueRef.current = loadLeague;
 
     async function loadSession() {
+      /*
+       * This effect re-runs when the league in the URL changes, because the
+       * shell's league picker always lands back on the dashboard. Putting the
+       * flag up first means the previous league's data is replaced by the
+       * app's loading animation straight away instead of staying on screen
+       * until the new payload lands, which made a switch look like it did
+       * nothing.
+       */
+      setIsLoading(true);
+
       const {
         data: { session },
       } = await supabase.auth.getSession();

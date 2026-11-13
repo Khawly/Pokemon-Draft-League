@@ -2,10 +2,10 @@
  * Main dashboard shell displayed after a user selects a league.
  *
  * Renders the league header (which carries an image-only strip of the signed-in
- * member's roster), notifications, schedule, upcoming matches, standings, and
- * the league rules. Every value comes from the dashboard payload loaded by the
- * page; each panel degrades to an explicit empty state when the league has no
- * data for it yet.
+ * member's roster), notifications, schedule, upcoming matches, standings, the
+ * league rules, and -- before the draft -- the owner's preparation panel. Every
+ * value comes from the dashboard payload loaded by the page; each panel
+ * degrades to an explicit empty state when the league has no data for it yet.
  *
  * Every member name here goes through MemberName, so a member's chosen name
  * colour follows them into the header, the schedule, the matchup cards, and the
@@ -20,6 +20,7 @@ import { getSpriteUrl } from "@/lib/pokeapi";
 import { MemberName } from "@/components/member-name";
 import { MemberAvatar } from "@/components/member-avatar";
 import { MatchPredictionButton } from "@/components/match-prediction-buttons";
+import { PreDraftPanel } from "@/components/pre-draft-panel";
 import { routeFor } from "@/lib/league-routes";
 import { predictionIsOpen } from "@/lib/predictions";
 import {
@@ -176,43 +177,47 @@ interface RosterStripProps {
  * A rostered Pokemon with no sprite (a token movement) falls back to the same
  * "?" tile the roster panel uses rather than a broken image.
  *
+ * Renders nothing at all while the roster is empty: the header has no team to
+ * show before the draft, and a labelled "My team" heading above an empty-state
+ * sentence read as a broken panel rather than a league that had not drafted yet.
+ *
  * @param props - {@link RosterStripProps}
- * @returns A labelled row of roster sprites, or an empty-state line.
+ * @returns A labelled row of roster sprites, or null when nothing is rostered.
  */
 function RosterStrip({ roster }: RosterStripProps) {
+  if (roster.length === 0) {
+    return null;
+  }
+
   return (
     <div className="flex flex-col gap-2">
       <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
         My team
       </p>
 
-      {roster.length === 0 ? (
-        <p className="text-sm text-slate-500">No Pokémon rostered yet.</p>
-      ) : (
-        <ul className="flex flex-wrap items-center gap-2">
-          {roster.map((pokemon) => (
-            <li
-              key={pokemon.id}
-              className="relative flex h-[88px] w-[88px] items-center justify-center overflow-hidden rounded-full border-2 border-slate-900 shadow-md shadow-slate-950/50"
-            >
-              {pokemon.spriteId > 0 ? (
-                <img
-                  src={getSpriteUrl(pokemon.spriteId)}
-                  alt={pokemon.name}
-                  width={64}
-                  height={64}
-                  loading="lazy"
-                  className="relative h-16 w-16 object-contain"
-                />
-              ) : (
-                <span className="relative flex h-16 w-16 items-center justify-center rounded-full bg-slate-700 text-base text-slate-400">
-                  ?
-                </span>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
+      <ul className="flex flex-wrap items-center gap-2">
+        {roster.map((pokemon) => (
+          <li
+            key={pokemon.id}
+            className="relative flex h-[88px] w-[88px] items-center justify-center overflow-hidden rounded-full border-2 border-slate-900 shadow-md shadow-slate-950/50"
+          >
+            {pokemon.spriteId > 0 ? (
+              <img
+                src={getSpriteUrl(pokemon.spriteId)}
+                alt={pokemon.name}
+                width={64}
+                height={64}
+                loading="lazy"
+                className="relative h-16 w-16 object-contain"
+              />
+            ) : (
+              <span className="relative flex h-16 w-16 items-center justify-center rounded-full bg-slate-700 text-base text-slate-400">
+                ?
+              </span>
+            )}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
@@ -448,10 +453,14 @@ export function DashboardShell({
 
   /*
    * The owner's member id for a standings row, so the champion crown can match on
-   * the exact id rather than relying on the display-name fallback.
+   * the exact id rather than relying on the display-name fallback. A vacated
+   * team deliberately returns null: the crown belongs to the member, and the row
+   * now names "No User".
    */
-  const teamOwnerId = (teamId: string) =>
-    goods.teams.find((entry) => entry.id === teamId)?.owner_user_id ?? null;
+  const teamOwnerId = (teamId: string) => {
+    const team = goods.teams.find((entry) => entry.id === teamId);
+    return team && !team.is_vacant ? team.owner_user_id : null;
+  };
 
   const matchFormatLabel =
     goods.matchFormat === "single" ? "Single game" : "Best of 3";
@@ -965,6 +974,19 @@ export function DashboardShell({
           </section>
         </>
       )}
+
+      {/*
+        Owner-only setup guide, shown while the draft is still pending. It sits
+        directly above the draft preview because that preview is the only other
+        thing on the page before a draft, and these are the tasks that make the
+        preview worth opening. Once the draft starts this disappears: the
+        settings and pool remain in the nav's gear menu and on the Draft Board.
+      */}
+      {goods.isOwner &&
+        isCurrentSeason &&
+        goods.season?.status === "draft_pending" && (
+          <PreDraftPanel leagueId={goods.leagueId} seasonId={goods.season.id} />
+        )}
 
       {/*
         Preseason: the draft has not started, so offer a look at the board and the

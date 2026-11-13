@@ -115,6 +115,12 @@ export type DashboardTeam = {
   id: string;
   team_name: string;
   owner_user_id: string;
+  /**
+   * True when the owner is no longer an active league member. The team row is
+   * kept for its draft position, roster and match history, but every surface
+   * that names its owner must show "No User" instead.
+   */
+  is_vacant: boolean;
 /** The owner's live display name, which is what the UI labels them with. */
   owner_name: string | null;
   owner_avatar_url: string | null;
@@ -578,8 +584,14 @@ export async function loadDashboardData(
     }),
   ]);
 
-  const [matchResult, predictionResult, rulesResult, leagueResult, crownResult] =
-    await Promise.all([
+  const [
+    matchResult,
+    predictionResult,
+    rulesResult,
+    leagueResult,
+    crownResult,
+    membersResult,
+  ] = await Promise.all([
       supabase
         .from("matches")
         .select(
@@ -627,6 +639,16 @@ export async function loadDashboardData(
         p_league_id: leagueId,
         p_season_id: season.id,
       }),
+      /*
+       * Active members, so a team whose owner has left can be named "No User"
+       * rather than showing the name snapshot it carried when the draft started.
+       * A failed read leaves every team labelled as it was before.
+       */
+      supabase
+        .from("league_members")
+        .select("user_id")
+        .eq("league_id", leagueId)
+        .eq("is_active", true),
     ]);
 
   const settings = settingsResult.data as {
@@ -651,6 +673,14 @@ export async function loadDashboardData(
     ? { content: rulesRow.content, updatedAt: rulesRow.updated_at }
     : null;
 
+  const activeMemberIds = membersResult.error
+    ? null
+    : new Set(
+        ((membersResult.data ?? []) as { user_id: string }[]).map(
+          (member) => member.user_id,
+        ),
+      );
+
   const teams = ((teamResult.data ?? []) as {
     id: string;
     team_name: string;
@@ -661,15 +691,29 @@ export async function loadDashboardData(
       name_color?: string | null;
       avatar_initials?: string | null;
     } | null;
-  }[]).map<DashboardTeam>((row) => ({
-    id: row.id,
-    team_name: row.team_name,
-    owner_user_id: row.owner_user_id,
-    owner_name: row.profiles?.display_name ?? null,
-    owner_avatar_url: row.profiles?.avatar_url ?? null,
-    owner_name_color: row.profiles?.name_color ?? null,
-    owner_avatar_initials: row.profiles?.avatar_initials ?? null,
-  }));
+  }[]).map<DashboardTeam>((row) => {
+    const isVacant =
+      activeMemberIds !== null && !activeMemberIds.has(row.owner_user_id);
+
+    return {
+      id: row.id,
+      team_name: row.team_name,
+      owner_user_id: row.owner_user_id,
+      is_vacant: isVacant,
+      owner_name: isVacant
+        ? "No User"
+        : (row.profiles?.display_name ?? null),
+      owner_avatar_url: isVacant ? null : (row.profiles?.avatar_url ?? null),
+      owner_name_color: isVacant ? null : (row.profiles?.name_color ?? null),
+      owner_avatar_initials: isVacant
+        ? null
+        : (row.profiles?.avatar_initials ?? null),
+    };
+  });
+
+  const vacantTeamIds = new Set(
+    teams.filter((team) => team.is_vacant).map((team) => team.id),
+  );
 
   const teamIds = teams.map((team) => team.id);
   const myTeam = teams.find((team) => team.owner_user_id === userId) ?? null;
@@ -729,33 +773,68 @@ export async function loadDashboardData(
         avatar_initials?: string | null;
       } | null;
     } | null;
-  }[]).map<DashboardMatch>((row) => ({
-    id: row.id,
-    week_number: row.week_number,
-    is_playoff: row.is_playoff,
-    scheduled_at: row.scheduled_at,
-    status: row.status,
-    player_1_team_id: row.player_1_team_id,
-    player_2_team_id: row.player_2_team_id,
-    // The owner's live display name; `team_name` is only a draft-time snapshot.
-    player_1_name: row.player_1?.owner?.display_name ?? row.player_1?.team_name ?? "Team 1",
-    player_2_name: row.player_2?.owner?.display_name ?? row.player_2?.team_name ?? "Team 2",
-    player_1_avatar_url: row.player_1?.owner?.avatar_url ?? null,
-    player_2_avatar_url: row.player_2?.owner?.avatar_url ?? null,
-    player_1_name_color: row.player_1?.owner?.name_color ?? null,
-    player_2_name_color: row.player_2?.owner?.name_color ?? null,
-    player_1_showdown_username:
-      row.player_1?.owner?.pokemon_showdown_username ?? null,
-    player_2_showdown_username:
-      row.player_2?.owner?.pokemon_showdown_username ?? null,
-    player_1_avatar_initials: row.player_1?.owner?.avatar_initials ?? null,
-    player_2_avatar_initials: row.player_2?.owner?.avatar_initials ?? null,
-    player_1_user_id: row.player_1?.owner_user_id ?? null,
-    player_2_user_id: row.player_2?.owner_user_id ?? null,
-    results: row.results ?? [],
-    my_prediction_team_id: predictionsByMatch.get(row.id) ?? null,
-    prediction_counts: predictionCountsByMatch.get(row.id) ?? {},
-  }));
+  }[]).map<DashboardMatch>((row) => {
+    const player1Vacant = vacantTeamIds.has(row.player_1_team_id);
+    const player2Vacant = vacantTeamIds.has(row.player_2_team_id);
+
+    return {
+      id: row.id,
+      week_number: row.week_number,
+      is_playoff: row.is_playoff,
+      scheduled_at: row.scheduled_at,
+      status: row.status,
+      player_1_team_id: row.player_1_team_id,
+      player_2_team_id: row.player_2_team_id,
+      /*
+       * The owner's live display name; `team_name` is only a draft-time
+       * snapshot. A team whose owner has left has no member to name, so it is
+       * shown as "No User" rather than under the departed member's old name.
+       */
+      player_1_name: player1Vacant
+        ? "No User"
+        : (row.player_1?.owner?.display_name ??
+          row.player_1?.team_name ??
+          "Team 1"),
+      player_2_name: player2Vacant
+        ? "No User"
+        : (row.player_2?.owner?.display_name ??
+          row.player_2?.team_name ??
+          "Team 2"),
+      player_1_avatar_url: player1Vacant
+        ? null
+        : (row.player_1?.owner?.avatar_url ?? null),
+      player_2_avatar_url: player2Vacant
+        ? null
+        : (row.player_2?.owner?.avatar_url ?? null),
+      player_1_name_color: player1Vacant
+        ? null
+        : (row.player_1?.owner?.name_color ?? null),
+      player_2_name_color: player2Vacant
+        ? null
+        : (row.player_2?.owner?.name_color ?? null),
+      player_1_showdown_username: player1Vacant
+        ? null
+        : (row.player_1?.owner?.pokemon_showdown_username ?? null),
+      player_2_showdown_username: player2Vacant
+        ? null
+        : (row.player_2?.owner?.pokemon_showdown_username ?? null),
+      player_1_avatar_initials: player1Vacant
+        ? null
+        : (row.player_1?.owner?.avatar_initials ?? null),
+      player_2_avatar_initials: player2Vacant
+        ? null
+        : (row.player_2?.owner?.avatar_initials ?? null),
+      player_1_user_id: player1Vacant
+        ? null
+        : (row.player_1?.owner_user_id ?? null),
+      player_2_user_id: player2Vacant
+        ? null
+        : (row.player_2?.owner_user_id ?? null),
+      results: row.results ?? [],
+      my_prediction_team_id: predictionsByMatch.get(row.id) ?? null,
+      prediction_counts: predictionCountsByMatch.get(row.id) ?? {},
+    };
+  });
 
 
   const standings = ((standingsResult.data ?? []) as {

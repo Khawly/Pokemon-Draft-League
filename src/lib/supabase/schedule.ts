@@ -63,6 +63,12 @@ export type ScheduleTeam = {
   id: string;
   owner_user_id: string;
   team_name: string;
+  /**
+   * True when the owner is no longer an active league member. The team itself
+   * remains because its draft position, roster and results depend on it, but
+   * every surface that names the owner shows "No User".
+   */
+  is_vacant: boolean;
   owner_name: string | null;
   owner_avatar_url: string | null;
   /** The owner's stored name colour, passed through raw for render-time normalization. */
@@ -644,6 +650,9 @@ function toStandingsRows(data: unknown): StandingsRow[] {
  *   owner's profile and does not change while the page is open.
  * @param userId - The signed-in member, whose winner picks are attached to the matches.
  *   Every member's pick also feeds the per-side prediction counts.
+ * @param vacantTeamIds - Teams whose owner has left the league. Their names are
+ *   replaced with "No User" and their avatars are dropped. Empty when the caller
+ *   has not resolved membership.
  * @returns The season's matches, ordered by week then creation.
  * @throws If the read fails.
  */
@@ -652,6 +661,7 @@ export async function loadScheduleMatches(
   seasonId: string,
   ownerDisplayName: string | null,
   userId: string,
+  vacantTeamIds: ReadonlySet<string> = new Set(),
 ): Promise<ScheduleMatch[]> {
   const [matchResult, predictionResult] = await Promise.all([
     supabase
@@ -730,6 +740,11 @@ export async function loadScheduleMatches(
           (proposal) => proposal.status === "pending",
         ) ?? null;
 
+      const player1Vacant = vacantTeamIds.has(row.player_1_team_id);
+      const player2Vacant =
+        row.player_2_team_id != null &&
+        vacantTeamIds.has(row.player_2_team_id);
+
       return {
         id: row.id,
         week_number: row.week_number,
@@ -751,26 +766,48 @@ export async function loadScheduleMatches(
          * name the member had before they changed it, next to their up-to-date avatar. The
          * team name is kept as the fallback for a profile with no display name set.
          */
-        player_1_name:
-          row.player_1?.owner?.display_name ?? row.player_1?.team_name ?? "Team 1",
-        player_2_name:
-          row.player_2?.owner?.display_name ??
-          row.player_2?.team_name ??
-          // A one-sided playoff game is a bye: the opponent dropped out by double
-          // forfeit, so there is no team here to name.
-          (row.player_2_team_id ? "Team 2" : "Bye"),
-        player_1_name_color: row.player_1?.owner?.name_color ?? null,
-        player_2_name_color: row.player_2?.owner?.name_color ?? null,
-        player_1_showdown_username:
-          row.player_1?.owner?.pokemon_showdown_username ?? null,
-        player_2_showdown_username:
-          row.player_2?.owner?.pokemon_showdown_username ?? null,
-        player_1_avatar_url: row.player_1?.owner?.avatar_url ?? null,
-        player_2_avatar_url: row.player_2?.owner?.avatar_url ?? null,
-        player_1_avatar_initials: row.player_1?.owner?.avatar_initials ?? null,
-        player_2_avatar_initials: row.player_2?.owner?.avatar_initials ?? null,
-        player_1_user_id: row.player_1?.owner_user_id ?? "",
-        player_2_user_id: row.player_2?.owner_user_id ?? "",
+        player_1_name: player1Vacant
+          ? "No User"
+          : (row.player_1?.owner?.display_name ??
+            row.player_1?.team_name ??
+            "Team 1"),
+        player_2_name: player2Vacant
+          ? "No User"
+          : (row.player_2?.owner?.display_name ??
+            row.player_2?.team_name ??
+            // A one-sided playoff game is a bye: the opponent dropped out by
+            // double forfeit, so there is no team here to name.
+            (row.player_2_team_id ? "Team 2" : "Bye")),
+        player_1_name_color: player1Vacant
+          ? null
+          : (row.player_1?.owner?.name_color ?? null),
+        player_2_name_color: player2Vacant
+          ? null
+          : (row.player_2?.owner?.name_color ?? null),
+        player_1_showdown_username: player1Vacant
+          ? null
+          : (row.player_1?.owner?.pokemon_showdown_username ?? null),
+        player_2_showdown_username: player2Vacant
+          ? null
+          : (row.player_2?.owner?.pokemon_showdown_username ?? null),
+        player_1_avatar_url: player1Vacant
+          ? null
+          : (row.player_1?.owner?.avatar_url ?? null),
+        player_2_avatar_url: player2Vacant
+          ? null
+          : (row.player_2?.owner?.avatar_url ?? null),
+        player_1_avatar_initials: player1Vacant
+          ? null
+          : (row.player_1?.owner?.avatar_initials ?? null),
+        player_2_avatar_initials: player2Vacant
+          ? null
+          : (row.player_2?.owner?.avatar_initials ?? null),
+        player_1_user_id: player1Vacant
+          ? ""
+          : (row.player_1?.owner_user_id ?? ""),
+        player_2_user_id: player2Vacant
+          ? ""
+          : (row.player_2?.owner_user_id ?? ""),
         results,
         // A forfeit with no recorded filer is attributed to the league owner.
         forfeited_by_name: row.forfeited_by?.display_name ?? ownerDisplayName,
@@ -1117,6 +1154,13 @@ export async function loadSchedulePageData(
       }
     : null;
 
+  const members = ((memberResult.data ?? []) as {
+    user_id: string;
+    role: "owner" | "admin" | "member";
+  }[]) ?? [];
+
+  const activeMemberIds = new Set(members.map((member) => member.user_id));
+
   const teams = ((teamResult.data ?? []) as {
     id: string;
     owner_user_id: string;
@@ -1127,22 +1171,30 @@ export async function loadSchedulePageData(
       name_color?: string | null;
       avatar_initials?: string | null;
     } | null;
-  }[]).map(
-    (row): ScheduleTeam => ({
+  }[]).map((row): ScheduleTeam => {
+    const isVacant = !activeMemberIds.has(row.owner_user_id);
+
+    return {
       id: row.id,
       owner_user_id: row.owner_user_id,
       team_name: row.team_name,
-      owner_name: row.profiles?.display_name ?? null,
-      owner_avatar_url: row.profiles?.avatar_url ?? null,
-      owner_name_color: row.profiles?.name_color ?? null,
-      owner_avatar_initials: row.profiles?.avatar_initials ?? null,
-    }),
-  );
+      is_vacant: isVacant,
+      owner_name: isVacant
+        ? "No User"
+        : (row.profiles?.display_name ?? null),
+      owner_avatar_url: isVacant ? null : (row.profiles?.avatar_url ?? null),
+      owner_name_color: isVacant
+        ? null
+        : (row.profiles?.name_color ?? null),
+      owner_avatar_initials: isVacant
+        ? null
+        : (row.profiles?.avatar_initials ?? null),
+    };
+  });
 
-  const members = ((memberResult.data ?? []) as {
-    user_id: string;
-    role: "owner" | "admin" | "member";
-  }[]) ?? [];
+  const vacantTeamIds = new Set(
+    teams.filter((team) => team.is_vacant).map((team) => team.id),
+  );
 
   const myMembership = members.find((member) => member.user_id === user.id);
   const userRole = myMembership?.role ?? null;
@@ -1168,6 +1220,7 @@ export async function loadSchedulePageData(
     season.id,
     ownerDisplayName,
     user.id,
+    vacantTeamIds,
   );
 
   /*

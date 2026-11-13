@@ -46,6 +46,11 @@ export type TeamInfo = {
   id: string;
   owner_user_id: string;
   team_name: string;
+  /**
+   * True when the owner is no longer an active league member. The team row is
+   * kept for its draft slot, roster and history, but it is labelled "No User".
+   */
+  is_vacant: boolean;
   draft_position: number | null;
   total_salary_override: number | null;
 owner_name: string | null;
@@ -282,23 +287,36 @@ export async function loadTeamPageData(
       }
     : null;
 
-  const teams = ((teamResult.data ?? []) as TeamRow[]).map(
-    (row): TeamInfo => ({
-      id: row.id,
-      owner_user_id: row.owner_user_id,
-      team_name: row.team_name,
-      draft_position: row.draft_position,
-      total_salary_override: row.total_salary_override,
-owner_name: row.profiles?.display_name ?? null,
-      owner_avatar_url: row.profiles?.avatar_url ?? null,
-      owner_name_color: row.profiles?.name_color ?? null,
-    }),
-  );
-
   const members = ((memberResult.data ?? []) as {
     user_id: string;
     role: "owner" | "admin" | "member";
   }[]) ?? [];
+
+  const activeMemberIds = new Set(members.map((member) => member.user_id));
+
+  const teams = ((teamResult.data ?? []) as TeamRow[]).map(
+    (row): TeamInfo => {
+      const isVacant = !activeMemberIds.has(row.owner_user_id);
+
+      return {
+        id: row.id,
+        owner_user_id: row.owner_user_id,
+        team_name: row.team_name,
+        is_vacant: isVacant,
+        draft_position: row.draft_position,
+        total_salary_override: row.total_salary_override,
+        owner_name: isVacant
+          ? "No User"
+          : (row.profiles?.display_name ?? null),
+        owner_avatar_url: isVacant
+          ? null
+          : (row.profiles?.avatar_url ?? null),
+        owner_name_color: isVacant
+          ? null
+          : (row.profiles?.name_color ?? null),
+      };
+    },
+  );
 
   const myMembership = members.find((member) => member.user_id === user.id);
   const userRole = myMembership?.role ?? null;

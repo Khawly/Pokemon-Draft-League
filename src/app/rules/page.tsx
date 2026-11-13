@@ -196,9 +196,7 @@ function RulesPageContent() {
       // Re-read rather than patching locally: the RPC decides what blank content
       // means (it clears the document), so what is stored may not be what was typed.
       await load(leagueId);
-      setRules((current) =>
-        current ? { ...current, updatedAt } : current,
-      );
+      setRules((current) => (current ? { ...current, updatedAt } : current));
       setNotice("Rules saved.");
     } catch (caughtError) {
       setError(
@@ -315,7 +313,7 @@ function RulesPageContent() {
               </button>
 
               <label className="cursor-pointer rounded-xl border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm font-medium text-slate-100 transition hover:border-slate-500 hover:bg-slate-700">
-                Load a text file
+                Upload File
                 <input
                   type="file"
                   accept=".txt,.md,text/plain,text/markdown"

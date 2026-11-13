@@ -50,6 +50,51 @@ export async function getLeagueInviteInfo(
 }
 
 /**
+ * Reads the most recently created invite token for a league, if one exists.
+ *
+ * Used by the dashboard's pre-draft panel so an owner can copy the link that
+ * already works instead of issuing another one on every visit. Creating a token
+ * stays with {@link createLeagueInvite}, which the panel calls only when there
+ * is nothing to copy yet.
+ *
+ * An expired token is treated as absent so the caller issues a fresh one rather
+ * than handing the owner a link the invite page will reject. The expiry is
+ * checked here instead of in the query so a null expiry, which means the invite
+ * never expires, is accepted without a `or` filter.
+ *
+ * @param leagueId - The id of the league whose invite is read.
+ * @returns A Promise resolving to the token, or null when the league has no
+ *   usable invite.
+ */
+export async function getLatestLeagueInviteToken(
+  leagueId: string,
+): Promise<string | null> {
+  const { data, error } = await supabase
+    .from("league_invites")
+    .select("token, expires_at")
+    .eq("league_id", leagueId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message || "Unable to load the invite link.");
+  }
+
+  const row = data as { token: string; expires_at: string | null } | null;
+
+  if (!row) {
+    return null;
+  }
+
+  if (row.expires_at && new Date(row.expires_at).getTime() <= Date.now()) {
+    return null;
+  }
+
+  return row.token;
+}
+
+/**
  * Creates a new invite link for the given league.
  *
  * @param leagueId - The id of the league to create an invite for.

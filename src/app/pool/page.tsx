@@ -2031,8 +2031,25 @@ function PoolPageContent({
     const direction = sortDir === "asc" ? 1 : -1;
     return next.sort((a, b) => {
       switch (sortKey) {
-        case "dex":
-          return (a.dex - b.dex) * direction;
+        case "dex": {
+          const byDex = (a.dex - b.dex) * direction;
+
+          if (byDex !== 0) {
+            return byDex;
+          }
+
+          /*
+           * Alternate forms share their base species' dex number, and a saved
+           * pool comes back in primary-key order, so without this tie-break a
+           * Mega or Gigantamax row can land before the species it transforms
+           * from. A base species' sprite id is its dex number while forms use
+           * 10001+, so ascending sprite id keeps the original first and the
+           * remaining forms in the order PokeAPI lists them. The tie-break is
+           * deliberately not reversed with `direction`: the original form stays
+           * first even when the dex order is descending.
+           */
+          return a.spriteId - b.spriteId;
+        }
         case "name":
           return a.species_name.localeCompare(b.species_name) * direction;
         case "type":
@@ -2716,30 +2733,32 @@ function PoolPageContent({
                                 )
                               }
                               aria-label={`Tier for ${row.species_name}`}
-                              className="min-w-0 flex-1 rounded-lg border border-slate-700 bg-slate-900 px-2 py-1 text-xs text-slate-100 outline-none focus:border-amber-400"
+                              className="w-14 shrink-0 rounded-lg border border-slate-700 bg-slate-900 px-2 py-1 text-xs text-slate-100 outline-none focus:border-amber-400"
                             />
-                            <button
-                              type="button"
-                              onClick={() => void handleConfirmTier(row.key)}
-                              disabled={!pendingTierKeys.has(row.key) || isBusy}
-                              title={
-                                pendingTierKeys.has(row.key)
-                                  ? `Confirm tier ${tierLabel(row.tier_value)}`
-                                  : "Change the tier to enable confirmation"
-                              }
-                              aria-label={`Confirm tier for ${row.species_name}`}
-                              className="shrink-0 rounded-lg border border-emerald-500/60 bg-emerald-500/10 px-2 py-1 text-xs font-bold text-emerald-300 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-emerald-500/10"
-                            >
-                              ✓
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleRemovePokemon(row.key)}
-                              aria-label={`Remove ${row.species_name}`}
-                              className="shrink-0 rounded-lg border border-red-800 bg-red-950/60 px-2 py-1 text-xs font-bold text-red-200 transition hover:bg-red-900/60"
-                            >
-                              X
-                            </button>
+                            <div className="ml-auto flex shrink-0 items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => void handleConfirmTier(row.key)}
+                                disabled={!pendingTierKeys.has(row.key) || isBusy}
+                                title={
+                                  pendingTierKeys.has(row.key)
+                                    ? `Confirm tier ${tierLabel(row.tier_value)}`
+                                    : "Change the tier to enable confirmation"
+                                }
+                                aria-label={`Confirm tier for ${row.species_name}`}
+                                className="shrink-0 rounded-lg border border-emerald-500/60 bg-emerald-500/10 px-2 py-1 text-xs font-bold text-emerald-300 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-emerald-500/10"
+                              >
+                                ✓
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleRemovePokemon(row.key)}
+                                aria-label={`Remove ${row.species_name}`}
+                                className="shrink-0 rounded-lg border border-red-800 bg-red-950/60 px-2 py-1 text-xs font-bold text-red-200 transition hover:bg-red-900/60"
+                              >
+                                X
+                              </button>
+                            </div>
                           </div>
                         )}
                       </div>

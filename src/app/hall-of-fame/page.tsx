@@ -107,18 +107,23 @@ function ChampionCard({ entry }: { entry: HallOfFameEntry }) {
               No roster was recorded for this season.
             </p>
           ) : (
-            <ul className="flex flex-wrap items-center gap-3">
+            <ul className="flex flex-nowrap items-center gap-1 overflow-x-clip sm:gap-2">
               {entry.pokemon.map((pokemon) => (
-                <li key={pokemon.id}>
+                <li
+                  key={pokemon.id}
+                  className="min-w-0 max-w-[103px] flex-1 basis-0"
+                >
                   {/*
-                    Half again the previous size, between the tight row and the oversized
-                    one: large enough to read the artwork, small enough that a six-Pokemon
-                    roster still fits.
+                    Every sprite takes an equal share of the row and the whole
+                    row shrinks together, so a full roster stays on one line at
+                    any viewport. The 103px cap is the tile the old 75px sprite
+                    produced, so a short roster keeps its previous size.
                   */}
                   <SpriteTile
                     spriteId={pokemon.spriteId}
                     name={pokemon.name}
                     size={75}
+                    fluid
                   />
                 </li>
               ))}

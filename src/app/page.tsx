@@ -236,14 +236,19 @@ export default function Home() {
               aria-hidden="true"
               className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full border border-slate-950/80 bg-white shadow-[0_10px_18px_rgba(2,6,23,0.65)]"
             >
+              {/*
+               * The artwork is already cropped tight to the ball. The old
+               * 1920x1920 asset had padding and needed a 2.65x zoom to fill
+               * this 48px circle; scaling the new crop would clip its edges.
+               */}
               <Image
                 src="/images/pokeball_3D.jpg"
                 alt=""
-                width={1920}
-                height={1920}
-                sizes="240px"
+                width={766}
+                height={774}
+                sizes="48px"
                 loading="eager"
-                className="h-full w-full scale-[2.65] object-contain"
+                className="h-full w-full object-contain"
               />
             </span>
             <div>

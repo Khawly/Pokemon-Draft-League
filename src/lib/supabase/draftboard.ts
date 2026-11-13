@@ -190,6 +190,23 @@ avatar_url: row.profiles?.avatar_url ?? null,
         .in("draft_pool_id", poolIds)
         .eq("is_in_pool", true);
       hasInPoolPokemon = (count ?? 0) > 0;
+
+      /*
+       * A closed season's rows are compacted into draft_pool_archives when the
+       * next season starts. The archive keeps the in-pool count, so the
+       * checklist still reads "Draft pool complete" for historical seasons
+       * instead of offering a link to set up a pool that already existed.
+       */
+      if (!hasInPoolPokemon) {
+        const { data: archives } = await supabase
+          .from("draft_pool_archives")
+          .select("in_pool_count")
+          .in("draft_pool_id", poolIds);
+
+        hasInPoolPokemon = (
+          (archives ?? []) as { in_pool_count: number }[]
+        ).some((row) => row.in_pool_count > 0);
+      }
     }
   }
 

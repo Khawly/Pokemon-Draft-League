@@ -19,6 +19,9 @@
  * selection with a random draw of a chosen size. While a pool's rows are loading
  * -- on first open and after switching pools -- the summary, tabs, and table are
  * replaced by the app's loading animation so stale contents are never shown.
+ * A closed season's pool is compacted into a draft_pool_archives snapshot when
+ * the next season starts; this page reads that snapshot back into the same
+ * read-only table so historical pools remain viewable.
  */
 "use client";
 
@@ -593,24 +596,105 @@ type PoolRowRecord = {
 const POOL_PAGE_SIZE = 1000;
 
 /**
+ * Compact entry stored in `draft_pool_archives.pokemon`.
+ *
+ * A tuple rather than an object keeps the JSONB array from repeating keys on
+ * every Pokémon, which is what lets TOAST compress an archive to a fraction of
+ * the rows it replaces.
+ */
+type ArchivedPoolEntry = [
+  pokemon_id: string,
+  species_name: string,
+  tier_value: number,
+  is_in_pool: boolean,
+  notes: string | null,
+];
+
+/**
+ * Reads a closed season's pool from its compressed archive snapshot.
+ *
+ * @param poolId - The id of the archived draft pool.
+ * @param options - `inPoolOnly` narrows the result to species that were enabled
+ *   in the pool, matching the read-only view the page shows members.
+ * @returns The archived rows, or null when the pool has no archive row (still
+ *   live, or never configured).
+ * @throws If the archive query fails.
+ */
+async function fetchArchivedPoolRows(
+  poolId: string,
+  options: { inPoolOnly?: boolean } = {},
+): Promise<PoolPokemonRow[] | null> {
+  const { data, error } = await supabase
+    .from("draft_pool_archives")
+    .select("pokemon")
+    .eq("draft_pool_id", poolId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message || "The archived pool could not be loaded.");
+  }
+
+  if (!data) {
+    return null;
+  }
+
+  const entries = (data as { pokemon: ArchivedPoolEntry[] }).pokemon ?? [];
+
+  return entries
+    .filter((entry) => !options.inPoolOnly || entry[3])
+    .map(([pokemon_id, species_name, tier_value, is_in_pool, notes]) => {
+      const match = getPokemonEntryBySlug(pokemon_id);
+      return {
+        /*
+         * Archived rows have no draft_pool_pokemon id, so they use a synthetic
+         * key and a null id. Editing is disabled for past seasons, so nothing
+         * ever tries to persist them.
+         */
+        key: `archived:${pokemon_id}`,
+        id: null,
+        dex: match?.dexNumber ?? 0,
+        spriteId: match?.spriteId ?? 0,
+        pokemon_id,
+        species_name: species_name || match?.name || pokemon_id,
+        tier_value,
+        is_in_pool,
+        type_primary: match?.types[0] ?? null,
+        type_secondary: match?.types[1] ?? null,
+        bst: match?.bst ?? null,
+        generation: match?.generation ?? null,
+        notes,
+      };
+    });
+}
+
+/**
  * Fetches the Pokémon rows for a draft pool from the database.
  *
- * Pages through the table instead of issuing one unbounded select: Supabase
- * caps a single response (default 1000 rows) and a configured pool holds the
- * full national dex plus alternate forms (>1000 rows). Without paging the rows
- * past the cap silently vanish from the editor after a save-triggered refetch.
+ * Checks the archive snapshot first: a pool belonging to a closed season has no
+ * draft_pool_pokemon rows left, and the snapshot is what keeps its historical
+ * page readable. Live pools page through the table instead of issuing one
+ * unbounded select: Supabase caps a single response (default 1000 rows) and a
+ * configured pool holds the full national dex plus alternate forms (>1000 rows).
+ * Without paging the rows past the cap silently vanish from the editor after a
+ * save-triggered refetch.
  *
  * @param poolId - The id of the draft pool whose rows to fetch.
  * @param options - `inPoolOnly` narrows the read to species currently enabled in
  *   the pool. Read-only members only need those rows; owners need the full table
  *   because they can toggle off-pool species back in.
  * @returns A promise resolving to the ordered list of pool Pokémon rows.
- * @throws If any page query fails.
+ * @throws If the archive or any page query fails.
  */
 async function fetchPoolRows(
   poolId: string,
   options: { inPoolOnly?: boolean } = {},
 ): Promise<PoolPokemonRow[]> {
+  const archived = await fetchArchivedPoolRows(poolId, options);
+
+  if (archived !== null) {
+    return archived;
+  }
+
   const allRows: PoolRowRecord[] = [];
 
   // The id order keeps each page's window stable across the loop.

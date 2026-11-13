@@ -1296,6 +1296,8 @@ function LeagueSettingsPageContent() {
    * Confirmed first, and worded in terms of what the owner keeps and what they lose: the
    * rules carry forward and last season stays readable, but the new one has no Pokemon,
    * no results and no draft pool, which is not obvious from a button labelled "start".
+   * The dialog also says the closing season's pool is archived, because that is a visible
+   * change to an old season's pool page even though no league history is lost.
    *
    * The page reloads afterwards rather than patching its own state. The season pointer,
    * team ids and every season-scoped value change at once, and a reload is the one way to
@@ -1315,7 +1317,7 @@ function LeagueSettingsPageContent() {
     const confirmed = await confirm({
       title: "Start a new season?",
       detail:
-        "This season's rules are copied into a new season. Every member gets a fresh team with no Pokemon and no results, and no draft pool is carried over. This season is kept and can be selected again from the dashboard.",
+        "This season's rules are copied into a new season. Every member gets a fresh team with no Pokemon and no results, and no draft pool is carried over. This season is kept and can be selected again from the dashboard, and its draft pool is archived so it stays readable while its per-Pokemon rows are compacted.",
       confirmLabel: "Start new season",
     });
 

@@ -47,7 +47,10 @@ import {
 import { MemberName } from "@/components/member-name";
 import { MemberAvatar } from "@/components/member-avatar";
 import { resolveAvatarInitials } from "@/lib/avatar-initials";
-import { LoadingGif } from "@/components/loading-gif";
+import {
+  PageShell,
+  PageShellLoading,
+} from "@/components/page-shell";
 
 /**
  * Picks the zone to show in the settings form for a stored profile value.
@@ -541,19 +544,12 @@ export default function SettingsPage() {
   }
 
   if (isLoading) {
-    return (
-      <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
-        <div className="mx-auto max-w-[96rem] rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
-          <LoadingGif label="Loading your profile" />
-        </div>
-      </main>
-    );
+    return <PageShellLoading label="Loading your profile" />;
   }
 
   return (
-    <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
-      <div className="mx-auto max-w-[96rem] space-y-6">
-        <header className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-2xl sm:p-6 shadow-slate-950/40 backdrop-blur-sm">
+    <PageShell>
+      <header className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-2xl sm:p-6 shadow-slate-950/40 backdrop-blur-sm">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h1 className="text-3xl font-bold text-white">User Settings</h1>
 
@@ -873,7 +869,6 @@ export default function SettingsPage() {
         </section>
 
         {confirmDialog}
-      </div>
-    </main>
+    </PageShell>
   );
 }

@@ -28,7 +28,10 @@ import { setMatchPrediction } from "@/lib/supabase/schedule";
 import { useRealtimeInvalidation } from "@/lib/use-realtime-invalidation";
 import { getSelectedSeason } from "@/lib/season-selection";
 import { announceNavAlertsChanged } from "@/lib/nav-alerts";
-import { LoadingGif } from "@/components/loading-gif";
+import {
+  PageShell,
+  PageShellLoading,
+} from "@/components/page-shell";
 
 /**
  * Streams the dashboard content behind a Suspense loading fallback so the
@@ -36,15 +39,7 @@ import { LoadingGif } from "@/components/loading-gif";
  */
 export default function DashboardPage() {
   return (
-    <Suspense
-      fallback={
-        <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
-          <div className="mx-auto max-w-[96rem] rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
-            <LoadingGif label="Loading dashboard" />
-          </div>
-        </main>
-      }
-    >
+    <Suspense fallback={<PageShellLoading label="Loading dashboard" />}>
       <DashboardPageContent />
     </Suspense>
   );
@@ -501,13 +496,7 @@ function DashboardPageContent() {
   });
 
   if (isLoading || !sessionUser || !leagueName) {
-    return (
-      <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
-        <div className="mx-auto max-w-[96rem] rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
-          <LoadingGif label="Loading dashboard" />
-        </div>
-      </main>
-    );
+    return <PageShellLoading label="Loading dashboard" />;
   }
 
   if (hasNoLeagues) {
@@ -552,9 +541,8 @@ function DashboardPageContent() {
   }
 
   return (
-    <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
-      <div className="mx-auto max-w-[96rem]">
-        <CrownProvider
+    <PageShell columnClassName="mx-auto max-w-[96rem]">
+      <CrownProvider
           crownedUserIds={goods.crownedMemberIds}
           crownedNames={goods.crownedMemberIds
             .map(
@@ -581,9 +569,8 @@ function DashboardPageContent() {
           predictingMatchId={predictingMatchId}
           predictionError={predictionError}
         />
-        </CrownProvider>
-      </div>
+      </CrownProvider>
       {confirmDialog}
-    </main>
+    </PageShell>
   );
 }

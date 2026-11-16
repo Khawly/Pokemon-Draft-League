@@ -22,10 +22,15 @@
  */
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
-import { resolveActiveLeague } from "@/lib/active-league";
+import { useLeaguePageData } from "@/lib/use-league-page-data";
+import {
+  PageShell,
+  PageShellError,
+  PageShellLoading,
+} from "@/components/page-shell";
 import { getSelectedSeason } from "@/lib/season-selection";
 import { AbilityTooltip } from "@/components/ability-tooltip";
 import { MemberName } from "@/components/member-name";
@@ -49,7 +54,6 @@ import {
   type PokemonTeam,
   type PokemonTeamOption,
 } from "@/lib/supabase/pokemon";
-import { LoadingGif } from "@/components/loading-gif";
 import { TablePagination } from "@/components/table-pagination";
 
 /**
@@ -60,15 +64,7 @@ import { TablePagination } from "@/components/table-pagination";
  */
 export default function PokemonPage() {
   return (
-    <Suspense
-      fallback={
-        <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
-          <div className="mx-auto max-w-[96rem] rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
-            <LoadingGif label="Loading free agents" />
-          </div>
-        </main>
-      }
-    >
+    <Suspense fallback={<PageShellLoading label="Loading free agents" />}>
       <PokemonPageRoute />
     </Suspense>
   );
@@ -1021,13 +1017,23 @@ function PokemonPageContent({
   /** Current URL search params used to select the league. */
   searchParams: URLSearchParams | null;
 }) {
-  const router = useRouter();
   const timeZone = useUserTimeZone();
   const requestedLeagueId = searchParams?.get("leagueId") ?? null;
 
-  const [goods, setGoods] = useState<PokemonGoods | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const {
+    data: goods,
+    isLoading,
+    error,
+    setError,
+    reload,
+  } = useLeaguePageData({
+    requestedLeagueId,
+    load: (leagueId) =>
+      loadPokemonPageData(leagueId, getSelectedSeason(leagueId)),
+    emptyLeagueMessage: "Select a league before opening the free agent pool.",
+    fallbackErrorMessage: "The free agent pool could not be loaded.",
+  });
+
   const [isBusy, setIsBusy] = useState(false);
   const [selectedTab, setSelectedTab] = useState<"table" | "tiers">("table");
   const [search, setSearch] = useState("");
@@ -1057,66 +1063,6 @@ function PokemonPageContent({
    */
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
-
-  const refresh = useCallback(
-    async (leagueId: string): Promise<PokemonGoods> => {
-      const next = await loadPokemonPageData(leagueId, getSelectedSeason(leagueId));
-      setGoods(next);
-      return next;
-    },
-    [],
-  );
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadLeague() {
-      try {
-        setIsLoading(true);
-        setError(null);
-
-        const league = await resolveActiveLeague(
-          requestedLeagueId,
-          "Select a league before opening the free agent pool.",
-        );
-
-        if (league.status === "unauthenticated") {
-          router.replace("/");
-          return;
-        }
-
-        if (league.status === "error") {
-          setError(league.message);
-          return;
-        }
-
-        const next = await loadPokemonPageData(
-          league.leagueId,
-          getSelectedSeason(league.leagueId),
-        );
-        if (!cancelled) {
-          setGoods(next);
-        }
-      } catch (caughtError) {
-        const message =
-          caughtError instanceof Error
-            ? caughtError.message
-            : "The free agent pool could not be loaded.";
-        if (!cancelled) {
-          setError(message);
-        }
-      } finally {
-        if (!cancelled) {
-          setIsLoading(false);
-        }
-      }
-    }
-
-    loadLeague();
-    return () => {
-      cancelled = true;
-    };
-  }, [router, requestedLeagueId]);
 
   /*
    * How many free agents carry each type, so the filter chips can label
@@ -1339,7 +1285,7 @@ function PokemonPageContent({
           waiveTransactionCost: waiving,
         },
       );
-      await refresh(goods.league.id);
+      await reload();
       /*
        * Plain text: this is an outcome banner, and the state behind it is a string,
        * so there is nowhere to put a MemberName. The header's team line above shows
@@ -1368,23 +1314,11 @@ function PokemonPageContent({
   }
 
   if (isLoading && !goods) {
-    return (
-      <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
-        <div className="mx-auto max-w-[96rem] rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
-          <LoadingGif label="Loading free agents" />
-        </div>
-      </main>
-    );
+    return <PageShellLoading label="Loading free agents" />;
   }
 
   if (error && !goods) {
-    return (
-      <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
-        <div className="mx-auto max-w-[96rem] rounded-2xl border border-red-800 bg-red-950/40 p-8 text-sm text-red-200 shadow-xl shadow-slate-950/40">
-          {error}
-        </div>
-      </main>
-    );
+    return <PageShellError>{error}</PageShellError>;
   }
 
   if (!goods) {
@@ -1392,9 +1326,8 @@ function PokemonPageContent({
   }
 
   return (
-    <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
-      <div className="mx-auto max-w-[96rem] space-y-6">
-        <header className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-2xl sm:p-6 shadow-slate-950/40">
+    <PageShell>
+      <header className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-2xl sm:p-6 shadow-slate-950/40">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <h2 className="text-3xl font-bold text-white">
@@ -1676,7 +1609,6 @@ function PokemonPageContent({
 
           <TransactionHistory goods={goods} />
         </section>
-      </div>
 
       {confirmTarget && goods && (
         <PickupConfirmDialog
@@ -1692,6 +1624,6 @@ function PokemonPageContent({
           onCancel={handleCancelAdd}
         />
       )}
-    </main>
+    </PageShell>
   );
 }

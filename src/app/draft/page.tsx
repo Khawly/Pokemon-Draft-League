@@ -73,7 +73,12 @@ import {
   getSpriteUrl,
 } from "@/lib/pokeapi";
 import { useUserTimeZone } from "@/lib/user-timezone";
-import { LoadingGif } from "@/components/loading-gif";
+import {
+  PageShell,
+  PageShellCard,
+  PageShellError,
+  PageShellLoading,
+} from "@/components/page-shell";
 import { TablePagination } from "@/components/table-pagination";
 import { getSelectedSeason } from "@/lib/season-selection";
 
@@ -3257,30 +3262,23 @@ function DraftArena({ leagueId }: { leagueId: string }) {
   }
 
   if (!goods) {
-    return (
-      <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
-        <div className="mx-auto max-w-[96rem] space-y-6">
-          <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 text-sm text-slate-400">
-            {error ? error : <LoadingGif label="Loading draft" />}
-          </div>
-        </div>
-      </main>
+    return error ? (
+      <PageShellError>{error}</PageShellError>
+    ) : (
+      <PageShellLoading label="Loading draft" />
     );
   }
 
   if (!goods.season) {
     return (
-      <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
-        <div className="mx-auto max-w-[96rem]">
-          <EmptyDraft leagueName={goods.league.name} />
-        </div>
-      </main>
+      <PageShell columnClassName="mx-auto max-w-[96rem]">
+        <EmptyDraft leagueName={goods.league.name} />
+      </PageShell>
     );
   }
 
   return (
-    <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
-      <div className="mx-auto flex max-w-[96rem] flex-col gap-6">
+    <PageShell columnClassName="mx-auto flex max-w-[96rem] flex-col gap-6">
         <DraftHeader
           goods={goods}
           now={now}
@@ -3422,10 +3420,8 @@ function DraftArena({ leagueId }: { leagueId: string }) {
             onCancel={() => setPendingAddId(null)}
           />
         )}
-      </div>
-
       {confirmDialog}
-    </main>
+    </PageShell>
   );
 }
 
@@ -3437,15 +3433,7 @@ function DraftArena({ leagueId }: { leagueId: string }) {
  */
 export default function DraftPage() {
   return (
-    <Suspense
-      fallback={
-        <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
-          <div className="mx-auto max-w-[96rem] rounded-2xl border border-slate-800 bg-slate-900/80 p-6 text-sm text-slate-400">
-            <LoadingGif label="Loading draft arena" />
-          </div>
-        </main>
-      }
-    >
+    <Suspense fallback={<PageShellLoading label="Loading draft arena" />}>
       <DraftPageContent />
     </Suspense>
   );
@@ -3462,17 +3450,15 @@ function DraftPageContent() {
 
   if (!leagueId) {
     return (
-      <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
-        <div className="mx-auto max-w-xl rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-center text-sm text-slate-400">
-          <p className="font-semibold text-slate-200">
-            No league selected for the draft.
-          </p>
-          <p className="mt-2">
-            Open a league from the dashboard and choose “Draft Board” to
-            start the arena.
-          </p>
-        </div>
-      </main>
+      <PageShellCard widthClassName="max-w-xl" paddingClassName="p-8 text-center">
+        <p className="font-semibold text-slate-200">
+          No league selected for the draft.
+        </p>
+        <p className="mt-2">
+          Open a league from the dashboard and choose &quot;Draft Board&quot; to
+          start the arena.
+        </p>
+      </PageShellCard>
     );
   }
 
@@ -3526,6 +3512,9 @@ function playTone(
   oscillator.start();
   oscillator.stop(context.currentTime + duration + 0.05);
 }
+
+// The helpers above intentionally avoid a global client store; everything the
+// arena needs flows from the single loadDraftData payload the page polls.
 
 // The helpers above intentionally avoid a global client store; everything the
 // arena needs flows from the single loadDraftData payload the page polls.

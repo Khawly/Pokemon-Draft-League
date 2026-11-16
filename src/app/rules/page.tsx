@@ -28,7 +28,10 @@ import {
 import { useUserTimeZone } from "@/lib/user-timezone";
 import { formatDateTimeInZone } from "@/lib/datetime";
 import { getSelectedSeason } from "@/lib/season-selection";
-import { LoadingGif } from "@/components/loading-gif";
+import {
+  PageShell,
+  PageShellLoading,
+} from "@/components/page-shell";
 
 /** LocalStorage key used by the top nav to persist the selected league. */
 const SELECTED_LEAGUE_STORAGE_KEY = "pokemon-draft-league:selected-league";
@@ -43,15 +46,7 @@ const SELECTED_LEAGUE_STORAGE_KEY = "pokemon-draft-league:selected-league";
  */
 export default function RulesPage() {
   return (
-    <Suspense
-      fallback={
-        <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
-          <div className="mx-auto max-w-[96rem] rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
-            <LoadingGif label="Loading rules" />
-          </div>
-        </main>
-      }
-    >
+    <Suspense fallback={<PageShellLoading label="Loading rules" />}>
       <RulesPageContent />
     </Suspense>
   );
@@ -235,19 +230,12 @@ function RulesPageContent() {
     isOwner && isCurrentSeason && draft !== savedContent;
 
   if (isLoading) {
-    return (
-      <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
-        <div className="mx-auto max-w-[96rem] rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
-          <LoadingGif label="Loading rules" />
-        </div>
-      </main>
-    );
+    return <PageShellLoading label="Loading rules" />;
   }
 
   return (
-    <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
-      <div className="mx-auto max-w-[96rem] space-y-6">
-        <header className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-2xl sm:p-6 shadow-slate-950/40">
+    <PageShell>
+      <header className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-2xl sm:p-6 shadow-slate-950/40">
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-400">
             Rules
           </p>
@@ -383,7 +371,6 @@ function RulesPageContent() {
             </p>
           )}
         </section>
-      </div>
-    </main>
+    </PageShell>
   );
 }

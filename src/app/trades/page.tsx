@@ -26,13 +26,11 @@
 
 import {
   Suspense,
-  useCallback,
-  useEffect,
   useMemo,
   useState,
   type ReactNode,
 } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { getSelectedSeason } from "@/lib/season-selection";
 import { useConfirm } from "@/components/confirm-dialog";
 import { MemberName } from "@/components/member-name";
@@ -43,9 +41,13 @@ import { formatDateTimeInZone, formatTimeZoneLabel } from "@/lib/datetime";
 import { useUserTimeZone } from "@/lib/user-timezone";
 import { isDeadlinePassed } from "@/lib/deadlines";
 import { useRealtimeInvalidation } from "@/lib/use-realtime-invalidation";
-import { resolveActiveLeague } from "@/lib/active-league";
+import { useLeaguePageData } from "@/lib/use-league-page-data";
 import { typeStyle } from "@/lib/type-styles";
-import { LoadingGif } from "@/components/loading-gif";
+import {
+  PageShell,
+  PageShellError,
+  PageShellLoading,
+} from "@/components/page-shell";
 import {
   buildTradesView,
   parseTokenAmount,
@@ -99,15 +101,7 @@ const STATUS_STYLES: Record<Trade["status"], string> = {
  */
 export default function TradesPage() {
   return (
-    <Suspense
-      fallback={
-        <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
-          <div className="mx-auto max-w-[96rem] rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
-            <LoadingGif label="Loading trades" />
-          </div>
-        </main>
-      }
-    >
+    <Suspense fallback={<PageShellLoading label="Loading trades" />}>
       <TradesPageRoute />
     </Suspense>
   );
@@ -1356,81 +1350,28 @@ function TradesPageContent({
   /** Current URL search params used to select the league. */
   searchParams: URLSearchParams | null;
 }) {
-  const router = useRouter();
   const requestedLeagueId = searchParams?.get("leagueId") ?? null;
   const { confirm, confirmDialog } = useConfirm();
   /** Every timestamp on the page renders in the zone the member picked in settings. */
   const timeZone = useUserTimeZone();
 
-  const [goods, setGoods] = useState<TradesGoods | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const {
+    data: goods,
+    isLoading,
+    error,
+    setError,
+    reload,
+  } = useLeaguePageData({
+    requestedLeagueId,
+    load: (leagueId) =>
+      loadTradesPageData(leagueId, getSelectedSeason(leagueId)),
+    emptyLeagueMessage: "Select a league before opening the trade centre.",
+    fallbackErrorMessage: "The trade centre could not be loaded.",
+  });
+
   const [feedback, setFeedback] = useState<string | null>(null);
   const [busyTradeId, setBusyTradeId] = useState<string | null>(null);
   const [tab, setTab] = useState<TradesTab>("new");
-
-  const refresh = useCallback(async (leagueId: string): Promise<TradesGoods> => {
-    const next = await loadTradesPageData(leagueId, getSelectedSeason(leagueId));
-    setGoods(next);
-    return next;
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadLeague() {
-      try {
-        setIsLoading(true);
-        setError(null);
-
-        const league = await resolveActiveLeague(
-          requestedLeagueId,
-          "Select a league before opening the trade centre.",
-        );
-
-        if (league.status === "unauthenticated") {
-          router.replace("/");
-          return;
-        }
-
-        if (league.status === "error") {
-          setError(league.message);
-          return;
-        }
-
-        const next = await loadTradesPageData(
-          league.leagueId,
-          getSelectedSeason(league.leagueId),
-        );
-        if (!cancelled) {
-          setGoods(next);
-        }
-      } catch (caughtError) {
-        const message =
-          caughtError instanceof Error
-            ? caughtError.message
-            : "The trade centre could not be loaded.";
-        if (!cancelled) {
-          setError(message);
-        }
-      } finally {
-        if (!cancelled) {
-          setIsLoading(false);
-        }
-      }
-    }
-
-    loadLeague();
-    return () => {
-      cancelled = true;
-    };
-  }, [router, requestedLeagueId]);
-
-  const reload = useCallback(() => {
-    if (goods) {
-      void refresh(goods.league.id);
-    }
-  }, [goods, refresh]);
 
   /*
    * A refetch replaces the page's data, which would wipe a half-built proposal off
@@ -1439,7 +1380,7 @@ function TradesPageContent({
    */
   const { flush } = useRealtimeInvalidation({
     leagueId: goods?.league.id ?? null,
-    watchers: [{ table: "trades", onChange: reload }],
+    watchers: [{ table: "trades", onChange: () => void reload() }],
     isPaused: () => tab === "new",
   });
 
@@ -1599,7 +1540,7 @@ function TradesPageContent({
         }
       }
 
-      await refresh(goods.league.id);
+      await reload();
     } catch (caughtError) {
       setError(
         caughtError instanceof Error
@@ -1659,7 +1600,7 @@ function TradesPageContent({
         proposerTokens,
         recipientTokens,
       );
-      await refresh(goods.league.id);
+      await reload();
       setFeedback(`Proposal sent to ${other}.`);
       // Routed through the tab handler rather than setTab directly, so arriving at
       // My Trades clears the badge exactly as clicking it would.
@@ -1674,23 +1615,11 @@ function TradesPageContent({
   }
 
   if (isLoading && !goods) {
-    return (
-      <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
-        <div className="mx-auto max-w-[96rem] rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
-          <LoadingGif label="Loading trades" />
-        </div>
-      </main>
-    );
+    return <PageShellLoading label="Loading trades" />;
   }
 
   if (error && !goods) {
-    return (
-      <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
-        <div className="mx-auto max-w-[96rem] rounded-2xl border border-red-800 bg-red-950/40 p-8 text-sm text-red-200 shadow-xl shadow-slate-950/40">
-          {error}
-        </div>
-      </main>
-    );
+    return <PageShellError>{error}</PageShellError>;
   }
 
   if (!goods) {
@@ -1698,9 +1627,8 @@ function TradesPageContent({
   }
 
   return (
-    <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
-      <div className="mx-auto max-w-[96rem] space-y-6">
-        <header className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-2xl sm:p-6 shadow-slate-950/40">
+    <PageShell>
+      <header className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-2xl sm:p-6 shadow-slate-950/40">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <h2 className="text-3xl font-bold text-white">{goods.league.name}</h2>
@@ -1876,9 +1804,8 @@ function TradesPageContent({
             allowVoting={tab !== "history"}
           />
         )}
-      </div>
 
       {confirmDialog}
-    </main>
+    </PageShell>
   );
 }

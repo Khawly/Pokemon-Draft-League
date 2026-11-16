@@ -11,7 +11,10 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import { loadUserTimeZone } from "@/lib/user-timezone";
-import { LoadingGif } from "@/components/loading-gif";
+import {
+  PageShell,
+  PageShellLoading,
+} from "@/components/page-shell";
 import { getSelectedSeason } from "@/lib/season-selection";
 import {
   isCurrentSeason as checkIsCurrentSeason,
@@ -25,13 +28,7 @@ import {
 export default function DraftSettingsPage() {
   return (
     <Suspense
-      fallback={
-        <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
-          <div className="mx-auto max-w-[96rem] rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
-            <LoadingGif label="Loading draft settings" />
-          </div>
-        </main>
-      }
+      fallback={<PageShellLoading label="Loading draft settings" />}
     >
       <DraftSettingsPageContent />
     </Suspense>
@@ -314,19 +311,12 @@ function DraftSettingsPageContent() {
   }
 
   if (isLoading) {
-    return (
-      <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
-        <div className="mx-auto max-w-[96rem] rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
-          <LoadingGif label="Loading draft settings" />
-        </div>
-      </main>
-    );
+    return <PageShellLoading label="Loading draft settings" />;
   }
 
   return (
-    <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
-      <div className="mx-auto max-w-[96rem] space-y-6">
-        <header className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-2xl sm:p-6 shadow-slate-950/40">
+    <PageShell>
+      <header className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-2xl sm:p-6 shadow-slate-950/40">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
               <h1 className="text-3xl font-bold text-white">Draft Settings</h1>
@@ -588,7 +578,6 @@ function DraftSettingsPageContent() {
           </div>
         </section>
         </fieldset>
-      </div>
-    </main>
+    </PageShell>
   );
 }

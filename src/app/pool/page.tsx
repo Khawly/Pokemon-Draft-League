@@ -51,6 +51,10 @@ import {
 import { AbilityTooltip } from "@/components/ability-tooltip";
 import { useConfirm } from "@/components/confirm-dialog";
 import { LoadingGif } from "@/components/loading-gif";
+import {
+  PageShell,
+  PageShellLoading,
+} from "@/components/page-shell";
 import { TablePagination } from "@/components/table-pagination";
 import { getSelectedSeason } from "@/lib/season-selection";
 import { TYPE_STYLES } from "@/lib/type-styles";
@@ -276,15 +280,7 @@ async function createPool(
  */
 export default function PoolPage() {
   return (
-    <Suspense
-      fallback={
-        <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
-          <div className="mx-auto max-w-[96rem] rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
-            <LoadingGif label="Loading draft pool" />
-          </div>
-        </main>
-      }
-    >
+    <Suspense fallback={<PageShellLoading label="Loading draft pool" />}>
       <PoolRoute />
     </Suspense>
   );
@@ -2140,19 +2136,12 @@ function PoolPageContent({
   }
 
   if (isLoading) {
-    return (
-      <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
-        <div className="mx-auto max-w-[96rem] rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
-          <LoadingGif label="Loading draft pool" />
-        </div>
-      </main>
-    );
+    return <PageShellLoading label="Loading draft pool" />;
   }
 
   return (
-    <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
-      <div className="mx-auto max-w-[96rem] space-y-8">
-        <header className="space-y-2">
+    <PageShell columnClassName="mx-auto max-w-[96rem] space-y-8">
+      <header className="space-y-2">
           <h1 className="text-2xl font-bold text-white">{leagueName} Pool</h1>
         </header>
 
@@ -2750,9 +2739,8 @@ function PoolPageContent({
         )}
           </>
         )}
-      </div>
 
       {confirmDialog}
-    </main>
+    </PageShell>
   );
 }

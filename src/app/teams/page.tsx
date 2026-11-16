@@ -25,6 +25,11 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { AbilityTooltip } from "@/components/ability-tooltip";
+import {
+  PageShell,
+  PageShellError,
+  PageShellLoading,
+} from "@/components/page-shell";
 import { resolveActiveLeague } from "@/lib/active-league";
 import { getSelectedSeason } from "@/lib/season-selection";
 import { PokemonSprite } from "@/components/pokemon-sprite";
@@ -44,7 +49,6 @@ import {
   type TeamPageGoods,
   type TeamRosterPokemon,
 } from "@/lib/supabase/teams";
-import { LoadingGif } from "@/components/loading-gif";
 
 /** Sortable columns of the team stats table. */
 type StatSortKey =
@@ -87,15 +91,7 @@ const TYPE_TEXT_STYLES: Record<string, string> = {
  */
 export default function TeamsPage() {
   return (
-    <Suspense
-      fallback={
-        <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
-          <div className="mx-auto max-w-[96rem] rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
-            <LoadingGif label="Loading teams" />
-          </div>
-        </main>
-      }
-    >
+    <Suspense fallback={<PageShellLoading label="Loading teams" />}>
       <TeamsRoute />
     </Suspense>
   );
@@ -1058,23 +1054,11 @@ function TeamsPageContent({
   }
 
   if (isLoading && !goods) {
-    return (
-      <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
-        <div className="mx-auto max-w-[96rem] rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
-          <LoadingGif label="Loading teams" />
-        </div>
-      </main>
-    );
+    return <PageShellLoading label="Loading teams" />;
   }
 
   if (error) {
-    return (
-      <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
-        <div className="mx-auto max-w-[96rem] rounded-2xl border border-red-800 bg-red-950/40 p-8 text-sm text-red-200 shadow-xl shadow-slate-950/40">
-          {error}
-        </div>
-      </main>
-    );
+    return <PageShellError>{error}</PageShellError>;
   }
 
   if (!goods) {
@@ -1123,9 +1107,8 @@ function TeamsPageContent({
   );
 
   return (
-    <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
-      <div className="mx-auto max-w-[96rem] space-y-6">
-        <header className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-2xl sm:p-6 shadow-slate-950/40">
+    <PageShell>
+      <header className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-2xl sm:p-6 shadow-slate-950/40">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <h2 className="text-3xl font-bold text-white">{goods.league.name}</h2>
@@ -1329,9 +1312,8 @@ function TeamsPageContent({
             />
           </>
         )}
-      </div>
 
       {confirmDialog}
-    </main>
+    </PageShell>
   );
 }

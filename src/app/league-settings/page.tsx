@@ -54,7 +54,11 @@ import {
 import { loadLatestSeason, saveSeasonName } from "@/lib/supabase/seasons";
 import { deleteLeague } from "@/lib/supabase/leagues";
 import { MAX_NAME_LENGTH } from "@/lib/name-limits";
-import { LoadingGif } from "@/components/loading-gif";
+import {
+  PageShell,
+  PageShellCard,
+  PageShellLoading,
+} from "@/components/page-shell";
 import { compressImageFile } from "@/lib/image-upload";
 import { clearSelectedSeason, getSelectedSeason } from "@/lib/season-selection";
 import { clearSelectedLeague } from "@/lib/league-selection";
@@ -150,15 +154,7 @@ function describeProgressResult(
  */
 export default function LeagueSettingsPage() {
   return (
-    <Suspense
-      fallback={
-        <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
-          <div className="mx-auto max-w-[96rem] rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
-            <LoadingGif label="Loading league settings" />
-          </div>
-        </main>
-      }
-    >
+    <Suspense fallback={<PageShellLoading label="Loading league settings" />}>
       <LeagueSettingsPageContent />
     </Suspense>
   );
@@ -1267,26 +1263,18 @@ function LeagueSettingsPageContent() {
   }
 
   if (isLoading) {
-    return (
-      <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
-        <div className="mx-auto max-w-[96rem] rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
-          <LoadingGif label="Loading league settings" />
-        </div>
-      </main>
-    );
+    return <PageShellLoading label="Loading league settings" />;
   }
 
   if (accessAllowed === false) {
     return (
-      <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
-        <div className="mx-auto max-w-[96rem] rounded-2xl border border-red-800 bg-red-950/30 p-8 text-sm text-red-200 shadow-xl shadow-slate-950/40">
-          <h1 className="mb-2 text-2xl font-bold text-white">Access Denied</h1>
-          <p>
-            Only the league owner can manage league settings. Returning to your
-            dashboard...
-          </p>
-        </div>
-      </main>
+      <PageShellCard tone="error">
+        <h1 className="mb-2 text-2xl font-bold text-white">Access Denied</h1>
+        <p>
+          Only the league owner can manage league settings. Returning to your
+          dashboard...
+        </p>
+      </PageShellCard>
     );
   }
 
@@ -1394,8 +1382,7 @@ function LeagueSettingsPageContent() {
   }
 
   return (
-    <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
-      <div className="mx-auto max-w-[96rem] space-y-6">
+    <PageShell>
         <header
           className="sticky z-30 rounded-2xl border border-slate-800 bg-slate-900/90 p-4 shadow-2xl backdrop-blur-md sm:p-6 shadow-slate-950/40"
           style={{ top: "calc(var(--app-nav-height, 4rem) + 1rem)" }}
@@ -2168,9 +2155,8 @@ function LeagueSettingsPageContent() {
             {isDeletingLeague ? "Deleting league..." : "Delete League"}
           </button>
         </section>
-      </div>
 
       {confirmDialog}
-    </main>
+    </PageShell>
   );
 }

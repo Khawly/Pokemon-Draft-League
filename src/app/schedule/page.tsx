@@ -50,6 +50,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { resolveActiveLeague } from "@/lib/active-league";
+import {
+  PageShell,
+  PageShellCard,
+  PageShellLoading,
+} from "@/components/page-shell";
 import { getSelectedSeason } from "@/lib/season-selection";
 import { readReplaySummary } from "@/lib/replay-summary";
 import { useConfirm } from "@/components/confirm-dialog";
@@ -909,15 +914,7 @@ function ProposalHistoryPanel({
  */
 export default function SchedulePage() {
   return (
-    <Suspense
-      fallback={
-        <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
-          <div className="mx-auto max-w-[96rem] rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
-            <LoadingGif label="Loading schedule" />
-          </div>
-        </main>
-      }
-    >
+    <Suspense fallback={<PageShellLoading label="Loading schedule" />}>
       <ScheduleRoute />
     </Suspense>
   );
@@ -2688,22 +2685,14 @@ function SchedulePageContent({
   }
 
   if (isLoading) {
-    return (
-      <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
-        <div className="mx-auto max-w-[96rem] rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
-          <LoadingGif label="Loading schedule" />
-        </div>
-      </main>
-    );
+    return <PageShellLoading label="Loading schedule" />;
   }
 
   if (!goods) {
     return (
-      <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
-        <div className="mx-auto max-w-xl rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400 shadow-xl shadow-slate-950/40">
-          {error ?? "The schedule could not be loaded."}
-        </div>
-      </main>
+      <PageShellCard widthClassName="max-w-xl">
+        {error ?? "The schedule could not be loaded."}
+      </PageShellCard>
     );
   }
 
@@ -2735,7 +2724,7 @@ function SchedulePageContent({
   );
 
   return (
-    <main className="min-h-dvh bg-slate-950 px-4 py-8 text-slate-100 sm:px-6 sm:py-10">
+    <PageShell columnClassName="mx-auto max-w-[96rem]">
       <CrownProvider
         crownedUserIds={goods.crownedMemberIds}
         crownedNames={goods.crownedMemberIds
@@ -4536,7 +4525,7 @@ function SchedulePageContent({
           {confirmDialog}
         </div>
       </CrownProvider>
-    </main>
+    </PageShell>
   );
 }
 

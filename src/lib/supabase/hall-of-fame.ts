@@ -12,7 +12,7 @@ import { getPokemonEntryBySlug } from "@/lib/pokeapi";
 import { supabase } from "@/lib/supabase/client";
 
 /** One Pokemon on a champion's roster, resolved for display. */
-export type HallPokemon = {
+type HallPokemon = {
   id: string;
   name: string;
   spriteId: number;

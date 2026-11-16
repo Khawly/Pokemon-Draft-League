@@ -96,14 +96,14 @@ export const DECIDED_MATCH_STATUSES = [
 ] as const;
 
 /** Lifecycle status of the season the dashboard summarizes. */
-export type DashboardSeasonStatus =
+type DashboardSeasonStatus =
   | "draft_pending"
   | "draft_active"
   | "draft_complete"
   | "archived";
 
 /** The league's latest season. */
-export type DashboardSeason = {
+type DashboardSeason = {
   id: string;
   season_number: number;
   status: DashboardSeasonStatus;
@@ -111,7 +111,7 @@ export type DashboardSeason = {
 };
 
 /** A team slot in the season with its owner. */
-export type DashboardTeam = {
+type DashboardTeam = {
   id: string;
   team_name: string;
   owner_user_id: string;
@@ -183,7 +183,7 @@ export type DashboardMatch = {
 };
 
 /** A ranked standings row, already ordered by the database. */
-export type DashboardStanding = {
+type DashboardStanding = {
   team_id: string;
   team_name: string;
   wins: number;
@@ -221,7 +221,7 @@ export type DashboardRosterSprite = {
 };
 
 /** One of the signed-in member's notifications. */
-export type DashboardNotification = {
+type DashboardNotification = {
   id: string;
   /** Notification kind, e.g. `draft_live`, used for panel actions. */
   type: string;

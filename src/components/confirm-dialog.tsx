@@ -16,10 +16,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 /** How urgent a confirmation is, which decides the button treatment. */
-export type ConfirmTone = "default" | "danger";
+type ConfirmTone = "default" | "danger";
 
 /** The copy and behaviour of one confirmation request. */
-export type ConfirmOptions = {
+type ConfirmOptions = {
   /** Short question shown as the dialog heading, e.g. "Forfeit this match?". */
   title: string;
   /** Optional supporting detail, e.g. what is lost by going ahead. */
@@ -49,7 +49,7 @@ type ConfirmRequest = Required<Pick<ConfirmOptions, "title">> & {
 };
 
 /** Props for the {@link ConfirmDialog} component. */
-export interface ConfirmDialogProps {
+interface ConfirmDialogProps {
   /** The pending request, or null when nothing is awaiting an answer. */
   request: ConfirmRequest | null;
   /** Settles the request; the argument becomes the `confirm` promise's result. */
@@ -72,7 +72,7 @@ const TONE_STYLES: Record<ConfirmTone, string> = {
  * @param props - The pending request and the resolver that settles it.
  * @returns The modal, or null when there is nothing to confirm.
  */
-export function ConfirmDialog({ request, onResolve }: ConfirmDialogProps) {
+function ConfirmDialog({ request, onResolve }: ConfirmDialogProps) {
   const confirmButtonRef = useRef<HTMLButtonElement | null>(null);
   const textInputRef = useRef<HTMLInputElement | null>(null);
   const [typedText, setTypedText] = useState("");

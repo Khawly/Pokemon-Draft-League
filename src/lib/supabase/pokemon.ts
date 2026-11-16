@@ -19,14 +19,14 @@ import {
 } from "@/lib/pokeapi";
 
 /** Lifecycle status of a season (subset used by the Pokémon page). */
-export type PokemonSeasonStatus =
+type PokemonSeasonStatus =
   | "draft_pending"
   | "draft_active"
   | "draft_complete"
   | "archived";
 
 /** Season row for the Pokémon page. */
-export type PokemonSeason = {
+type PokemonSeason = {
   id: string;
   season_number: number;
   status: PokemonSeasonStatus;
@@ -34,7 +34,7 @@ export type PokemonSeason = {
 };
 
 /** Per-season cost/transaction configuration read from league_settings. */
-export type PokemonSettings = {
+type PokemonSettings = {
   enable_pokemon_costs: boolean;
   total_token_salary: number | null;
   allow_per_team_salary: boolean;
@@ -126,7 +126,7 @@ export const TRANSACTION_SOURCES = [
 ] as const;
 
 /** What caused a roster move, as classified by the ledger's source column. */
-export type TransactionSource = (typeof TRANSACTION_SOURCES)[number];
+type TransactionSource = (typeof TRANSACTION_SOURCES)[number];
 
 /** A roster move from the ledger, enriched with a display name and sprite id. */
 export type PokemonTransaction = {

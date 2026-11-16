@@ -91,7 +91,7 @@ export type WeekProgressStatus =
   | "not_due";
 
 /** A journalled week progression, as the settings page describes it. */
-export type WeekProgressEntry = {
+type WeekProgressEntry = {
   id: number;
   /** 'manual' for the Progress week button, 'deadline' for the sweep. */
   source: "manual" | "deadline";

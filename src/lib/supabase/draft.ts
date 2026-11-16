@@ -20,7 +20,7 @@ export type DraftStatus =
   | "archived";
 
 /** League meta used by the draft arena header. */
-export type DraftLeague = {
+type DraftLeague = {
   id: string;
   name: string;
   owner_id: string;
@@ -28,7 +28,7 @@ export type DraftLeague = {
 };
 
 /** Season row with the timestamps the draft timer derives its deadline from. */
-export type DraftSeason = {
+type DraftSeason = {
   id: string;
   season_number: number;
   status: DraftStatus;
@@ -41,7 +41,7 @@ export type DraftSeason = {
 };
 
 /** Per-season draft configuration read from league_settings. */
-export type DraftSettings = {
+type DraftSettings = {
   draft_format: "snake" | "set";
   total_rounds: number;
   enable_pokemon_costs: boolean;
@@ -76,7 +76,7 @@ export type DraftTeam = {
 };
 
 /** A league member with resolved display name/avatar for the pick cards. */
-export type DraftMember = {
+type DraftMember = {
   user_id: string;
   role: "owner" | "admin" | "member";
   display_name: string | null;
@@ -888,17 +888,6 @@ export function getTeamSalary(goods: DraftGoods, teamId: string): {
   const spent = goods.spentByTeam.get(teamId) ?? fromPicks;
 
   return { budget, spent, remaining: budget - spent };
-}
-
-/**
- * Reports whether a pool Pokemon has already been drafted this season.
- *
- * @param goods - The loaded draft state.
- * @param pokemonId - The slug to check.
- * @returns True when any pick claimed the Pokemon.
- */
-export function isPokemonPicked(goods: DraftGoods, pokemonId: string): boolean {
-  return goods.picks.some((pick) => pick.pokemon_id === pokemonId);
 }
 
 /**

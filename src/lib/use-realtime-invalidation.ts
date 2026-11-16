@@ -43,7 +43,7 @@ import { supabase } from "@/lib/supabase/client";
  * and timeout resolutions all write to it, so one subscription covers every way the
  * draft can move. See supabase/migrations/20261109_proposals_league_id_and_draft_realtime.sql.
  */
-export type RealtimeTable =
+type RealtimeTable =
   | "matches"
   | "notifications"
   | "match_scheduling_proposals"
@@ -73,7 +73,7 @@ const TABLES_WITHOUT_LEAGUE_FILTER: ReadonlySet<RealtimeTable> = new Set([
 import { refetchDelayMs, isDocumentHidden } from "@/lib/refetch-throttle";
 
 /** One table to watch and what to do when it changes. */
-export type RealtimeWatcher = {
+type RealtimeWatcher = {
   /** The table to subscribe to. */
   table: RealtimeTable;
   /**

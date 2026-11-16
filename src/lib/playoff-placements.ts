@@ -10,7 +10,7 @@
  */
 
 /** The bracket phases a playoff match can belong to. */
-export type PlayoffPhase = "upper" | "lower" | "gf" | "toilet" | null;
+type PlayoffPhase = "upper" | "lower" | "gf" | "toilet" | null;
 
 /** The match fields the placement calculation reads. */
 export interface PlayoffPlacementMatch {

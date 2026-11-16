@@ -123,7 +123,12 @@ async function rest(path, init = {}) {
   const text = await response.text();
 
   if (!response.ok) {
-    throw new Error(`PostgREST ${path} failed: HTTP ${response.status} ${text}`);
+    const error = new Error(
+      `PostgREST ${path} failed: HTTP ${response.status} ${text}`,
+    );
+    // The caller treats a 422 as "already registered" rather than a failure.
+    error.status = response.status;
+    throw error;
   }
 
   return text ? JSON.parse(text) : null;
@@ -152,7 +157,7 @@ async function createBotUser(email, password, displayName) {
         `/users?page=1&per_page=1000`,
       ).then((users) => users ?? []);
 
-      const match = (users ?? []).find(
+      const match = found.find(
         (user) => user.email?.toLowerCase() === email.toLowerCase(),
       );
 

@@ -26,7 +26,6 @@ import {
 
 import {
   crownKeys,
-  isCrownedMember,
   memberHonor,
   NO_CROWN,
   type CrownKeys,
@@ -227,24 +226,6 @@ export function CrownScope({ children }: { children: ReactNode }) {
       {children}
     </CrownProvider>
   );
-}
-
-/**
- * Whether a member wears the champion crown.
- *
- * An id is preferred when the caller has one, because it is exact. Falling back to the name
- * is what reaches the surfaces that only render text. A member who has no display name set
- * will not match by name, which is the right failure: better no crown than the wrong one.
- *
- * @param userId - The member's id, or nullish when the caller does not know it.
- * @param name - The display name being rendered.
- * @returns True when the member is crowned.
- */
-export function useCrowned(
-  userId: string | null | undefined,
-  name: string | null | undefined,
-): boolean {
-  return isCrownedMember(useContext(CrownContext), userId, name);
 }
 
 /**

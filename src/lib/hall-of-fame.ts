@@ -13,7 +13,7 @@
  */
 
 /** Eight badges make a region, as they do in the games. */
-export const BADGES_PER_REGION = 8;
+const BADGES_PER_REGION = 8;
 
 type Region = {
   /** Region name, as it is shown beside the badge. */

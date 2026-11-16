@@ -1,27 +1,26 @@
 /*
  * Dashboard page for the Pokemon Draft League.
  *
- * Verifies the signed-in user's session, resolves the active league, and
- * renders the dashboard shell with the user's profile plus the league's live
+ * Renders the dashboard shell with the member's identity plus the league's live
  * season data (standings, schedule, pool, roster, trades, notifications).
  *
- * The profile read here also carries the member's chosen name colour and avatar
- * initials, which are handed to the shell so the header renders their name and
- * their avatar the same way as every other page in the app.
+ * The league and the profile both come from the shared shell provider, which has
+ * already resolved them for the navigation bar; this page only loads the
+ * season-specific payload.
  */
 
 "use client";
 
-import { Suspense, useCallback, useEffect, useRef, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useState } from "react";
+import { useRouter } from "next/navigation";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { CrownProvider } from "@/components/crown-provider";
 import { useConfirm } from "@/components/confirm-dialog";
-import { supabase } from "@/lib/supabase/client";
+import { useLeagueShell, useShellLeague } from "@/components/league-shell-context";
+import { useLeaguePageData } from "@/lib/use-league-page-data";
 import {
   clearAllNotifications,
   loadDashboardData,
-  type DashboardGoods,
   type DashboardMatch,
 } from "@/lib/supabase/dashboard";
 import { setMatchPrediction } from "@/lib/supabase/schedule";
@@ -34,43 +33,27 @@ import {
 } from "@/components/page-shell";
 
 /**
- * Streams the dashboard content behind a Suspense loading fallback so the
- * useSearchParams hook can be used without an error boundary.
+ * The dashboard route.
+ *
+ * The league comes from the shell provider, so the page reads no search params
+ * and needs no Suspense boundary of its own.
+ *
+ * @returns The dashboard page.
  */
 export default function DashboardPage() {
-  return (
-    <Suspense fallback={<PageShellLoading label="Loading dashboard" />}>
-      <DashboardPageContent />
-    </Suspense>
-  );
+  return <DashboardPageContent />;
 }
 
 /**
- * Loads the current user's profile and active league name and renders the
- * DashboardShell. Redirects to the home page when there is no session.
+ * Loads the league's season data and renders the DashboardShell. A signed-out
+ * visitor is sent back to the landing page by the shell's state.
  */
 function DashboardPageContent() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const [sessionUser, setSessionUser] = useState<{
-    id: string;
-    displayName: string;
-    avatarUrl: string | null;
-    avatarInitials: string | null;
-    nameColor: string | null;
-  } | null>(null);
-  const [leagueName, setLeagueName] = useState<string | null>(null);
-  const [goods, setGoods] = useState<DashboardGoods | null>(null);
-  /** True once the signed-in member is known to have no active league memberships. */
-  const [hasNoLeagues, setHasNoLeagues] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  /**
-   * Panel-level feedback for the notification list. Deliberately separate from
-   * the page-level `error`, which replaces the entire dashboard: a failure to
-   * clear one panel is not a failure of the league, and blanking the page to say
-   * so would throw away everything the member can still read.
-   */
+  const { confirm, confirmDialog } = useConfirm();
+  const shell = useLeagueShell();
+  const shellLeague = useShellLeague();
+
   const [notificationError, setNotificationError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [isClearingNotifications, setIsClearingNotifications] = useState(false);
@@ -80,266 +63,55 @@ function DashboardPageContent() {
   );
   /** Panel-level failure text for a prediction that could not be saved. */
   const [predictionError, setPredictionError] = useState<string | null>(null);
-  const { confirm, confirmDialog } = useConfirm();
 
-  /*
-   * The effect below owns the load, but a real-time match change needs to re-run
-   * it from outside. A ref is used rather than lifting the function to component
-   * scope because it closes over the effect's own dependencies, and moving it
-   * would mean duplicating the league resolution.
-   */
-  const loadLeagueRef = useRef<(() => Promise<void>) | null>(null);
+  /** True once the shell resolves and the member belongs to no active league. */
+  const hasNoLeagues = shell.isReady && shell.leagueOptions.length === 0;
 
-  useEffect(() => {
-    async function syncSessionUser(
-      session: Awaited<
-        ReturnType<typeof supabase.auth.getSession>
-      >["data"]["session"],
-    ) {
-      // Auth guard: bounce unsigned-in visitors back to the landing page.
-      if (!session?.user) {
-        router.replace("/");
-        return;
-      }
-
-      const user = session.user;
-
-      /*
-       * The profile row is the authority for the display name, not the auth
-       * metadata: the profile is what every other page reads, so reading the
-       * metadata here is what made the header disagree with the rest of the app
-       * after a rename. The metadata and the email local part remain as
-       * fallbacks for a profile that has not been provisioned yet.
-       */
-      const { data: profileData } = await supabase
-        .from("profiles")
-        .select("display_name, avatar_url, avatar_initials, name_color")
-        .eq("id", user.id)
-        .maybeSingle();
-
-      const displayName =
-        (profileData?.display_name as string | undefined) ||
-        (user.user_metadata?.display_name as string | undefined) ||
-        user.email?.split("@")[0] ||
-        "Trainer";
-
-      setSessionUser({
-        id: user.id,
-        displayName,
-        avatarUrl: (profileData?.avatar_url as string | null) ?? null,
-        avatarInitials: (profileData?.avatar_initials as string | null) ?? null,
-        nameColor: (profileData?.name_color as string | null) ?? null,
-      });
-    }
-
-    /**
-     * Resolves the active league, then loads every season value the dashboard
-     * renders (standings, schedule, pool, roster, trades, notifications).
-     *
-     * The current season is the latest one belonging to the resolved league,
-     * matching the lookup used by the other league pages.
-     */
-    async function loadLeague() {
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser();
-
-      if (userError || !user) {
-        setLeagueName("League Name");
-        setGoods(null);
-        return;
-      }
-
-      const selectedLeagueId = searchParams.get("leagueId");
-
-      /*
-       * The membership read can land a moment before a just-created league's
-       * membership row is visible through PostgREST on a slow mobile connection.
-       * Retrying the same scoped query avoids showing "unavailable" for a league
-       * the account has just created.
-       */
-      const fetchMembership = () => {
-        // Prefer the league from the query param, else the most recently joined active one.
-        let query = supabase
-          .from("league_members")
-          .select("league_id, leagues(name)")
-          .eq("user_id", user.id)
-          .eq("is_active", true)
-          .order("joined_at", { ascending: false })
-          .limit(1);
-
-        if (selectedLeagueId) {
-          query = supabase
-            .from("league_members")
-            .select("league_id, leagues(name)")
-            .eq("user_id", user.id)
-            .eq("league_id", selectedLeagueId)
-            .eq("is_active", true)
-            .limit(1);
+  /** The greeting and header identity, taken from the shell's cached profile. */
+  const sessionUser =
+    shell.isReady && shell.userId
+      ? {
+          id: shell.userId,
+          displayName: shell.profile.displayName ?? "Trainer",
+          avatarUrl: shell.profile.avatarUrl,
+          avatarInitials: shell.profile.avatarInitials,
+          nameColor: shell.profile.nameColor,
         }
+      : null;
 
-        return query;
-      };
+  /** The league's display name, from the shell's membership list. */
+  const leagueName =
+    shell.leagueOptions.find((entry) => entry.id === shellLeague.leagueId)
+      ?.label ?? "League Name";
 
-      let membershipResult = await fetchMembership();
-
-      for (
-        let attempt = 0;
-        attempt < 3 &&
-        !membershipResult.error &&
-        (!membershipResult.data || membershipResult.data.length === 0) &&
-        selectedLeagueId;
-        attempt += 1
-      ) {
-        await new Promise((resolve) => setTimeout(resolve, 300));
-        membershipResult = await fetchMembership();
-      }
-
-      const { data, error } = membershipResult;
-
-      const resolvedError = error;
-      let resolvedData = data;
-
+  const {
+    data: goods,
+    isLoading,
+    error,
+    setData: setGoods,
+    reload: reloadLeague,
+  } = useLeaguePageData({
+    ...shellLeague,
+    load: (leagueId) => {
       /*
-       * If the id in the URL does not resolve, fall back to the most recent
-       * active membership rather than claiming the league is unavailable. A
-       * stale link after leaving a league is the common case.
+       * The shell sends a signed-out visitor away before a league is loaded, so
+       * the member id is present here. The guard is for the type, not a case the
+       * page can actually reach.
        */
-      if (
-        !resolvedError &&
-        selectedLeagueId &&
-        (!resolvedData || resolvedData.length === 0)
-      ) {
-        const fallback = await supabase
-          .from("league_members")
-          .select("league_id, leagues(name)")
-          .eq("user_id", user.id)
-          .eq("is_active", true)
-          .order("joined_at", { ascending: false })
-          .limit(1);
-
-        if (!fallback.error && fallback.data && fallback.data.length > 0) {
-          resolvedData = fallback.data;
-        }
+      if (!shellLeague.userId) {
+        return Promise.reject(new Error("You are not signed in."));
       }
 
-      if (resolvedError || !resolvedData || resolvedData.length === 0) {
-        setLeagueName("League Name");
-        setGoods(null);
+      return loadDashboardData(
+        leagueId,
+        shellLeague.userId,
+        getSelectedSeason(leagueId),
+      );
+    },
+    emptyLeagueMessage: "You are not a member of any active league.",
+    fallbackErrorMessage: "The league could not be loaded.",
+  });
 
-        /*
-         * Distinguish "this account belongs to no leagues" from "the requested
-         * league is missing or inaccessible". The first gets the onboarding
-         * screen; the second keeps the ordinary unavailable message.
-         */
-        if (!resolvedError && resolvedData && resolvedData.length === 0) {
-          if (!selectedLeagueId) {
-            setHasNoLeagues(true);
-          } else {
-            const { data: otherMemberships, error: membershipError } =
-              await supabase
-                .from("league_members")
-                .select("league_id")
-                .eq("user_id", user.id)
-                .eq("is_active", true)
-                .limit(1);
-
-            setHasNoLeagues(
-              !membershipError && (otherMemberships?.length ?? 0) === 0,
-            );
-          }
-        } else {
-          setHasNoLeagues(false);
-        }
-
-        return;
-      }
-
-      setHasNoLeagues(false);
-
-      const nextLeagueName = (resolvedData[0] as { leagues?: { name?: string | null } })
-        .leagues?.name;
-      setLeagueName(nextLeagueName || "League Name");
-
-      const resolvedLeagueId = (resolvedData[0] as { league_id?: string | null })
-        .league_id;
-
-      if (!resolvedLeagueId) {
-        setGoods(null);
-        return;
-      }
-
-      try {
-        const next = await loadDashboardData(
-          resolvedLeagueId,
-          user.id,
-          // The season the member last chose for this league, or null for the newest.
-          getSelectedSeason(resolvedLeagueId),
-        );
-        setGoods(next);
-        setError(null);
-      } catch (loadError) {
-        setGoods(null);
-        setError(
-          loadError instanceof Error
-            ? loadError.message
-            : "The league could not be loaded.",
-        );
-      }
-    }
-
-    loadLeagueRef.current = loadLeague;
-
-    async function loadSession() {
-      /*
-       * This effect re-runs when the league in the URL changes, because the
-       * shell's league picker always lands back on the dashboard. Putting the
-       * flag up first means the previous league's data is replaced by the
-       * app's loading animation straight away instead of staying on screen
-       * until the new payload lands, which made a switch look like it did
-       * nothing.
-       */
-      setIsLoading(true);
-
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      await syncSessionUser(session);
-      await loadLeague();
-      setIsLoading(false);
-    }
-
-    loadSession();
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      await syncSessionUser(session);
-      await loadLeague();
-    });
-
-    const handleProfileUpdated = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      await syncSessionUser(session);
-      await loadLeague();
-    };
-
-    window.addEventListener("profile-updated", handleProfileUpdated);
-
-    return () => {
-      subscription.unsubscribe();
-      window.removeEventListener("profile-updated", handleProfileUpdated);
-      loadLeagueRef.current = null;
-    };
-  }, [router, searchParams]);
-
-  /** Re-runs the league load, for a real-time change to a match. */
-  const reloadLeague = useCallback(async () => {
-    await loadLeagueRef.current?.();
-  }, []);
 
   /*
    * Clearing notifications is a delete, so it is confirmed first. The dialog copy
@@ -413,7 +185,7 @@ function DashboardPageContent() {
     } finally {
       setIsClearingNotifications(false);
     }
-  }, [goods?.leagueId, goods?.season?.id, confirm]);
+  }, [goods?.leagueId, goods?.season?.id, confirm, setGoods]);
 
   /**
    * Saves a winner pick from a Schedule-panel card.
@@ -483,7 +255,7 @@ function DashboardPageContent() {
     } finally {
       setPredictingMatchId(null);
     }
-  }, []);
+  }, [setGoods]);
 
   /*
    * Live updates. A match changing status, time, or result changes the schedule,
@@ -495,7 +267,7 @@ function DashboardPageContent() {
     watchers: [{ table: "matches", onChange: () => void reloadLeague() }],
   });
 
-  if (isLoading || !sessionUser || !leagueName) {
+  if (!shell.isReady || shellLeague.signedOut || !sessionUser) {
     return <PageShellLoading label="Loading dashboard" />;
   }
 
@@ -528,6 +300,10 @@ function DashboardPageContent() {
         </div>
       </main>
     );
+  }
+
+  if (isLoading) {
+    return <PageShellLoading label="Loading dashboard" />;
   }
 
   if (error || !goods) {

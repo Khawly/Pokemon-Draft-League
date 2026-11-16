@@ -83,25 +83,3 @@ export async function getServerSession() {
 
   return { session, user: session?.user ?? null, error: null };
 }
-
-/**
- * Loads the profile row for the given user id.
- *
- * @param userId - The id of the user whose profile should be fetched.
- * @returns A Promise resolving to `{ profile, error }`, where `profile` is the
- *   full profile row (or null) and `error` is any query error.
- */
-export async function getCurrentUserProfile(userId: string) {
-  const supabase = await createSupabaseServerClient();
-  const { data, error } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("id", userId)
-    .maybeSingle();
-
-  if (error) {
-    return { profile: null, error };
-  }
-
-  return { profile: data, error: null };
-}

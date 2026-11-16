@@ -13,7 +13,7 @@ import type { MouseEvent } from "react";
 import { MemberName } from "@/components/member-name";
 
 /** One side of a matchup the member can pick to win. */
-export type MatchPredictionSide = {
+type MatchPredictionSide = {
   /** The team the pick is stored against. */
   teamId: string;
   /** The member-facing name shown on the button. */

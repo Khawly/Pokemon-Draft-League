@@ -18,7 +18,7 @@
 import type { ReactNode } from "react";
 
 /** Props for the {@link NavAlertBadge} component. */
-export interface NavAlertBadgeProps {
+interface NavAlertBadgeProps {
   /** How many unread alerts to show. Nothing renders at zero. */
   count: number;
   /**
@@ -43,7 +43,7 @@ export interface NavAlertBadgeProps {
  * @param props - {@link NavAlertBadgeProps}
  * @returns The badge, or null when there is nothing to report.
  */
-export function NavAlertBadge({ count, subject, children }: NavAlertBadgeProps) {
+function NavAlertBadge({ count, subject, children }: NavAlertBadgeProps) {
   if (count <= 0) {
     return null;
   }

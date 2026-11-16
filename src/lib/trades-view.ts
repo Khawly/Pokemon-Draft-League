@@ -19,7 +19,7 @@ import {
 export type TradesTab = "new" | "mine" | "approvals" | "history";
 
 /** One entry on the tab strip. */
-export interface TradeTabEntry {
+interface TradeTabEntry {
   /** Tab the button opens. */
   id: TradesTab;
   /** Label shown on the button. */

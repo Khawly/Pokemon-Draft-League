@@ -12,7 +12,7 @@
  */
 
 /** LocalStorage key holding the last league the member looked at. */
-export const SELECTED_LEAGUE_STORAGE_KEY =
+const SELECTED_LEAGUE_STORAGE_KEY =
   "pokemon-draft-league:selected-league";
 
 /** Fired on `window` when the selected league changes. */

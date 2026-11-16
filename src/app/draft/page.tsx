@@ -38,7 +38,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useConfirm } from "@/components/confirm-dialog";
 import { useRealtimeInvalidation } from "@/lib/use-realtime-invalidation";
 import { isDocumentHidden } from "@/lib/refetch-throttle";
@@ -53,7 +53,6 @@ import {
   computeDraftSlice,
   getPickDeadlineMs,
   getTeamSalary,
-  isPokemonPicked,
   loadDraftData,
   resetDraft,
   resolveQuietHours,
@@ -199,12 +198,6 @@ function Sprite({
       className="shrink-0 object-contain"
     />
   );
-}
-
-/** Extracts just the generation number from a label like "Gen 1". */
-function generationNumber(generation: string): string {
-  const match = /\d+/.exec(generation);
-  return match ? match[0] : generation;
 }
 
 /**
@@ -851,7 +844,7 @@ function usePickBoardRows(goods: DraftGoods): PickBoardRow[] {
  * @param props - {@link ArenaPanelProps}
  * @returns The pick board panel markup.
  */
-function PickBoard({ goods, now }: ArenaPanelProps) {
+function PickBoard({ goods }: ArenaPanelProps) {
   const [layout, setLayout] = useState<PickBoardLayout>(
     getStoredPickBoardLayout,
   );
@@ -1339,19 +1332,6 @@ type SortKey =
   | "specialDefense"
   | "speed";
 type SortDir = "asc" | "desc";
-
-const SORT_LABELS: Record<SortKey, string> = {
-  dex: "Dex",
-  tier: "Tier",
-  bst: "BST",
-  generation: "Gen",
-  hp: "HP",
-  attack: "Atk",
-  defense: "Def",
-  specialAttack: "SpA",
-  specialDefense: "SpD",
-  speed: "Spe",
-};
 
 /**
  * Renders the left pool panel: search box, type filter, sort controls, and the
@@ -2192,7 +2172,6 @@ function sliceOf(goods: DraftGoods) {
  */
 function PriorityPanel({
   goods,
-  now,
   actions,
   entries,
   error,
@@ -2683,7 +2662,6 @@ function useCoarsePointer(): boolean {
  * @returns The arena markup.
  */
 function DraftArena({ leagueId }: { leagueId: string }) {
-  const router = useRouter();
   const { confirm, confirmDialog } = useConfirm();
   const isTouch = useCoarsePointer();
   const [goods, setGoods] = useState<DraftGoods | null>(null);

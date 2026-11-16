@@ -6,9 +6,9 @@
  * bugs live - daylight saving gaps, windows that cross midnight, degenerate
  * ranges - and they are all reachable without a browser or a database.
  *
- * The environment is Node rather than jsdom by default, which keeps the suite
- * fast. A test that genuinely needs a DOM can opt in per file with
- * `@vitest-environment jsdom`; nothing currently does.
+ * The environment is Node rather than a browser DOM by default, which keeps the
+ * suite fast. A test that genuinely needs a DOM can opt in per file with the
+ * vitest environment comment; nothing currently does.
  */
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";

@@ -27,14 +27,14 @@ export type ScheduleRosterSprite = {
 
 
 /** Lifecycle status of a season (subset used by the schedule page). */
-export type ScheduleSeasonStatus =
+type ScheduleSeasonStatus =
   | "draft_pending"
   | "draft_active"
   | "draft_complete"
   | "archived";
 
 /** Season row for the schedule page. */
-export type ScheduleSeason = {
+type ScheduleSeason = {
   id: string;
   season_number: number;
   status: ScheduleSeasonStatus;
@@ -59,7 +59,7 @@ export type ScheduleSettings = {
 };
 
 /** A team slot in the season with its owner's resolved display info. */
-export type ScheduleTeam = {
+type ScheduleTeam = {
   id: string;
   owner_user_id: string;
   team_name: string;
@@ -92,7 +92,7 @@ export type ScheduleMatchResult = {
 };
 
 /** A time one participant has offered the other for a match. */
-export type ScheduleProposal = {
+type ScheduleProposal = {
   id: string;
   proposed_by: string;
   proposed_at: string;
@@ -620,13 +620,6 @@ type EmbeddedResult = Omit<
 
 /** A scheduling proposal, as it arrives embedded in a match read. */
 type EmbeddedProposal = Omit<ScheduleProposal, "match_id">;
-
-/** The live part of the schedule page: what a match changing can move. */
-export type ScheduleLiveData = {
-  matches: ScheduleMatch[];
-  standings: StandingsRow[];
-  championTeamId: string | null;
-};
 
 /** Narrows a raw standings RPC row to the shape the page renders. */
 function toStandingsRows(data: unknown): StandingsRow[] {
@@ -1472,7 +1465,7 @@ export type SchedulePlayoffTemplateRow = {
   is_reset: boolean;
 };
 
-export type SchedulePlayoffTemplate = {
+type SchedulePlayoffTemplate = {
   /** Every game the bracket will contain, in bracket order. */
   rows: SchedulePlayoffTemplateRow[];
   /**
@@ -1494,7 +1487,7 @@ export type SchedulePlayoffTemplate = {
  * @param seasonId - The season to draw, or null for the league's newest.
  * @returns The template rows, or the reason none could be produced.
  */
-export async function loadPlayoffTemplate(
+async function loadPlayoffTemplate(
   leagueId: string,
   seasonId?: string | null,
 ): Promise<SchedulePlayoffTemplate> {

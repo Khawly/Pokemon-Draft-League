@@ -17,7 +17,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 /** One choice in the picker. */
-export type MatchupPickerOption = {
+type MatchupPickerOption = {
   id: string;
   /** The week or round label, e.g. "Week 3" or "Playoffs (Week 2)". */
   label: string;

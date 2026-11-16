@@ -48,6 +48,13 @@ export interface LeaguePageData<T> {
   error: string | null;
   /** Lets an action handler report or clear an error. */
   setError: (message: string | null) => void;
+  /**
+   * Replaces the payload in place.
+   *
+   * For updates the page can apply without a refetch, such as folding a saved
+   * prediction into the match it belongs to.
+   */
+  setData: (update: T | null | ((current: T | null) => T | null)) => void;
   /** The league the payload belongs to, once resolved. */
   leagueId: string | null;
   /**
@@ -196,6 +203,7 @@ export function useLeaguePageData<T>({
     isLoading: leagueMissing ? false : isLoading || isResolving,
     error: error ?? (leagueMissing ? emptyLeagueMessage : null),
     setError,
+    setData,
     leagueId: requestedLeagueId,
     reload,
   };

@@ -34,17 +34,17 @@ export type TradeStatus =
   | "cancelled";
 
 /** Which member of the trade an item is travelling from. */
-export type TradeSide = "proposer" | "recipient";
+type TradeSide = "proposer" | "recipient";
 
 /** Lifecycle status of a season (subset used by the trades page). */
-export type TradeSeasonStatus =
+type TradeSeasonStatus =
   | "draft_pending"
   | "draft_active"
   | "draft_complete"
   | "archived";
 
 /** Season row for the trades page. */
-export type TradeSeason = {
+type TradeSeason = {
   id: string;
   season_number: number;
   status: TradeSeasonStatus;
@@ -52,7 +52,7 @@ export type TradeSeason = {
 };
 
 /** Per-season cost and trade-approval configuration read from league_settings. */
-export type TradeSettings = {
+type TradeSettings = {
   enable_pokemon_costs: boolean;
   total_token_salary: number | null;
   allow_per_team_salary: boolean;
@@ -131,7 +131,7 @@ export type TradeItem = TradePokemon & {
 };
 
 /** One recorded approval decision on a trade. */
-export type TradeVote = {
+type TradeVote = {
   voter_user_id: string;
   /** The voter's display name, so a card can show who decided without a second read. */
   voter_name: string | null;

@@ -19,14 +19,14 @@ import {
 } from "@/lib/pokeapi";
 
 /** Lifecycle status of a season (subset used by the team page). */
-export type TeamSeasonStatus =
+type TeamSeasonStatus =
   | "draft_pending"
   | "draft_active"
   | "draft_complete"
   | "archived";
 
 /** Season row for the team page. */
-export type TeamSeason = {
+type TeamSeason = {
   id: string;
   season_number: number;
   status: TeamSeasonStatus;
@@ -34,7 +34,7 @@ export type TeamSeason = {
 };
 
 /** Per-season cost/salary configuration read from league_settings. */
-export type TeamSettings = {
+type TeamSettings = {
   enable_pokemon_costs: boolean;
   total_token_salary: number | null;
   allow_per_team_salary: boolean;
@@ -42,7 +42,7 @@ export type TeamSettings = {
 };
 
 /** A team slot in the season with its owner's resolved display info. */
-export type TeamInfo = {
+type TeamInfo = {
   id: string;
   owner_user_id: string;
   team_name: string;
@@ -85,7 +85,7 @@ export type TeamRosterPokemon = {
 };
 
 /** One reported game of a match (result). */
-export type TeamMatchResult = {
+type TeamMatchResult = {
   id: string;
   winner_team_id: string;
   replay_url: string | null;

@@ -25,7 +25,7 @@ export type DraftboardMember = {
 };
 
 /** Season row for the draft board. */
-export type DraftboardSeason = {
+type DraftboardSeason = {
   id: string;
   season_number: number;
   status: string;

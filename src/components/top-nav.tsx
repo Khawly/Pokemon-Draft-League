@@ -66,7 +66,7 @@ function useAppNavHeightRef() {
  *
  * @returns The skeleton top bar.
  */
-export function TopNavSkeleton() {
+function TopNavSkeleton() {
   const navRef = useAppNavHeightRef();
 
   return (

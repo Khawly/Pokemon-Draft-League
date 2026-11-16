@@ -18,7 +18,7 @@ const ALLOWED_REPLAY_HOSTS = new Set(["replay.pokemonshowdown.com"]);
 const FALLBACK_TEAM_SIZE = 6;
 
 /** How the game ended, as far as the log reveals. */
-export type ReplayOutcome =
+type ReplayOutcome =
   /** A normal finish: one side knocked the other out. */
   | "win"
   /** The turn limit expired, or the log ends with `|tie|`. */
@@ -63,7 +63,7 @@ export type ReplaySummary = {
 };
 
 /** Resolves the `.log` URL that backs a replay page, without fetching it. */
-export function replayLogUrl(replayUrl: string): string {
+function replayLogUrl(replayUrl: string): string {
   const path = replayUrl.trim().split(/[?#]/)[0].replace(/\/+$/, "");
   if (/\.(?:log|txt)$/i.test(path)) {
     return path.replace(/\.txt$/i, ".log");
@@ -113,7 +113,7 @@ function nameKey(value: string): string {
  * @param log - The raw contents of a replay's `.log` file.
  * @returns The winner, the KO counts, and the winner's surviving Pokemon.
  */
-export function parseReplayLog(log: string): ReplaySummary {
+function parseReplayLog(log: string): ReplaySummary {
   const players: Record<string, string> = {};
   const teamSizes: Record<string, number> = {};
   const previewed: Record<string, number> = {};

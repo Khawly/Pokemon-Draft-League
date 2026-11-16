@@ -16,28 +16,7 @@ import formsJson from "@/data/pokemon-forms.json";
 import detailsJson from "@/data/pokemon-details.json";
 import abilitiesJson from "@/data/pokemon-abilities.json";
 
-/** A single entry in the Pokémon national-dex dataset. */
-export type PokemonCatalogEntry = {
-  /** PokeAPI species resource name, e.g. "pikachu". */
-  slug: string;
-  /** National Pokédex number, e.g. 25. */
-  dexNumber: number;
-};
-
-/** Rich metadata about a Pokémon species used by the draft pool table. */
-export type PokemonDetails = {
-  /** Primary type name, e.g. "electric". */
-  primaryType: string | null;
-  /** Secondary type name, e.g. "flying", or null for single-typed species. */
-  secondaryType: string | null;
-  /** Sum of base stats (BST). */
-  baseStatTotal: number;
-  /** Generation label, e.g. "Gen 1". */
-  generation: string;
-};
-
-/** One record of the bundled national-dex dataset. */
-export type PokemonDataEntry = {
+/** One record of the bundled national-dex dataset. */export type PokemonDataEntry = {
   /** PokeAPI species resource name, e.g. "pikachu". */
   slug: string;
   /** National Pokédex number, e.g. 25. */
@@ -144,11 +123,6 @@ export const POKEMON_DATA = pokemonJson as PokemonDataEntry[];
 /** Index of the dataset by species slug. */
 const BY_SLUG = new Map(POKEMON_DATA.map((entry) => [entry.slug, entry]));
 
-/** Index of dex numbers by species slug. */
-const DEX_BY_SLUG = new Map(
-  POKEMON_DATA.map((entry) => [entry.slug, entry.dexNumber]),
-);
-
 /** The full alternate-forms dataset as a typed array. */
 export const FORMS_DATA = formsJson as PokemonFormEntry[];
 
@@ -156,7 +130,7 @@ export const FORMS_DATA = formsJson as PokemonFormEntry[];
 const FORM_BY_SLUG = new Map(FORMS_DATA.map((entry) => [entry.slug, entry]));
 
 /** The full stats/abilities dataset as a typed array. */
-export const POKEMON_DETAILS = detailsJson as PokemonDetailsEntry[];
+const POKEMON_DETAILS = detailsJson as PokemonDetailsEntry[];
 
 /** Index of the stats/abilities dataset by species slug. */
 const DETAILS_BY_SLUG = new Map(
@@ -177,7 +151,7 @@ export function getPokemonDetailsBySlug(
 }
 
 /** One record of the bundled abilities dataset. */
-export type PokemonAbilityDescription = {
+type PokemonAbilityDescription = {
   /** PokeAPI ability resource name, e.g. "lightning-rod". */
   slug: string;
   /** Short English effect text, e.g. "Protects the bearer from Electric moves." */
@@ -191,7 +165,8 @@ export type PokemonAbilityDescription = {
  * AbilityDex (each ability's In-Depth Effect text), so the app can explain the
  * full mechanics of an ability without a runtime network call.
  */
-export const ABILITY_DATA = abilitiesJson as PokemonAbilityDescription[];
+/** The ability descriptions as a typed array. */
+const ABILITY_DATA = abilitiesJson as PokemonAbilityDescription[];
 
 /** Index of ability descriptions by ability slug. */
 const ABILITY_DESCRIPTION_BY_SLUG = new Map(
@@ -227,62 +202,19 @@ export function formatAbilityName(name: string): string {
 }
 
 /**
- * Formats a list of abilities into a comma-separated display string, e.g.
- * ["static", "lightning-rod"] -> "Static, Lightning Rod".
- *
- * @param abilities - The ability list to format.
- * @returns The joined display labels, or "" for an empty list.
- */
-export function formatAbilityList(abilities: PokemonAbility[]): string {
-  return abilities.map((ability) => formatAbilityName(ability.name)).join(", ");
-}
-
-/**
- * Returns the full Pokémon catalog from the bundled dataset.
- *
- * @returns A promise resolving to every species as a catalog entry.
- */
-export async function fetchPokemonCatalog(): Promise<PokemonCatalogEntry[]> {
-  return POKEMON_DATA.map((entry) => ({
-    slug: entry.slug,
-    dexNumber: entry.dexNumber,
-  }));
-}
-
-/**
  * Formats a PokeAPI slug into a human-readable species name, capitalizing each
  * hyphen-separated segment (e.g. "nidoran-f" -> "Nidoran F").
  *
  * @param slug - The PokeAPI species slug.
  * @returns The formatted display name.
  */
-export function formatSpeciesName(slug: string): string {
+function formatSpeciesName(slug: string): string {
   return slug
     .split("-")
     .map((segment) =>
       segment ? segment.charAt(0).toUpperCase() + segment.slice(1) : segment,
     )
     .join(" ");
-}
-
-/**
- * Returns the official English name for a species slug.
- *
- * @param slug - The PokeAPI species slug.
- * @returns The official name, or the formatted slug if unknown.
- */
-export function getSpeciesName(slug: string): string {
-  return BY_SLUG.get(slug)?.name ?? formatSpeciesName(slug);
-}
-
-/**
- * Returns the national dex number for a species slug.
- *
- * @param slug - The PokeAPI species slug.
- * @returns The dex number, or 0 if unknown.
- */
-export function getDexNumber(slug: string): number {
-  return DEX_BY_SLUG.get(slug) ?? 0;
 }
 
 /**
@@ -299,59 +231,6 @@ export function getDexNumber(slug: string): number {
  */
 export function getSpriteUrl(spriteId: number): string {
   return `/sprites/${spriteId}.png`;
-}
-
-/**
- * Searches the national-dex dataset by name substring.
- *
- * Matches against the species slug, the official name, and the formatted
- * display name, case-insensitively.
- *
- * @param query - The substring to match against species names.
- * @param limit - The maximum number of results to return.
- * @returns Matching catalog entries, or [].
- */
-export async function searchPokemonCatalog(
-  query: string,
-  limit = 48,
-): Promise<PokemonCatalogEntry[]> {
-  const normalized = query.trim().toLowerCase();
-
-  if (!normalized) {
-    return [];
-  }
-
-  return POKEMON_DATA.filter(
-    (entry) =>
-      entry.slug.includes(normalized) ||
-      entry.name.toLowerCase().includes(normalized) ||
-      formatSpeciesName(entry.slug).toLowerCase().includes(normalized),
-  )
-    .slice(0, limit)
-    .map((entry) => ({ slug: entry.slug, dexNumber: entry.dexNumber }));
-}
-
-/**
- * Resolves species details from the bundled dataset.
- *
- * @param slug - The PokeAPI species slug, e.g. "pikachu".
- * @returns A promise resolving to the species details, or null if unknown.
- */
-export async function fetchPokemonDetails(
-  slug: string,
-): Promise<PokemonDetails | null> {
-  const entry = BY_SLUG.get(slug);
-
-  if (!entry) {
-    return null;
-  }
-
-  return {
-    primaryType: entry.types[0] ?? null,
-    secondaryType: entry.types[1] ?? null,
-    baseStatTotal: entry.bst,
-    generation: entry.generation,
-  };
 }
 
 /**

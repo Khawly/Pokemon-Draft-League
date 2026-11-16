@@ -15,7 +15,7 @@
 const SELECTED_SEASON_KEY_PREFIX = "pokemon-draft-league:selected-season:";
 
 /** Fired on `window` when the chosen season changes. */
-export const SELECTED_SEASON_CHANGED_EVENT = "pdl:selected-season-changed";
+const SELECTED_SEASON_CHANGED_EVENT = "pdl:selected-season-changed";
 
 /**
  * Reads the chosen season for a league.

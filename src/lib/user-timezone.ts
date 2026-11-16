@@ -23,7 +23,7 @@ const USER_TIME_ZONE_STORAGE_KEY = "pokemon-draft-league:user-time-zone";
  *
  * @returns The cached IANA time zone, or null when nothing is cached.
  */
-export function cachedUserTimeZone(): string | null {
+function cachedUserTimeZone(): string | null {
   if (typeof window === "undefined") {
     return null;
   }
@@ -60,7 +60,7 @@ export function cacheUserTimeZone(timeZone: string): void {
  *
  * @returns The cached zone, or the browser's zone on a cold cache.
  */
-export function resolveDisplayTimeZone(): string {
+function resolveDisplayTimeZone(): string {
   return cachedUserTimeZone() ?? browserTimeZone();
 }
 

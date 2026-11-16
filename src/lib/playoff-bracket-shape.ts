@@ -18,7 +18,7 @@ export interface BracketShapeRow {
 }
 
 /** Which part of the bracket a game belongs to. */
-export type BracketPhase = "upper" | "lower" | "gf" | "toilet";
+type BracketPhase = "upper" | "lower" | "gf" | "toilet";
 
 /** A template row in full, which is what a card is drawn from. */
 export interface BracketTemplateRow extends BracketShapeRow {

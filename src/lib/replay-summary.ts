@@ -30,7 +30,7 @@ export type ReplaySummaryResult = {
 };
 
 /** Thrown when the route refuses or cannot read a replay. */
-export class ReplayReadError extends Error {}
+class ReplayReadError extends Error {}
 
 /**
  * Asks the server to read a replay link and resolve it against a match.

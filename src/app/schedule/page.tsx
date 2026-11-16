@@ -49,12 +49,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
-import { resolveActiveLeague } from "@/lib/active-league";
 import {
   PageShell,
   PageShellCard,
   PageShellLoading,
 } from "@/components/page-shell";
+import { useShellLeague } from "@/components/league-shell-context";
 import { getSelectedSeason } from "@/lib/season-selection";
 import { readReplaySummary } from "@/lib/replay-summary";
 import { useConfirm } from "@/components/confirm-dialog";
@@ -1077,7 +1077,16 @@ function SchedulePageContent({
   const [editUrl, setEditUrl] = useState("");
   const [editAlive, setEditAlive] = useState("");
 
-  const requestedLeagueId = searchParams?.get("leagueId") ?? null;
+  const shellLeague = useShellLeague();
+  /** True when the shell resolved no league for this member. */
+  const shellLeagueMissing =
+    !shellLeague.isResolving && !shellLeague.signedOut && !shellLeague.leagueId;
+
+  useEffect(() => {
+    if (shellLeague.signedOut) {
+      router.replace("/");
+    }
+  }, [shellLeague.signedOut, router]);
 
   /*
    * The zone every match time on this page is rendered in, resolved from the
@@ -1141,27 +1150,24 @@ function SchedulePageContent({
   }, []);
 
   useEffect(() => {
+    // Wait for the shell: it owns the URL, the session, and the league. The
+    // missing-league case is handled in the render below, so this effect only
+    // fetches and never writes state synchronously.
+    if (shellLeague.isResolving || shellLeague.signedOut) {
+      return;
+    }
+
+    if (!shellLeague.leagueId) {
+      return;
+    }
+
+    const activeLeagueId = shellLeague.leagueId;
     let cancelled = false;
 
     async function loadLeague() {
       try {
         setIsLoading(true);
         setError(null);
-
-        const league = await resolveActiveLeague(
-          requestedLeagueId,
-          "Select a league before opening the schedule.",
-        );
-
-        if (league.status === "unauthenticated") {
-          router.replace("/");
-          return;
-        }
-
-        if (league.status === "error") {
-          setError(league.message);
-          return;
-        }
 
         // Nudge the weekly deadline sweep so a week that closed while the app
         // server was idle is settled before the schedule renders.
@@ -1171,7 +1177,7 @@ function SchedulePageContent({
           // Best effort: the server heartbeat retries it.
         }
 
-        const next = await refresh(league.leagueId);
+        const next = await refresh(activeLeagueId);
         if (!cancelled) {
           setGoods(next);
           setIsLoading(false);
@@ -1192,7 +1198,13 @@ function SchedulePageContent({
     return () => {
       cancelled = true;
     };
-  }, [router, requestedLeagueId, refresh]);
+  }, [
+    router,
+    shellLeague.leagueId,
+    shellLeague.isResolving,
+    shellLeague.signedOut,
+    refresh,
+  ]);
 
   const regularMatches = useMemo(
     () => (goods ? goods.matches.filter((match) => !match.is_playoff) : []),
@@ -2682,6 +2694,14 @@ function SchedulePageContent({
     }
     await canRunMutation(() => deleteMatch(match.id), goods.league.id);
     setNotice("Match deleted.");
+  }
+
+  if (shellLeagueMissing) {
+    return (
+      <PageShellCard widthClassName="max-w-xl">
+        You are not a member of any active league.
+      </PageShellCard>
+    );
   }
 
   if (isLoading) {

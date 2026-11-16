@@ -1,11 +1,12 @@
 /*
  * Shared load lifecycle for a page that shows one league.
  *
- * Every league page needs the same sequence: find the signed-in member's league,
- * load that league's payload, redirect a signed-out visitor, and track loading
- * and error state while it happens. Pages used to spell it out in a ~70-line
- * effect each. This hook owns the sequence once; a page supplies only its loader
- * and the two messages a failure can produce.
+ * Every league page needs the same sequence: wait for the shell to say which
+ * league is on screen, load that league's payload, leave a signed-out visitor on
+ * the landing page, and track loading and error state while it happens. Pages
+ * used to spell it out in a ~70-line effect each, including their own auth and
+ * membership lookup. The shell provider has already done that work; this hook
+ * consumes its answer and runs the page's loader.
  *
  * The loader and post-load callback are held in refs, so a page can define them
  * inline (closing over its own state, season parameter, or filters) without
@@ -16,12 +17,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import { resolveActiveLeague } from "@/lib/active-league";
-
 /** Options for {@link useLeaguePageData}. */
 export interface UseLeaguePageDataOptions<T> {
-  /** The `leagueId` search param, or null when absent. */
-  requestedLeagueId: string | null;
+  /** The league to load, or null when the shell resolved none. */
+  leagueId: string | null;
+  /** True until the shell has resolved the URL, the member, and the league. */
+  isResolving: boolean;
+  /** True once the shell knows the visitor is not signed in. */
+  signedOut: boolean;
   /** Loads one league's payload. */
   load: (leagueId: string) => Promise<T>;
   /** Shown when no league can be resolved, e.g. "Select a league before opening X." */
@@ -62,7 +65,9 @@ export interface LeaguePageData<T> {
  * @returns The payload plus its loading, error, and reload controls.
  */
 export function useLeaguePageData<T>({
-  requestedLeagueId,
+  leagueId: requestedLeagueId,
+  isResolving,
+  signedOut,
   load,
   emptyLeagueMessage,
   fallbackErrorMessage,
@@ -73,7 +78,6 @@ export function useLeaguePageData<T>({
   const [data, setData] = useState<T | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setErrorState] = useState<string | null>(null);
-  const [leagueId, setLeagueId] = useState<string | null>(null);
 
   /*
    * The latest loader and callback live in refs so the load effect does not
@@ -88,7 +92,7 @@ export function useLeaguePageData<T>({
     onLoadedRef.current = onLoaded;
   });
 
-  /** The league last resolved, readable from `reload` without a stale closure. */
+  /** The league currently loaded, readable from `reload` without a stale closure. */
   const leagueIdRef = useRef<string | null>(null);
 
   const setError = useCallback((message: string | null) => {
@@ -102,6 +106,18 @@ export function useLeaguePageData<T>({
   }, []);
 
   useEffect(() => {
+    /*
+     * The shell is still resolving the URL and the member, or there is no
+     * league to load. Neither case sets state here: `isResolving` is folded
+     * into the returned `isLoading`, and a missing league is folded into the
+     * returned error, so this effect only ever fetches.
+     */
+    if (isResolving || signedOut || !requestedLeagueId) {
+      return;
+    }
+
+    // Captured before the async call so the narrowing survives into it.
+    const activeLeagueId = requestedLeagueId;
     let cancelled = false;
 
     async function loadLeague() {
@@ -109,29 +125,8 @@ export function useLeaguePageData<T>({
         setIsLoading(true);
         setErrorState(null);
 
-        const league = await resolveActiveLeague(
-          requestedLeagueId,
-          emptyLeagueMessage,
-        );
-
-        if (league.status === "unauthenticated") {
-          router.replace("/");
-          return;
-        }
-
-        if (league.status === "error") {
-          if (!cancelled) {
-            setErrorState(league.message);
-          }
-          return;
-        }
-
-        leagueIdRef.current = league.leagueId;
-        if (!cancelled) {
-          setLeagueId(league.leagueId);
-        }
-
-        const next = await loadRef.current(league.leagueId);
+        leagueIdRef.current = activeLeagueId;
+        const next = await loadRef.current(activeLeagueId);
 
         if (!cancelled) {
           apply(next);
@@ -158,11 +153,23 @@ export function useLeaguePageData<T>({
     };
   }, [
     requestedLeagueId,
+    isResolving,
+    signedOut,
     router,
     emptyLeagueMessage,
     fallbackErrorMessage,
     apply,
   ]);
+
+  /*
+   * A signed-out visitor is sent to the landing page. Kept as its own effect so
+   * the fetch effect above contains no state writes and no navigation.
+   */
+  useEffect(() => {
+    if (signedOut) {
+      router.replace("/");
+    }
+  }, [signedOut, router]);
 
   const reload = useCallback(async (): Promise<T | null> => {
     const currentLeagueId = leagueIdRef.current;
@@ -176,5 +183,20 @@ export function useLeaguePageData<T>({
     return next;
   }, [apply]);
 
-  return { data, isLoading, error, setError, leagueId, reload };
+  /** True when the shell finished resolving and found no league to show. */
+  const leagueMissing = !isResolving && !signedOut && !requestedLeagueId;
+
+  return {
+    data,
+    /*
+     * A missing league is not a loading state: without this, the initial
+     * `isLoading` would never clear (the effect returns before fetching) and the
+     * page would spin instead of showing the "no league" error below.
+     */
+    isLoading: leagueMissing ? false : isLoading || isResolving,
+    error: error ?? (leagueMissing ? emptyLeagueMessage : null),
+    setError,
+    leagueId: requestedLeagueId,
+    reload,
+  };
 }

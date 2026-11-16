@@ -25,17 +25,16 @@
 "use client";
 
 import {
-  Suspense,
   useMemo,
   useState,
   type ReactNode,
 } from "react";
-import { useSearchParams } from "next/navigation";
 import { getSelectedSeason } from "@/lib/season-selection";
 import { useConfirm } from "@/components/confirm-dialog";
 import { MemberName } from "@/components/member-name";
 import { PokemonSprite } from "@/components/pokemon-sprite";
 import { TabNotification } from "@/components/nav-alert-badge";
+import { useShellLeague } from "@/components/league-shell-context";
 import { formatSeasonLabel } from "@/lib/supabase/seasons";
 import { formatDateTimeInZone, formatTimeZoneLabel } from "@/lib/datetime";
 import { useUserTimeZone } from "@/lib/user-timezone";
@@ -94,27 +93,15 @@ const STATUS_STYLES: Record<Trade["status"], string> = {
 };
 
 /**
- * Wraps the trades page in a Suspense boundary to satisfy Next.js's client-side
- * streaming requirement for `useSearchParams`.
+ * The trade centre.
  *
- * @returns The trades page with a loading fallback.
+ * The league and season come from the shell provider, so this page no longer
+ * reads search params and needs no Suspense boundary of its own.
+ *
+ * @returns The trades page.
  */
 export default function TradesPage() {
-  return (
-    <Suspense fallback={<PageShellLoading label="Loading trades" />}>
-      <TradesPageRoute />
-    </Suspense>
-  );
-}
-
-/**
- * Bridge component that reads the search params inside the Suspense boundary.
- *
- * @returns The trades page content.
- */
-function TradesPageRoute() {
-  const searchParams = useSearchParams();
-  return <TradesPageContent searchParams={searchParams} />;
+  return <TradesPageContent />;
 }
 
 /**
@@ -1341,19 +1328,13 @@ function TradeList({
 /**
  * The interactive trades page content.
  *
- * @param props - The URL search params used to resolve the selected league.
  * @returns The trade centre.
  */
-function TradesPageContent({
-  searchParams,
-}: {
-  /** Current URL search params used to select the league. */
-  searchParams: URLSearchParams | null;
-}) {
-  const requestedLeagueId = searchParams?.get("leagueId") ?? null;
+function TradesPageContent() {
   const { confirm, confirmDialog } = useConfirm();
   /** Every timestamp on the page renders in the zone the member picked in settings. */
   const timeZone = useUserTimeZone();
+  const shellLeague = useShellLeague();
 
   const {
     data: goods,
@@ -1362,7 +1343,7 @@ function TradesPageContent({
     setError,
     reload,
   } = useLeaguePageData({
-    requestedLeagueId,
+    ...shellLeague,
     load: (leagueId) =>
       loadTradesPageData(leagueId, getSelectedSeason(leagueId)),
     emptyLeagueMessage: "Select a league before opening the trade centre.",

@@ -9,12 +9,16 @@
  * re-read the alert feeds the navigation had already loaded.
  *
  * This provider owns that data once for the shell. Pages still load their own
- * league-specific payloads; they need rows and shapes the shell does not.
+ * league-specific payloads; they need rows and shapes the shell does not. But
+ * they no longer repeat the identity and membership lookups: the provider wraps
+ * the page content as well as the navigation bar, and {@link useShellLeague}
+ * tells a page which league to load.
  */
 "use client";
 
 import {
   createContext,
+  Suspense,
   useCallback,
   useContext,
   useEffect,
@@ -117,6 +121,52 @@ const NO_NAV_ALERTS: NavAlerts = {
 const LeagueShellContext = createContext<LeagueShellContextValue | null>(null);
 
 /**
+ * The URL facts the shell derives from search params.
+ *
+ * `search` is kept whole as well as parsed because the season selector rewrites
+ * the query string and must preserve every other parameter on the page.
+ */
+interface ShellParams {
+  /** The page's full query string, without the leading "?". */
+  search: string;
+  /** The `leagueId` parameter, or null when absent. */
+  leagueId: string | null;
+  /** The `seasonId` parameter, or null when absent. */
+  seasonId: string | null;
+}
+
+/**
+ * Reads the URL search params and hands them to the shell provider.
+ *
+ * This is a separate component so the provider itself never calls
+ * `useSearchParams`. The provider wraps the page content, and a component that
+ * reads search params suspends until Next.js resolves them - if the provider
+ * did it directly, every page under it would render as a skeleton in the
+ * prerendered HTML. The boundary here is internal, so only this invisible
+ * component is affected.
+ *
+ * @param props.onChange - Receives the parsed params on mount and whenever the
+ *   query string changes, e.g. a league switch or a back navigation.
+ * @returns Nothing; it only feeds the provider.
+ */
+function ShellSearchParams({
+  onChange,
+}: {
+  onChange: (next: ShellParams) => void;
+}) {
+  const searchParams = useSearchParams();
+  const search = searchParams.toString();
+  const leagueId = searchParams.get("leagueId");
+  const seasonId = searchParams.get("seasonId");
+
+  useEffect(() => {
+    onChange({ search, leagueId, seasonId });
+  }, [onChange, search, leagueId, seasonId]);
+
+  return null;
+}
+
+/**
  * Fetches the signed-in member's public profile fields.
  *
  * @param userId - The profile row to read.
@@ -146,16 +196,22 @@ async function fetchProfile(userId: string): Promise<ShellProfile> {
 
 /**
  * Provides the shell identity, league list, season list, and alert counts once
- * to the top navigation bar.
+ * to the navigation bar and to the page content beneath it.
  *
- * @param props.children - The top navigation bar.
+ * @param props.children - The navigation bar and the current page.
  * @returns The context provider.
  */
 export function LeagueShellProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const requestedLeagueId = searchParams.get("leagueId");
-  const requestedSeasonId = searchParams.get("seasonId");
+  /*
+   * Search params arrive through the bridge below rather than from a hook here,
+   * so this provider never suspends and the pages it wraps keep rendering in the
+   * prerendered HTML.
+   */
+  const [params, setParams] = useState<ShellParams | null>(null);
+  const hasParams = params !== null;
+  const requestedLeagueId = params?.leagueId ?? null;
+  const requestedSeasonId = params?.seasonId ?? null;
 
   const [userId, setUserId] = useState<string | null>(null);
   const [profile, setProfile] = useState<ShellProfile>(EMPTY_PROFILE);
@@ -172,65 +228,86 @@ export function LeagueShellProvider({ children }: { children: ReactNode }) {
    * changes. The league id itself is not needed for these queries, but the
    * navigation that changes it is also the point at which a membership may have
    * changed (joining a league, switching to one just joined).
+   *
+   * Waits for the URL bridge: resolving the league before the parameters are
+   * known would pick the stored league and then switch, making every deep link
+   * load twice.
    */
   useEffect(() => {
+    if (!hasParams) {
+      return;
+    }
+
     let cancelled = false;
 
     async function loadShell() {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
 
-      if (cancelled) {
-        return;
-      }
+        if (cancelled) {
+          return;
+        }
 
-      setUserId(user?.id ?? null);
+        setUserId(user?.id ?? null);
 
-      if (!user) {
-        setProfile(EMPTY_PROFILE);
-        setLeagueOptions([]);
+        if (!user) {
+          setProfile(EMPTY_PROFILE);
+          setLeagueOptions([]);
+          setIsReady(true);
+          return;
+        }
+
+        const [nextProfile, memberResult] = await Promise.all([
+          fetchProfile(user.id),
+          supabase
+            .from("league_members")
+            .select("league_id, role, leagues(name, owner_id)")
+            .eq("user_id", user.id)
+            .eq("is_active", true)
+            .order("joined_at", { ascending: false }),
+        ]);
+
+        if (cancelled) {
+          return;
+        }
+
+        setProfile(nextProfile);
+
+        if (memberResult.error) {
+          setLeagueOptions([]);
+          setIsReady(true);
+          return;
+        }
+
+        setLeagueOptions(
+          (memberResult.data ?? []).map((entry) => {
+            const league = (entry as {
+              leagues?: { name?: string | null; owner_id?: string | null } | null;
+            }).leagues;
+
+            return {
+              id: entry.league_id as string,
+              label: league?.name || "Untitled League",
+              role: (entry.role as string | undefined) ?? "member",
+              ownerId: league?.owner_id ?? null,
+            };
+          }),
+        );
         setIsReady(true);
-        return;
+      } catch {
+        /*
+         * A thrown auth or membership read must not leave the shell unresolved:
+         * every page waits on `isReady`, so an unhandled rejection here would
+         * spin them forever. Treat it as a signed-out shell and let the pages
+         * send the visitor back to the landing page.
+         */
+        if (!cancelled) {
+          setLeagueOptions([]);
+          setIsReady(true);
+        }
       }
-
-      const [nextProfile, memberResult] = await Promise.all([
-        fetchProfile(user.id),
-        supabase
-          .from("league_members")
-          .select("league_id, role, leagues(name, owner_id)")
-          .eq("user_id", user.id)
-          .eq("is_active", true)
-          .order("joined_at", { ascending: false }),
-      ]);
-
-      if (cancelled) {
-        return;
-      }
-
-      setProfile(nextProfile);
-
-      if (memberResult.error) {
-        setLeagueOptions([]);
-        setIsReady(true);
-        return;
-      }
-
-      setLeagueOptions(
-        (memberResult.data ?? []).map((entry) => {
-          const league = (entry as {
-            leagues?: { name?: string | null; owner_id?: string | null } | null;
-          }).leagues;
-
-          return {
-            id: entry.league_id as string,
-            label: league?.name || "Untitled League",
-            role: (entry.role as string | undefined) ?? "member",
-            ownerId: league?.owner_id ?? null,
-          };
-        }),
-      );
-      setIsReady(true);
     }
 
     void loadShell();
@@ -238,7 +315,7 @@ export function LeagueShellProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [requestedLeagueId]);
+  }, [requestedLeagueId, hasParams]);
 
   // A profile saved on the settings page refreshes the avatar without
   // re-reading every membership.
@@ -297,6 +374,10 @@ export function LeagueShellProvider({ children }: { children: ReactNode }) {
   // wins so the dropdown matches a settings page opened on a particular season;
   // otherwise the stored choice is kept, falling back to the newest season.
   useEffect(() => {
+    if (!hasParams) {
+      return;
+    }
+
     if (!selectedLeague || selectedLeague === "create-league") {
       return;
     }
@@ -348,7 +429,7 @@ export function LeagueShellProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [selectedLeague, requestedSeasonId]);
+  }, [selectedLeague, requestedSeasonId, hasParams]);
 
   /**
    * Re-reads both alert feeds. Used on mount, league change, and whenever another
@@ -427,19 +508,30 @@ export function LeagueShellProvider({ children }: { children: ReactNode }) {
       setSelectedSeason(selectedLeague, nextSeasonId);
       setSelectedSeasonId(nextSeasonId);
 
-      const params = new URLSearchParams(searchParams.toString());
-      params.set("leagueId", selectedLeague);
-      params.set("seasonId", nextSeasonId);
+      const nextParams = new URLSearchParams(params?.search ?? "");
+      nextParams.set("leagueId", selectedLeague);
+      nextParams.set("seasonId", nextSeasonId);
 
-      window.history.replaceState(null, "", `${pathname}?${params.toString()}`);
+      window.history.replaceState(
+        null,
+        "",
+        `${pathname}?${nextParams.toString()}`,
+      );
       window.location.reload();
     },
-    [selectedLeague, selectedSeasonId, searchParams, pathname],
+    [selectedLeague, selectedSeasonId, params, pathname],
   );
+
+  /*
+   * Consumers wait for the URL bridge as well as the data: until the params are
+   * known, `selectedLeague` is only a guess from storage, and a page started on
+   * that guess would immediately reload against the real one.
+   */
+  const readyForConsumers = isReady && hasParams;
 
   const value = useMemo<LeagueShellContextValue>(
     () => ({
-      isReady,
+      isReady: readyForConsumers,
       userId,
       profile,
       leagueOptions,
@@ -453,7 +545,7 @@ export function LeagueShellProvider({ children }: { children: ReactNode }) {
       selectSeason,
     }),
     [
-      isReady,
+      readyForConsumers,
       userId,
       profile,
       leagueOptions,
@@ -470,6 +562,14 @@ export function LeagueShellProvider({ children }: { children: ReactNode }) {
 
   return (
     <LeagueShellContext.Provider value={value}>
+      {/*
+        The bridge is the only thing that touches search params. Its boundary is
+        internal so suspending while Next resolves the query string never hides
+        the page content below.
+      */}
+      <Suspense fallback={null}>
+        <ShellSearchParams onChange={setParams} />
+      </Suspense>
       {children}
     </LeagueShellContext.Provider>
   );
@@ -488,4 +588,34 @@ export function useLeagueShell(): LeagueShellContextValue {
   }
 
   return value;
+}
+
+/** The league facts a page needs before it can load its own payload. */
+export interface ShellLeague {
+  /** The league to load, or null when the shell resolved none. */
+  leagueId: string | null;
+  /** True until the shell has resolved the URL, the member, and the league. */
+  isResolving: boolean;
+  /** True once the shell knows the visitor is not signed in. */
+  signedOut: boolean;
+}
+
+/**
+ * Reads the league a page should load from the shell.
+ *
+ * Pages used to answer this themselves with an auth check and a membership
+ * query - work the navigation bar had already done. The "create-league" sentinel
+ * is mapped to null so a page only has to handle "no league to show" once.
+ *
+ * @returns The league id plus the two states a page must wait on.
+ */
+export function useShellLeague(): ShellLeague {
+  const { isReady, userId, selectedLeague } = useLeagueShell();
+  const hasLeague = Boolean(selectedLeague) && selectedLeague !== "create-league";
+
+  return {
+    leagueId: hasLeague ? selectedLeague : null,
+    isResolving: !isReady,
+    signedOut: isReady && !userId,
+  };
 }

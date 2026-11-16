@@ -54,8 +54,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           color: "#e2e8f0",
         }}
       >
-        <AppChrome />
-        <CrownScope>{children}</CrownScope>
+        <AppChrome>
+          <CrownScope>{children}</CrownScope>
+        </AppChrome>
       </body>
     </html>
   );

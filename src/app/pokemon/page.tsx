@@ -23,14 +23,13 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
-import { Suspense } from "react";
 import { useLeaguePageData } from "@/lib/use-league-page-data";
 import {
   PageShell,
   PageShellError,
   PageShellLoading,
 } from "@/components/page-shell";
+import { useShellLeague } from "@/components/league-shell-context";
 import { getSelectedSeason } from "@/lib/season-selection";
 import { AbilityTooltip } from "@/components/ability-tooltip";
 import { MemberName } from "@/components/member-name";
@@ -57,27 +56,15 @@ import {
 import { TablePagination } from "@/components/table-pagination";
 
 /**
- * Wraps the Pokémon page in a Suspense boundary to satisfy Next.js's
- * client-side streaming requirement for `useSearchParams`.
+ * The free agent pool.
  *
- * @returns The Pokémon page with a loading fallback.
+ * The league and season come from the shell provider, so this page no longer
+ * reads search params and needs no Suspense boundary of its own.
+ *
+ * @returns The Pokémon page.
  */
 export default function PokemonPage() {
-  return (
-    <Suspense fallback={<PageShellLoading label="Loading free agents" />}>
-      <PokemonPageRoute />
-    </Suspense>
-  );
-}
-
-/**
- * Bridge component that reads the search params inside the Suspense boundary.
- *
- * @returns The Pokémon page content.
- */
-function PokemonPageRoute() {
-  const searchParams = useSearchParams();
-  return <PokemonPageContent searchParams={searchParams} />;
+  return <PokemonPageContent />;
 }
 
 /**
@@ -1008,17 +995,11 @@ function TransactionHistory({
 /**
  * The interactive Pokémon page content.
  *
- * @param props - The URL search params used to resolve the selected league.
  * @returns The free-agent pickup page.
  */
-function PokemonPageContent({
-  searchParams,
-}: {
-  /** Current URL search params used to select the league. */
-  searchParams: URLSearchParams | null;
-}) {
+function PokemonPageContent() {
   const timeZone = useUserTimeZone();
-  const requestedLeagueId = searchParams?.get("leagueId") ?? null;
+  const shellLeague = useShellLeague();
 
   const {
     data: goods,
@@ -1027,7 +1008,7 @@ function PokemonPageContent({
     setError,
     reload,
   } = useLeaguePageData({
-    requestedLeagueId,
+    ...shellLeague,
     load: (leagueId) =>
       loadPokemonPageData(leagueId, getSelectedSeason(leagueId)),
     emptyLeagueMessage: "Select a league before opening the free agent pool.",

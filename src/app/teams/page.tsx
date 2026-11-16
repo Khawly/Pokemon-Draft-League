@@ -30,7 +30,7 @@ import {
   PageShellError,
   PageShellLoading,
 } from "@/components/page-shell";
-import { resolveActiveLeague } from "@/lib/active-league";
+import { useShellLeague } from "@/components/league-shell-context";
 import { getSelectedSeason } from "@/lib/season-selection";
 import { PokemonSprite } from "@/components/pokemon-sprite";
 import { formatSeasonLabel, rosterChangesOpen } from "@/lib/supabase/seasons";
@@ -828,7 +828,17 @@ function TeamsPageContent({
   const [isBusy, setIsBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const requestedLeagueId = searchParams?.get("leagueId") ?? null;
+  const shellLeague = useShellLeague();
+  /** True when the shell resolved no league for this member. */
+  const shellLeagueMissing =
+    !shellLeague.isResolving && !shellLeague.signedOut && !shellLeague.leagueId;
+
+  useEffect(() => {
+    if (shellLeague.signedOut) {
+      router.replace("/");
+    }
+  }, [shellLeague.signedOut, router]);
+
   /*
    * The selected season travels in the URL when the shell's season selector
    * changes it. Fall back to the stored choice for a page opened without a
@@ -851,6 +861,18 @@ function TeamsPageContent({
   );
 
   useEffect(() => {
+    // Wait for the shell: it owns the URL, the session, and the league. The
+    // missing-league case is handled in the render below, so this effect only
+    // fetches and never writes state synchronously.
+    if (shellLeague.isResolving || shellLeague.signedOut) {
+      return;
+    }
+
+    if (!shellLeague.leagueId) {
+      return;
+    }
+
+    const activeLeagueId = shellLeague.leagueId;
     let cancelled = false;
 
     async function loadLeague() {
@@ -858,24 +880,9 @@ function TeamsPageContent({
         setIsLoading(true);
         setError(null);
 
-        const league = await resolveActiveLeague(
-          requestedLeagueId,
-          "Select a league before opening teams.",
-        );
-
-        if (league.status === "unauthenticated") {
-          router.replace("/");
-          return;
-        }
-
-        if (league.status === "error") {
-          setError(league.message);
-          return;
-        }
-
         const next = await loadTeamPageData(
-          league.leagueId,
-          requestedSeasonId ?? getSelectedSeason(league.leagueId),
+          activeLeagueId,
+          requestedSeasonId ?? getSelectedSeason(activeLeagueId),
         );
         if (!cancelled) {
           setGoods(next);
@@ -903,7 +910,13 @@ function TeamsPageContent({
     return () => {
       cancelled = true;
     };
-  }, [router, requestedLeagueId, requestedSeasonId]);
+  }, [
+    router,
+    shellLeague.leagueId,
+    shellLeague.isResolving,
+    shellLeague.signedOut,
+    requestedSeasonId,
+  ]);
 
   const selectedTeam = useMemo(
     () => goods?.teams.find((team) => team.id === selectedTeamId) ?? null,
@@ -1051,6 +1064,14 @@ function TeamsPageContent({
     } finally {
       setIsBusy(false);
     }
+  }
+
+  if (shellLeagueMissing) {
+    return (
+      <PageShellError>
+        You are not a member of any active league.
+      </PageShellError>
+    );
   }
 
   if (isLoading && !goods) {

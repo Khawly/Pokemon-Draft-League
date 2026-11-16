@@ -15,9 +15,8 @@
 
 "use client";
 
-import { Suspense, useCallback, useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { supabase } from "@/lib/supabase/client";
+import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { MemberName } from "@/components/member-name";
 import {
   loadRulesPageData,
@@ -30,26 +29,21 @@ import { formatDateTimeInZone } from "@/lib/datetime";
 import { getSelectedSeason } from "@/lib/season-selection";
 import {
   PageShell,
+  PageShellError,
   PageShellLoading,
 } from "@/components/page-shell";
-
-/** LocalStorage key used by the top nav to persist the selected league. */
-const SELECTED_LEAGUE_STORAGE_KEY = "pokemon-draft-league:selected-league";
+import { useShellLeague } from "@/components/league-shell-context";
 
 /**
  * Entry point for the rules route.
  *
- * Wraps the content in a Suspense boundary so that useSearchParams meets Next.js's
- * client-side streaming requirement.
+ * The league comes from the shell provider, so the page reads no search params
+ * and needs no Suspense boundary of its own.
  *
- * @returns The rules page with a loading fallback.
+ * @returns The rules page.
  */
 export default function RulesPage() {
-  return (
-    <Suspense fallback={<PageShellLoading label="Loading rules" />}>
-      <RulesPageContent />
-    </Suspense>
-  );
+  return <RulesPageContent />;
 }
 
 /**
@@ -59,8 +53,17 @@ export default function RulesPage() {
  */
 function RulesPageContent() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const timeZone = useUserTimeZone();
+  const shellLeague = useShellLeague();
+  /** True when the shell resolved no league for this member. */
+  const shellLeagueMissing =
+    !shellLeague.isResolving && !shellLeague.signedOut && !shellLeague.leagueId;
+
+  useEffect(() => {
+    if (shellLeague.signedOut) {
+      router.replace("/");
+    }
+  }, [shellLeague.signedOut, router]);
 
   const [leagueName, setLeagueName] = useState<string>("");
   const [rules, setRules] = useState<LeagueRules | null>(null);
@@ -88,64 +91,22 @@ function RulesPageContent() {
   }, []);
 
   useEffect(() => {
-    let cancelled = false;
-
-    async function resolveLeagueId(): Promise<string | null> {
-      const fromQuery = searchParams.get("leagueId");
-      if (fromQuery) {
-        return fromQuery;
-      }
-
-      try {
-        const cached =
-          window.localStorage.getItem(SELECTED_LEAGUE_STORAGE_KEY) ?? null;
-        if (cached) {
-          return cached;
-        }
-      } catch {
-        // Private browsing can throw on storage access; fall through to a lookup.
-      }
-
-      const { data: memberships } = await supabase
-        .from("league_members")
-        .select("league_id")
-        .eq("is_active", true)
-        .order("joined_at", { ascending: false })
-        .limit(1);
-
-      return memberships?.[0]?.league_id ?? null;
+    // The shell owns the URL, the session, and the league. The missing-league
+    // case is handled in the render below, so this effect only loads.
+    if (shellLeague.isResolving || shellLeague.signedOut) {
+      return;
     }
+
+    if (!shellLeague.leagueId) {
+      return;
+    }
+
+    const activeLeagueId = shellLeague.leagueId;
+    let cancelled = false;
 
     async function run() {
       try {
-        const {
-          data: { user },
-          error: userError,
-        } = await supabase.auth.getUser();
-
-        if (userError || !user) {
-          router.replace("/");
-          return;
-        }
-
-        const leagueId = await resolveLeagueId();
-        if (!leagueId) {
-          setError("Select a league before opening the rules.");
-          return;
-        }
-
-        const data = await loadRulesPageData(
-          leagueId,
-          getSelectedSeason(leagueId),
-        );
-        if (cancelled) {
-          return;
-        }
-        setLeagueName(data.league?.name ?? "");
-        setRules(data.rules);
-        setIsOwner(!!data.league && data.league.ownerId === data.currentUserId);
-        setIsCurrentSeason(data.isCurrentSeason);
-        setDraft(data.rules?.content ?? "");
+        await load(activeLeagueId);
       } catch (caughtError) {
         if (!cancelled) {
           setError(
@@ -166,7 +127,13 @@ function RulesPageContent() {
     return () => {
       cancelled = true;
     };
-  }, [router, searchParams]);
+  }, [
+    router,
+    shellLeague.leagueId,
+    shellLeague.isResolving,
+    shellLeague.signedOut,
+    load,
+  ]);
 
   /**
    * Saves the editor's contents through the owner-gated RPC.
@@ -181,7 +148,7 @@ function RulesPageContent() {
     setNotice(null);
 
     try {
-      const leagueId = searchParams.get("leagueId");
+      const leagueId = shellLeague.leagueId;
       if (!leagueId) {
         throw new Error("Select a league before saving the rules.");
       }
@@ -228,6 +195,14 @@ function RulesPageContent() {
   const savedContent = rules?.content ?? "";
   const hasUnsavedChanges =
     isOwner && isCurrentSeason && draft !== savedContent;
+
+  if (shellLeagueMissing) {
+    return (
+      <PageShellError>
+        You are not a member of any active league.
+      </PageShellError>
+    );
+  }
 
   if (isLoading) {
     return <PageShellLoading label="Loading rules" />;

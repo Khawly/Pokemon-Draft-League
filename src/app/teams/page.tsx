@@ -25,13 +25,14 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { AbilityTooltip } from "@/components/ability-tooltip";
-import { supabase } from "@/lib/supabase/client";
+import { resolveActiveLeague } from "@/lib/active-league";
 import { getSelectedSeason } from "@/lib/season-selection";
-import { getSpriteUrl } from "@/lib/pokeapi";
+import { PokemonSprite } from "@/components/pokemon-sprite";
 import { formatSeasonLabel, rosterChangesOpen } from "@/lib/supabase/seasons";
 import { formatDateTimeInZone } from "@/lib/datetime";
 import { useUserTimeZone } from "@/lib/user-timezone";
 import { TYPE_LIST, getDefensiveMatchup, getEmphasisGlow, getMatchupColor, type PokemonType } from "@/lib/typechart";
+import { TYPE_STYLES } from "@/lib/type-styles";
 import { useConfirm } from "@/components/confirm-dialog";
 import { MemberName } from "@/components/member-name";
 import {
@@ -45,9 +46,6 @@ import {
 } from "@/lib/supabase/teams";
 import { LoadingGif } from "@/components/loading-gif";
 
-/** LocalStorage key used by the top nav to persist the selected league. */
-const SELECTED_LEAGUE_STORAGE_KEY = "pokemon-draft-league:selected-league";
-
 /** Sortable columns of the team stats table. */
 type StatSortKey =
   | "name"
@@ -58,28 +56,6 @@ type StatSortKey =
   | "specialAttack"
   | "specialDefense"
   | "speed";
-
-/** Type badge colors keyed by normalized type name (matches the pool page). */
-const TYPE_STYLES: Record<string, string> = {
-  normal: "bg-slate-600 text-slate-100",
-  fire: "bg-red-600 text-slate-50",
-  water: "bg-blue-600 text-slate-50",
-  electric: "bg-yellow-500 text-slate-900",
-  grass: "bg-green-600 text-slate-50",
-  ice: "bg-cyan-500 text-slate-900",
-  fighting: "bg-orange-700 text-slate-50",
-  poison: "bg-purple-600 text-slate-50",
-  ground: "bg-amber-700 text-slate-50",
-  flying: "bg-sky-500 text-slate-50",
-  psychic: "bg-pink-600 text-slate-50",
-  bug: "bg-lime-600 text-slate-50",
-  rock: "bg-stone-600 text-slate-50",
-  ghost: "bg-indigo-700 text-slate-50",
-  dragon: "bg-violet-700 text-slate-50",
-  dark: "bg-neutral-800 text-slate-100",
-  steel: "bg-slate-500 text-slate-50",
-  fairy: "bg-pink-400 text-slate-900",
-};
 
 /** Compact type text colors for the defensive chart column headers. */
 const TYPE_TEXT_STYLES: Record<string, string> = {
@@ -133,48 +109,6 @@ export default function TeamsPage() {
 function TeamsRoute() {
   const searchParams = useSearchParams();
   return <TeamsPageContent searchParams={searchParams} />;
-}
-
-/**
- * Renders a species/forme sprite, or a placeholder when the id is unknown.
- *
- * @param props - Sprite id, alt text, and pixel size.
- * @returns The image or placeholder element.
- */
-function Sprite({
-  spriteId,
-  name,
-  size,
-}: {
-  /** Sprite id used to build the sprite URL (dex or 10001+ form id). */
-  spriteId: number;
-  /** Alt text for the image. */
-  name: string;
-  /** Square pixel dimensions. */
-  size: number;
-}) {
-  if (spriteId <= 0) {
-    return (
-      <div
-        style={{ width: size, height: size }}
-        className="flex shrink-0 items-center justify-center rounded-full bg-slate-800 text-xs text-slate-500"
-      >
-        ?
-      </div>
-    );
-  }
-
-  return (
-    <img
-      src={getSpriteUrl(spriteId)}
-      alt={name}
-      width={size}
-      height={size}
-      loading="lazy"
-      style={{ width: size, height: size }}
-      className="shrink-0 object-contain"
-    />
-  );
 }
 
 /** Renders a type badge for a PokeAPI type name. */
@@ -419,7 +353,7 @@ function TeamStatsTable({
                   </td>
                   <td className="px-3 py-2 text-left">
                     <div className="flex items-center justify-start gap-2">
-                      <Sprite spriteId={pokemon.spriteId} name={pokemon.name} size={40} />
+                      <PokemonSprite spriteId={pokemon.spriteId} name={pokemon.name} size={40} />
                       <span className="whitespace-nowrap font-medium text-slate-100">
                         {pokemon.name}
                       </span>
@@ -653,7 +587,7 @@ function DefensiveTypingGrid({
                 <tr key={pokemon.id} className="hover:bg-slate-800/60">
                   <td className="sticky left-0 bg-slate-900 px-2 py-1.5">
                     <div className="flex items-center gap-2">
-                      <Sprite spriteId={pokemon.spriteId} name={pokemon.name} size={32} />
+                      <PokemonSprite spriteId={pokemon.spriteId} name={pokemon.name} size={32} />
                       <span className="whitespace-nowrap font-medium text-slate-100">
                         {pokemon.name}
                       </span>
@@ -928,52 +862,24 @@ function TeamsPageContent({
         setIsLoading(true);
         setError(null);
 
-        const {
-          data: { user },
-          error: userError,
-        } = await supabase.auth.getUser();
+        const league = await resolveActiveLeague(
+          requestedLeagueId,
+          "Select a league before opening teams.",
+        );
 
-        if (userError || !user) {
+        if (league.status === "unauthenticated") {
           router.replace("/");
           return;
         }
 
-        let selectedLeagueId = requestedLeagueId;
-
-        if (!selectedLeagueId) {
-          try {
-            selectedLeagueId =
-              window.localStorage.getItem(SELECTED_LEAGUE_STORAGE_KEY) ?? null;
-          } catch {
-            selectedLeagueId = null;
-          }
-        }
-
-        if (!selectedLeagueId) {
-          const { data: memberships, error: membershipsError } = await supabase
-            .from("league_members")
-            .select("league_id")
-            .eq("user_id", user.id)
-            .eq("is_active", true)
-            .order("joined_at", { ascending: false })
-            .limit(1);
-
-          if (membershipsError || !memberships?.length) {
-            setError("You are not a member of any active league.");
-            return;
-          }
-
-          selectedLeagueId = memberships[0].league_id;
-        }
-
-        if (!selectedLeagueId) {
-          setError("Select a league before opening teams.");
+        if (league.status === "error") {
+          setError(league.message);
           return;
         }
 
         const next = await loadTeamPageData(
-          selectedLeagueId,
-          requestedSeasonId ?? getSelectedSeason(selectedLeagueId),
+          league.leagueId,
+          requestedSeasonId ?? getSelectedSeason(league.leagueId),
         );
         if (!cancelled) {
           setGoods(next);

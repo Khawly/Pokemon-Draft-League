@@ -25,15 +25,16 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
-import { supabase } from "@/lib/supabase/client";
+import { resolveActiveLeague } from "@/lib/active-league";
 import { getSelectedSeason } from "@/lib/season-selection";
 import { AbilityTooltip } from "@/components/ability-tooltip";
 import { MemberName } from "@/components/member-name";
-import { getSpriteUrl } from "@/lib/pokeapi";
+import { PokemonSprite } from "@/components/pokemon-sprite";
 import { formatSeasonLabel, rosterChangesOpen } from "@/lib/supabase/seasons";
 import { formatDateTimeInZone, formatTimeZoneLabel } from "@/lib/datetime";
 import { useUserTimeZone } from "@/lib/user-timezone";
 import { isDeadlinePassed } from "@/lib/deadlines";
+import { TYPE_STYLES } from "@/lib/type-styles";
 import {
   getPickupCost,
   getPokemonSalary,
@@ -50,31 +51,6 @@ import {
 } from "@/lib/supabase/pokemon";
 import { LoadingGif } from "@/components/loading-gif";
 import { TablePagination } from "@/components/table-pagination";
-
-/** LocalStorage key used by the top nav to persist the selected league. */
-const SELECTED_LEAGUE_STORAGE_KEY = "pokemon-draft-league:selected-league";
-
-/** Type badge colors keyed by normalized type name (matches the team page). */
-const TYPE_STYLES: Record<string, string> = {
-  normal: "bg-slate-600 text-slate-100",
-  fire: "bg-red-600 text-slate-50",
-  water: "bg-blue-600 text-slate-50",
-  electric: "bg-yellow-500 text-slate-900",
-  grass: "bg-green-600 text-slate-50",
-  ice: "bg-cyan-500 text-slate-900",
-  fighting: "bg-orange-700 text-slate-50",
-  poison: "bg-purple-600 text-slate-50",
-  ground: "bg-amber-700 text-slate-50",
-  flying: "bg-sky-500 text-slate-50",
-  psychic: "bg-pink-600 text-slate-50",
-  bug: "bg-lime-600 text-slate-50",
-  rock: "bg-stone-600 text-slate-50",
-  ghost: "bg-indigo-700 text-slate-50",
-  dragon: "bg-violet-700 text-slate-50",
-  dark: "bg-neutral-800 text-slate-100",
-  steel: "bg-slate-500 text-slate-50",
-  fairy: "bg-pink-400 text-slate-900",
-};
 
 /**
  * Wraps the Pokémon page in a Suspense boundary to satisfy Next.js's
@@ -106,48 +82,6 @@ export default function PokemonPage() {
 function PokemonPageRoute() {
   const searchParams = useSearchParams();
   return <PokemonPageContent searchParams={searchParams} />;
-}
-
-/**
- * Renders a species/forme sprite, or a placeholder when the id is unknown.
- *
- * @param props - Sprite id, alt text, and pixel size.
- * @returns The image or placeholder element.
- */
-function Sprite({
-  spriteId,
-  name,
-  size,
-}: {
-  /** Sprite id used to build the sprite URL (dex or 10001+ form id). */
-  spriteId: number;
-  /** Alt text for the image. */
-  name: string;
-  /** Square pixel dimensions. */
-  size: number;
-}) {
-  if (spriteId <= 0) {
-    return (
-      <div
-        style={{ width: size, height: size }}
-        className="flex shrink-0 items-center justify-center rounded-full bg-slate-800 text-xs text-slate-500"
-      >
-        ?
-      </div>
-    );
-  }
-
-  return (
-    <img
-      src={getSpriteUrl(spriteId)}
-      alt={name}
-      width={size}
-      height={size}
-      loading="lazy"
-      style={{ width: size, height: size }}
-      className="shrink-0 object-contain"
-    />
-  );
 }
 
 /**
@@ -476,7 +410,7 @@ function FreeAgentTable({
                 </td>
                 <td className="px-3 py-2 text-left">
                   <div className="flex items-center justify-start gap-2">
-                    <Sprite
+                    <PokemonSprite
                       spriteId={row.spriteId}
                       name={row.name}
                       size={40}
@@ -637,7 +571,7 @@ function TierListView({
                   className="flex items-center justify-between gap-2 rounded-xl border border-slate-700 bg-slate-950/60 p-3"
                 >
                   <div className="flex min-w-0 items-center gap-2">
-                    <Sprite
+                    <PokemonSprite
                       spriteId={row.spriteId}
                       name={row.name}
                       size={40}
@@ -1001,7 +935,7 @@ function TransactionHistory({
                       {entry.isTokenMovement ? (
                         <TokenIcon size={28} />
                       ) : (
-                        <Sprite spriteId={entry.spriteId} name={entry.name} size={28} />
+                        <PokemonSprite spriteId={entry.spriteId} name={entry.name} size={28} />
                       )}
                       <span className="truncate font-medium text-slate-100">
                         {entry.name}
@@ -1141,50 +1075,25 @@ function PokemonPageContent({
         setIsLoading(true);
         setError(null);
 
-        const {
-          data: { user },
-          error: userError,
-        } = await supabase.auth.getUser();
+        const league = await resolveActiveLeague(
+          requestedLeagueId,
+          "Select a league before opening the free agent pool.",
+        );
 
-        if (userError || !user) {
+        if (league.status === "unauthenticated") {
           router.replace("/");
           return;
         }
 
-        let selectedLeagueId = requestedLeagueId;
-
-        if (!selectedLeagueId) {
-          try {
-            selectedLeagueId =
-              window.localStorage.getItem(SELECTED_LEAGUE_STORAGE_KEY) ?? null;
-          } catch {
-            selectedLeagueId = null;
-          }
-        }
-
-        if (!selectedLeagueId) {
-          const { data: memberships, error: membershipsError } = await supabase
-            .from("league_members")
-            .select("league_id")
-            .eq("user_id", user.id)
-            .eq("is_active", true)
-            .order("joined_at", { ascending: false })
-            .limit(1);
-
-          if (membershipsError || !memberships?.length) {
-            setError("You are not a member of any active league.");
-            return;
-          }
-
-          selectedLeagueId = memberships[0].league_id;
-        }
-
-        if (!selectedLeagueId) {
-          setError("Select a league before opening the free agent pool.");
+        if (league.status === "error") {
+          setError(league.message);
           return;
         }
 
-        const next = await loadPokemonPageData(selectedLeagueId, getSelectedSeason(selectedLeagueId));
+        const next = await loadPokemonPageData(
+          league.leagueId,
+          getSelectedSeason(league.leagueId),
+        );
         if (!cancelled) {
           setGoods(next);
         }

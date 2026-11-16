@@ -33,22 +33,30 @@ import {
   type ReactNode,
 } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { supabase } from "@/lib/supabase/client";
 import { getSelectedSeason } from "@/lib/season-selection";
-import { getSpriteUrl } from "@/lib/pokeapi";
 import { useConfirm } from "@/components/confirm-dialog";
 import { MemberName } from "@/components/member-name";
-import { NavAlertBadge, TabNotification } from "@/components/nav-alert-badge";
+import { PokemonSprite } from "@/components/pokemon-sprite";
+import { TabNotification } from "@/components/nav-alert-badge";
 import { formatSeasonLabel } from "@/lib/supabase/seasons";
 import { formatDateTimeInZone, formatTimeZoneLabel } from "@/lib/datetime";
 import { useUserTimeZone } from "@/lib/user-timezone";
 import { isDeadlinePassed } from "@/lib/deadlines";
 import { useRealtimeInvalidation } from "@/lib/use-realtime-invalidation";
+import { resolveActiveLeague } from "@/lib/active-league";
+import { typeStyle } from "@/lib/type-styles";
+import { LoadingGif } from "@/components/loading-gif";
+import {
+  buildTradesView,
+  parseTokenAmount,
+  tradeActionPrompt,
+  type TradeAction,
+  type TradesTab,
+} from "@/lib/trades-view";
 import {
   approvalProgress,
   cancelTrade,
   canVoteOnTrade,
-  countOpenTrades,
   dismissTrade,
   findTeamByOwner,
   formatTokenSwing,
@@ -72,35 +80,6 @@ import {
   type TradePokemon,
   type TradesGoods,
 } from "@/lib/supabase/trades";
-import { LoadingGif } from "@/components/loading-gif";
-
-/** LocalStorage key used by the top nav to persist the selected league. */
-const SELECTED_LEAGUE_STORAGE_KEY = "pokemon-draft-league:selected-league";
-
-/** The four views the page offers. */
-type TradesTab = "new" | "mine" | "approvals" | "history";
-
-/** Type badge colors keyed by normalized type name (matches the Pokemon page). */
-const TYPE_STYLES: Record<string, string> = {
-  normal: "bg-slate-600 text-slate-100",
-  fire: "bg-red-600 text-slate-50",
-  water: "bg-blue-600 text-slate-50",
-  electric: "bg-yellow-500 text-slate-900",
-  grass: "bg-green-600 text-slate-50",
-  ice: "bg-cyan-500 text-slate-900",
-  fighting: "bg-orange-700 text-slate-50",
-  poison: "bg-purple-600 text-slate-50",
-  ground: "bg-amber-700 text-slate-50",
-  flying: "bg-sky-500 text-slate-50",
-  psychic: "bg-pink-600 text-slate-50",
-  bug: "bg-lime-600 text-slate-50",
-  rock: "bg-stone-600 text-slate-50",
-  ghost: "bg-indigo-700 text-slate-50",
-  dragon: "bg-violet-700 text-slate-50",
-  dark: "bg-neutral-800 text-slate-100",
-  steel: "bg-slate-500 text-slate-50",
-  fairy: "bg-pink-400 text-slate-900",
-};
 
 /** Pill styling per status, so a trade's state is legible without reading the text. */
 const STATUS_STYLES: Record<Trade["status"], string> = {
@@ -145,48 +124,6 @@ function TradesPageRoute() {
 }
 
 /**
- * Renders a species sprite, or a placeholder when the id is unknown.
- *
- * @param props - Sprite id, alt text, and pixel size.
- * @returns The image or placeholder element.
- */
-function Sprite({
-  spriteId,
-  name,
-  size = 32,
-}: {
-  /** Sprite id used to build the sprite URL. */
-  spriteId: number;
-  /** Alt text for the image. */
-  name: string;
-  /** Square pixel dimensions. */
-  size?: number;
-}) {
-  if (spriteId <= 0) {
-    return (
-      <div
-        style={{ width: size, height: size }}
-        className="flex shrink-0 items-center justify-center rounded-full bg-slate-800 text-xs text-slate-500"
-      >
-        ?
-      </div>
-    );
-  }
-
-  return (
-    <img
-      src={getSpriteUrl(spriteId)}
-      alt={name}
-      width={size}
-      height={size}
-      loading="lazy"
-      style={{ width: size, height: size }}
-      className="shrink-0 object-contain"
-    />
-  );
-}
-
-/**
  * Renders a Pokémon's typing as badges.
  *
  * @param props - The PokeAPI type names to render.
@@ -202,9 +139,7 @@ function TypeBadges({ types }: { types: string[] }) {
       {types.map((type) => (
         <span
           key={type}
-          className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold capitalize ${
-            TYPE_STYLES[type.toLowerCase()] ?? "bg-slate-700 text-slate-200"
-          }`}
+          className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold capitalize ${typeStyle(type)}`}
         >
           {type}
         </span>
@@ -359,7 +294,7 @@ function PokemonPicker({
                       : "border-slate-800 bg-slate-950/40 hover:border-slate-600"
                   }`}
                 >
-                  <Sprite spriteId={row.spriteId} name={row.name} size={28} />
+                  <PokemonSprite spriteId={row.spriteId} name={row.name} size={28} />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-medium text-slate-100">
                       {row.name}
@@ -421,17 +356,6 @@ interface TradeCardProps {
    */
   deadlinePassed?: boolean;
 }
-
-/** The actions a {@link TradeCard} can offer. */
-type TradeAction =
-  | "accept"
-  | "decline"
-  | "withdraw"
-  | "approve"
-  | "reject"
-  | "override"
-  | "reject-override"
-  | "clear";
 
 /**
  * Renders one trade: both sides' Pokémon, the state, the approval tally, and the
@@ -883,7 +807,7 @@ function TradeSidePanel({
         <ul className="mt-2 space-y-2">
           {items.map((item) => (
             <li key={item.pokemon_id} className="flex items-center gap-3">
-              <Sprite spriteId={item.spriteId} name={item.name} size={32} />
+              <PokemonSprite spriteId={item.spriteId} name={item.name} size={32} />
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-medium text-slate-100">
                   {item.name}
@@ -1051,13 +975,8 @@ function ProposalBuilder({
   const [recipientTokensRaw, setRecipientTokensRaw] = useState<string>("");
 
   /** Parses a token field into the non-negative integer the RPC expects. */
-  const parseTokens = (raw: string): number => {
-    const parsed = Number.parseInt(raw, 10);
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
-  };
-
-  const proposerTokens = parseTokens(proposerTokensRaw);
-  const recipientTokens = parseTokens(recipientTokensRaw);
+  const proposerTokens = parseTokenAmount(proposerTokensRaw);
+  const recipientTokens = parseTokenAmount(recipientTokensRaw);
 
   const opponents = useMemo(
     () => tradeOpponents(goods.teams, goods.currentUserId),
@@ -1356,6 +1275,75 @@ function TokenAmountField({
   );
 }
 
+/** Props for the {@link TradeList} component. */
+interface TradeListProps {
+  /** The trades this tab holds. */
+  trades: Trade[];
+  /** Copy shown when the tab is empty. */
+  emptyMessage: string;
+  /** The loaded page state, passed through to each card. */
+  goods: TradesGoods;
+  /** The reader's time zone, for every timestamp on the cards. */
+  timeZone: string;
+  /** The trade whose action is in flight, if any. */
+  busyTradeId: string | null;
+  /** Runs an action on one trade. */
+  onAction: (action: TradeAction, trade: Trade) => void;
+  /** True once the season's trade deadline has passed. */
+  deadlinePassed: boolean;
+  /** Whether cards may offer vote and override controls. */
+  allowVoting: boolean;
+}
+
+/**
+ * Renders one tab's trades, or its empty state.
+ *
+ * The three trade tabs differ only in which list they show, so they share this
+ * component. The vote rule is applied once here rather than at each call site,
+ * which is what keeps a member's own pending trade on "My Trades" offering the
+ * same controls it would on "Approvals".
+ *
+ * @param props - {@link TradeListProps}
+ * @returns The list of cards, or the empty-state message.
+ */
+function TradeList({
+  trades,
+  emptyMessage,
+  goods,
+  timeZone,
+  busyTradeId,
+  onAction,
+  deadlinePassed,
+  allowVoting,
+}: TradeListProps) {
+  if (trades.length === 0) {
+    return (
+      <p className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 text-sm text-slate-400">
+        {emptyMessage}
+      </p>
+    );
+  }
+
+  return (
+    <section className="space-y-4">
+      {trades.map((trade) => (
+        <TradeCard
+          key={trade.id}
+          trade={trade}
+          goods={goods}
+          timeZone={timeZone}
+          busy={busyTradeId === trade.id}
+          canVote={allowVoting && canVoteOnTrade(trade, goods.canApprove)}
+          isOwner={allowVoting && goods.userRole === "owner"}
+          onAction={onAction}
+          readOnly={!goods.isCurrentSeason}
+          deadlinePassed={deadlinePassed}
+        />
+      ))}
+    </section>
+  );
+}
+
 /**
  * The interactive trades page content.
  *
@@ -1395,50 +1383,25 @@ function TradesPageContent({
         setIsLoading(true);
         setError(null);
 
-        const {
-          data: { user },
-          error: userError,
-        } = await supabase.auth.getUser();
+        const league = await resolveActiveLeague(
+          requestedLeagueId,
+          "Select a league before opening the trade centre.",
+        );
 
-        if (userError || !user) {
+        if (league.status === "unauthenticated") {
           router.replace("/");
           return;
         }
 
-        let selectedLeagueId = requestedLeagueId;
-
-        if (!selectedLeagueId) {
-          try {
-            selectedLeagueId =
-              window.localStorage.getItem(SELECTED_LEAGUE_STORAGE_KEY) ?? null;
-          } catch {
-            selectedLeagueId = null;
-          }
-        }
-
-        if (!selectedLeagueId) {
-          const { data: memberships, error: membershipsError } = await supabase
-            .from("league_members")
-            .select("league_id")
-            .eq("user_id", user.id)
-            .eq("is_active", true)
-            .order("joined_at", { ascending: false })
-            .limit(1);
-
-          if (membershipsError || !memberships?.length) {
-            setError("You are not a member of any active league.");
-            return;
-          }
-
-          selectedLeagueId = memberships[0].league_id;
-        }
-
-        if (!selectedLeagueId) {
-          setError("Select a league before opening the trade centre.");
+        if (league.status === "error") {
+          setError(league.message);
           return;
         }
 
-        const next = await loadTradesPageData(selectedLeagueId, getSelectedSeason(selectedLeagueId));
+        const next = await loadTradesPageData(
+          league.leagueId,
+          getSelectedSeason(league.leagueId),
+        );
         if (!cancelled) {
           setGoods(next);
         }
@@ -1505,45 +1468,16 @@ function TradesPageContent({
   );
 
   /*
-   * The three lists the tabs render, split here rather than inside each tab so the
-   * counts on the tab buttons and the lists themselves cannot disagree.
-   *
-   * "My Trades" drops whatever the member has cleared for themselves. A dismissal
-   * is per member, so this hides the card from the person who pressed Clear and not
-   * from the other party, who still has it on their own list. "Trade History" keeps
-   * every completed trade, because a completed trade is league business rather than
-   * the reader's own to-do, and clearing it is not a way of erasing it.
+   * The tab lists and the strip are produced together so a tab's bubble cannot
+   * disagree with the rows it sits above. "My Trades" drops whatever the member
+   * has cleared for themselves; a dismissal is per member, so the other party
+   * still has the card, and history keeps every completed trade because clearing
+   * one is not a way of erasing it. See `buildTradesView` for the grouping rules.
    */
-  const { myTrades, pendingApprovals, history } = useMemo(() => {
-    if (!goods) {
-      return { myTrades: [], pendingApprovals: [], history: [] as Trade[] };
-    }
-
-    const all = goods.trades;
-
-    return {
-      myTrades: all.filter(
-        (trade) =>
-          (isProposer(trade, goods.currentUserId) ||
-            isRecipient(trade, goods.currentUserId)) &&
-          !goods.dismissedTradeIds.has(trade.id),
-      ),
-      /*
-       * Every trade awaiting a decision, including the reader's own.
-       *
-       * The Owner is always an approver, so an Owner who proposed a trade and had it
-       * accepted is the person who has to settle it. Filtering party trades out of
-       * this list -- as an earlier version did -- left exactly that trade invisible to
-       * the only member who could act on it, so it sat in 'pending_approval' forever
-       * with the Approvals tab looking empty. The tab is only rendered for members
-       * who can approve at all, so no further gate is needed here.
-       */
-      pendingApprovals: all.filter(
-        (trade) => trade.status === "pending_approval",
-      ),
-      history: all.filter((trade) => trade.status === "completed"),
-    };
-  }, [goods]);
+  const { myTrades, pendingApprovals, history, tabs } = useMemo(
+    () => buildTradesView(goods),
+    [goods],
+  );
 
   const requiresApproval = goods?.settings?.admins_approve_trades === true;
   const tradeDeadlinePassed = isDeadlinePassed(
@@ -1551,84 +1485,6 @@ function TradesPageContent({
   );
   const approverTotal = goods?.approverIds.length ?? 0;
   const approverRequired = requiredApprovals(approverTotal);
-
-  /*
-   * Every tab carries a notification marker, and both numbers come from the same
-   * rule: the red bubble is for trades that are still in flight, the quiet count is
-   * for what the tab merely holds. `countOpenTrades` answers "what is live"
-   * identically for both tabs, so both members of a trade see the bubble while it
-   * lives, not just the one whose turn it currently is.
-   *
-   * Nothing here is notification-derived or cleared on visit, deliberately. Reading a
-   * tab does not settle a trade, so a bubble that emptied on arrival would understate
-   * what is still open -- the tab would go quiet while the thing it was counting was
-   * still sitting there unresolved.
-   *
-   * Declared below the `goods` null guard with the rest of the render, because it is
-   * only used to draw the strip and every field it reads comes from the payload.
-   */
-  const tabsFor = (): Array<{
-    id: TradesTab;
-    label: string;
-    /** Trades still in flight, drawn as the red bubble. */
-    badge: number;
-    /** Rows the tab holds, shown as a quiet count when nothing is live. */
-    total: number;
-    /** What the bubble's screen-reader label calls these. */
-    subject: string;
-  }> => {
-    if (!goods) {
-      return [];
-    }
-
-    return [
-      /*
-       * A past season has nothing to propose into. Its trades are history, and a new one
-       * would be filed against the current season -- the one the member is not reading.
-       */
-      ...(goods.isCurrentSeason
-        ? [
-            {
-              id: "new" as TradesTab,
-              label: "New Trade",
-              badge: 0,
-              total: 0,
-              subject: "trade",
-            },
-          ]
-        : []),
-      {
-        id: "mine",
-        label: "My Trades",
-        badge: countOpenTrades(goods.trades, "my-trades", goods.currentUserId),
-        total: myTrades.length,
-        subject: "trade",
-      },
-      ...(goods.canApprove
-        ? [
-            {
-              id: "approvals" as TradesTab,
-              label: "Approvals",
-              badge: countOpenTrades(
-                goods.trades,
-                "awaiting-approval",
-                goods.currentUserId,
-              ),
-              total: pendingApprovals.length,
-              subject: "approval",
-            },
-          ]
-        : []),
-      {
-        id: "history",
-        label: "Trade History",
-        // A record, not a to-do: nothing in the history is ever still in flight.
-        badge: 0,
-        total: history.length,
-        subject: "trade",
-      },
-    ];
-  };
 
   /**
    * Runs one action on a trade, behind a confirmation.
@@ -1664,60 +1520,15 @@ function TradesPageContent({
      */
     const other = labels.other;
 
-    /*
-     * A plain rejection is now a vote rather than a verdict, so its copy says what
-     * actually happens to the trade. How many rejections are needed depends on the
-     * league's approver count, which is already resolved into approverRequired for
-     * the header.
-     */
-    const rejectDetail = `Your rejection is recorded against this trade. ${
-      approverRequired > 0
-        ? `${approverRequired} rejection${
-            approverRequired === 1 ? "" : "s"
-          } will reject it, and the other approvers can still weigh in until then.`
-        : "The other approvers can still weigh in."
-    }`;
-
-    const confirmed = await confirm({
-      title: {
-        accept: "Accept this trade?",
-        decline: "Decline this trade?",
-        withdraw: "Withdraw this proposal?",
-        approve: "Approve this trade?",
-        reject: "Vote to reject this trade?",
-        override: "Override and complete this trade?",
-        "reject-override": "Override and reject this trade?",
-        clear: "Clear this trade?",
-      }[action],
-      detail: {
-        accept: `${other} will be told you accepted. ${
-          requiresApproval
-            ? "It still needs the league's approval before the Pokémon move."
-            : "The Pokémon move as soon as you accept."
-        }`,
-        decline: `${other} will be told you declined.`,
-        withdraw: `${other} will be told the proposal was withdrawn.`,
-        approve: "Your approval is recorded against this trade.",
-        reject: rejectDetail,
-        override: "This completes the trade now, without waiting for the other approvers.",
-        "reject-override": `This rejects the trade now, without waiting for the other approvers. ${labels.proposer} and ${labels.recipient} will both be told.`,
-        clear: "This removes the trade from your own list. It stays in league history.",
-      }[action],
-      confirmLabel: {
-        accept: "Accept",
-        decline: "Decline",
-        withdraw: "Withdraw",
-        approve: "Approve",
-        reject: "Reject",
-        override: "Approve (Override)",
-        "reject-override": "Reject (Override)",
-        clear: "Clear",
-      }[action],
-      tone:
-        action === "reject" || action === "reject-override" || action === "withdraw"
-          ? "danger"
-          : "default",
+    const prompt = tradeActionPrompt(action, {
+      other,
+      proposer: labels.proposer,
+      recipient: labels.recipient,
+      requiresApproval,
+      approverRequired,
     });
+
+    const confirmed = await confirm(prompt);
 
     if (!confirmed) {
       return;
@@ -1974,7 +1785,7 @@ function TradesPageContent({
           )}
 
           <div className="mt-5 flex flex-wrap gap-2 border-t border-slate-700 pt-4">
-            {tabsFor().map((entry) => (
+            {tabs.map((entry) => (
               <button
                 key={entry.id}
                 type="button"
@@ -2040,83 +1851,30 @@ function TradesPageContent({
           </p>
         )}
 
-        {tab === "mine" && (
-          <section className="space-y-4">
-            {myTrades.length === 0 ? (
-              <p className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 text-sm text-slate-400">
-                You have no trades yet. Send a proposal from the New Trade tab.
-              </p>
-            ) : (
-              myTrades.map((trade) => (
-                <TradeCard
-                  key={trade.id}
-                  trade={trade}
-                  goods={goods}
-                  timeZone={timeZone}
-                  busy={busyTradeId === trade.id}
-                  /*
-                   * Same rule as the Approvals tab, so a member looking at their own
-                   * pending trade on this list gets the same controls they would get
-                   * there. One rule, one place, whichever tab they happen to be on.
-                   */
-                  canVote={canVoteOnTrade(trade, goods.canApprove)}
-                  isOwner={goods.userRole === "owner"}
-                  onAction={handleAction}
-                  readOnly={!goods.isCurrentSeason}
-                  deadlinePassed={tradeDeadlinePassed}
-                />
-              ))
-            )}
-          </section>
-        )}
-
-        {tab === "approvals" && (
-          <section className="space-y-4">
-            {pendingApprovals.length === 0 ? (
-              <p className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 text-sm text-slate-400">
-                No trades are waiting on approval.
-              </p>
-            ) : (
-              pendingApprovals.map((trade) => (
-                <TradeCard
-                  key={trade.id}
-                  trade={trade}
-                  goods={goods}
-                  timeZone={timeZone}
-                  busy={busyTradeId === trade.id}
-                  canVote={canVoteOnTrade(trade, goods.canApprove)}
-                  isOwner={goods.userRole === "owner"}
-                  onAction={handleAction}
-                  readOnly={!goods.isCurrentSeason}
-                  deadlinePassed={tradeDeadlinePassed}
-                />
-              ))
-            )}
-          </section>
-        )}
-
-        {tab === "history" && (
-          <section className="space-y-4">
-            {history.length === 0 ? (
-              <p className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 text-sm text-slate-400">
-                No trades have completed in this season yet.
-              </p>
-            ) : (
-              history.map((trade) => (
-                <TradeCard
-                  key={trade.id}
-                  trade={trade}
-                  goods={goods}
-                  timeZone={timeZone}
-                  busy={busyTradeId === trade.id}
-                  canVote={false}
-                  isOwner={false}
-                  onAction={handleAction}
-                  readOnly={!goods.isCurrentSeason}
-                />
-              ))
-            )}
-          </section>
+        {tab !== "new" && (
+          <TradeList
+            trades={
+              tab === "mine"
+                ? myTrades
+                : tab === "approvals"
+                  ? pendingApprovals
+                  : history
+            }
+            emptyMessage={
+              tab === "mine"
+                ? "You have no trades yet. Send a proposal from the New Trade tab."
+                : tab === "approvals"
+                  ? "No trades are waiting on approval."
+                  : "No trades have completed in this season yet."
+            }
+            goods={goods}
+            timeZone={timeZone}
+            busyTradeId={busyTradeId}
+            onAction={handleAction}
+            deadlinePassed={tradeDeadlinePassed}
+            // History is a record, so its cards offer no vote or override.
+            allowVoting={tab !== "history"}
+          />
         )}
       </div>
 

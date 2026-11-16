@@ -49,7 +49,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
-import { supabase } from "@/lib/supabase/client";
+import { resolveActiveLeague } from "@/lib/active-league";
 import { getSelectedSeason } from "@/lib/season-selection";
 import { readReplaySummary } from "@/lib/replay-summary";
 import { useConfirm } from "@/components/confirm-dialog";
@@ -140,9 +140,6 @@ import {
   type SchedulePageGoods,
 } from "@/lib/supabase/schedule";
 import { LoadingGif } from "@/components/loading-gif";
-
-/** LocalStorage key used by the top nav to persist the selected league. */
-const SELECTED_LEAGUE_STORAGE_KEY = "pokemon-draft-league:selected-league";
 
 /** Labels enumerating the visible tabs (Setup is owner-only). */
 const TABS = ["Schedule", "Standings", "Playoffs", "History", "Setup"] as const;
@@ -1154,46 +1151,18 @@ function SchedulePageContent({
         setIsLoading(true);
         setError(null);
 
-        const {
-          data: { user },
-          error: userError,
-        } = await supabase.auth.getUser();
+        const league = await resolveActiveLeague(
+          requestedLeagueId,
+          "Select a league before opening the schedule.",
+        );
 
-        if (userError || !user) {
+        if (league.status === "unauthenticated") {
           router.replace("/");
           return;
         }
 
-        let selectedLeagueId = requestedLeagueId;
-
-        if (!selectedLeagueId) {
-          try {
-            selectedLeagueId =
-              window.localStorage.getItem(SELECTED_LEAGUE_STORAGE_KEY) ?? null;
-          } catch {
-            selectedLeagueId = null;
-          }
-        }
-
-        if (!selectedLeagueId) {
-          const { data: memberships, error: membershipsError } = await supabase
-            .from("league_members")
-            .select("league_id")
-            .eq("user_id", user.id)
-            .eq("is_active", true)
-            .order("joined_at", { ascending: false })
-            .limit(1);
-
-          if (membershipsError || !memberships?.length) {
-            setError("You are not a member of any active league.");
-            return;
-          }
-
-          selectedLeagueId = memberships[0].league_id;
-        }
-
-        if (!selectedLeagueId) {
-          setError("Select a league before opening the schedule.");
+        if (league.status === "error") {
+          setError(league.message);
           return;
         }
 
@@ -1205,7 +1174,7 @@ function SchedulePageContent({
           // Best effort: the server heartbeat retries it.
         }
 
-        const next = await refresh(selectedLeagueId);
+        const next = await refresh(league.leagueId);
         if (!cancelled) {
           setGoods(next);
           setIsLoading(false);

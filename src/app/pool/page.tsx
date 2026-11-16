@@ -53,6 +53,7 @@ import { useConfirm } from "@/components/confirm-dialog";
 import { LoadingGif } from "@/components/loading-gif";
 import { TablePagination } from "@/components/table-pagination";
 import { getSelectedSeason } from "@/lib/season-selection";
+import { TYPE_STYLES } from "@/lib/type-styles";
 import { isCurrentSeason as checkIsCurrentSeason, loadSeason } from "@/lib/supabase/seasons";
 import { createUuid } from "@/lib/uuid";
 
@@ -114,28 +115,6 @@ type SortKey =
 
 /** Maximum tier value allowed by the tier inputs (hard cap for now). */
 const MAX_TIER = 50;
-
-/** Type badge color classes keyed by normalized type name. */
-const TYPE_STYLES: Record<string, string> = {
-  normal: "bg-slate-600 text-slate-100",
-  fire: "bg-red-600 text-slate-50",
-  water: "bg-blue-600 text-slate-50",
-  electric: "bg-yellow-500 text-slate-900",
-  grass: "bg-green-600 text-slate-50",
-  ice: "bg-cyan-500 text-slate-900",
-  fighting: "bg-orange-700 text-slate-50",
-  poison: "bg-purple-600 text-slate-50",
-  ground: "bg-amber-700 text-slate-50",
-  flying: "bg-sky-500 text-slate-50",
-  psychic: "bg-pink-600 text-slate-50",
-  bug: "bg-lime-600 text-slate-50",
-  rock: "bg-stone-600 text-slate-50",
-  ghost: "bg-indigo-700 text-slate-50",
-  dragon: "bg-violet-700 text-slate-50",
-  dark: "bg-neutral-800 text-slate-100",
-  steel: "bg-slate-500 text-slate-50",
-  fairy: "bg-pink-400 text-slate-900",
-};
 
 /**
  * Labels a tier value for display; there is no upper bound, so any positive

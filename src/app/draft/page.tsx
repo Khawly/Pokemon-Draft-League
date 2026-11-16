@@ -42,6 +42,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useConfirm } from "@/components/confirm-dialog";
 import { useRealtimeInvalidation } from "@/lib/use-realtime-invalidation";
 import { isDocumentHidden } from "@/lib/refetch-throttle";
+import { TYPE_STYLES } from "@/lib/type-styles";
 import { formatSeasonLabel } from "@/lib/supabase/seasons";
 import {
   DraftGoods,
@@ -80,28 +81,6 @@ import { getSelectedSeason } from "@/lib/season-selection";
  * Small shared building blocks, mirroring the pool page's sprite/type/tier
  * conventions so the arena feels like the rest of the app.
  */
-
-/** Tailwind chip classes keyed by normalized type name. */
-const TYPE_STYLES: Record<string, string> = {
-  normal: "bg-slate-600 text-slate-100",
-  fire: "bg-red-600 text-slate-50",
-  water: "bg-blue-600 text-slate-50",
-  electric: "bg-yellow-500 text-slate-900",
-  grass: "bg-green-600 text-slate-50",
-  ice: "bg-cyan-500 text-slate-900",
-  fighting: "bg-orange-700 text-slate-50",
-  poison: "bg-purple-600 text-slate-50",
-  ground: "bg-amber-700 text-slate-50",
-  flying: "bg-sky-500 text-slate-50",
-  psychic: "bg-pink-600 text-slate-50",
-  bug: "bg-lime-600 text-slate-50",
-  rock: "bg-stone-600 text-slate-50",
-  ghost: "bg-indigo-700 text-slate-50",
-  dragon: "bg-violet-700 text-slate-50",
-  dark: "bg-neutral-800 text-slate-100",
-  steel: "bg-slate-500 text-slate-50",
-  fairy: "bg-pink-400 text-slate-900",
-};
 
 /**
  * Renders one draft-pool type filter chip.

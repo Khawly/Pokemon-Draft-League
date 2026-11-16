@@ -7,8 +7,9 @@
 
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useShellLeague } from "@/components/league-shell-context";
 import { supabase } from "@/lib/supabase/client";
 import {
   loadDraftboardData,
@@ -23,6 +24,7 @@ import { MemberAvatar } from "@/components/member-avatar";
 import {
   PageShell,
   PageShellCard,
+  PageShellError,
   PageShellLoading,
 } from "@/components/page-shell";
 import { getSelectedSeason } from "@/lib/season-selection";
@@ -30,17 +32,13 @@ import { getSelectedSeason } from "@/lib/season-selection";
 /**
  * Entry point for the draft board route.
  *
- * Wraps the draft board content in a Suspense boundary so that useSearchParams
- * meets Next.js's client-side streaming requirement.
+ * The league comes from the shell provider, so the page reads no search params
+ * and needs no Suspense boundary of its own.
  *
- * @returns The draft board page with a loading fallback.
+ * @returns The draft board page.
  */
 export default function DraftBoardPage() {
-  return (
-    <Suspense fallback={<PageShellLoading label="Loading draft board" />}>
-      <DraftBoardPageContent />
-    </Suspense>
-  );
+  return <DraftBoardPageContent />;
 }
 
 /** Maps league season statuses to human-readable labels shown in the header. */
@@ -62,7 +60,16 @@ const statusLabel: Record<string, string> = {
 function DraftBoardPageContent() {
   const router = useRouter();
   const { confirm, confirmDialog } = useConfirm();
-  const searchParams = useSearchParams();
+  const shellLeague = useShellLeague();
+  /** True when the shell resolved no league for this member. */
+  const shellLeagueMissing =
+    !shellLeague.isResolving && !shellLeague.signedOut && !shellLeague.leagueId;
+
+  useEffect(() => {
+    if (shellLeague.signedOut) {
+      router.replace("/");
+    }
+  }, [shellLeague.signedOut, router]);
   const [goods, setGoods] = useState<DraftboardGoods | null>(null);
   const [stagedPositions, setStagedPositions] = useState<
     Record<string, number>
@@ -76,46 +83,27 @@ function DraftBoardPageContent() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   useEffect(() => {
+    // Wait for the shell: it owns the URL, the session, and the league.
+    if (shellLeague.isResolving || shellLeague.signedOut) {
+      return;
+    }
+
+    if (!shellLeague.leagueId) {
+      return;
+    }
+
+    const activeLeagueId = shellLeague.leagueId;
+    let cancelled = false;
+
     async function load() {
       try {
-        const {
-          data: { user },
-          error: userError,
-        } = await supabase.auth.getUser();
-
-        if (userError || !user) {
-          router.replace("/");
-          return;
-        }
-
-        let selectedLeagueId = searchParams.get("leagueId");
-
-        if (!selectedLeagueId) {
-          const { data: memberships, error: membershipsError } = await supabase
-            .from("league_members")
-            .select("league_id")
-            .eq("user_id", user.id)
-            .eq("is_active", true)
-            .order("joined_at", { ascending: false })
-            .limit(1);
-
-          if (membershipsError || !memberships?.length) {
-            setError("You are not a member of any active league.");
-            return;
-          }
-
-          selectedLeagueId = memberships[0].league_id;
-        }
-
-        if (!selectedLeagueId) {
-          setError("Select a league before opening the draft board.");
-          return;
-        }
-
         const loaded = await loadDraftboardData(
-          selectedLeagueId,
-          getSelectedSeason(selectedLeagueId),
+          activeLeagueId,
+          getSelectedSeason(activeLeagueId),
         );
+        if (cancelled) {
+          return;
+        }
         setGoods(loaded);
         setStagedPositions({});
 
@@ -125,21 +113,36 @@ function DraftBoardPageContent() {
           setInviteToken(loaded.inviteToken);
         } else if (loaded.isOwner) {
           const created = await createLeagueInvite(loaded.league.id);
-          setInviteToken(created.token);
+          if (!cancelled) {
+            setInviteToken(created.token);
+          }
         }
       } catch (caughtError) {
-        const message =
-          caughtError instanceof Error
-            ? caughtError.message
-            : "The draft board could not be loaded.";
-        setError(message);
+        if (!cancelled) {
+          setError(
+            caughtError instanceof Error
+              ? caughtError.message
+              : "The draft board could not be loaded.",
+          );
+        }
       } finally {
-        setIsLoading(false);
+        if (!cancelled) {
+          setIsLoading(false);
+        }
       }
     }
 
     load();
-  }, [router, searchParams]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    router,
+    shellLeague.leagueId,
+    shellLeague.isResolving,
+    shellLeague.signedOut,
+  ]);
 
   const inviteUrl = useMemo(() => {
     if (!inviteToken || typeof window === "undefined") {
@@ -483,6 +486,14 @@ function DraftBoardPageContent() {
     } finally {
       setIsStarting(false);
     }
+  }
+
+  if (shellLeagueMissing) {
+    return (
+      <PageShellError>
+        You are not a member of any active league.
+      </PageShellError>
+    );
   }
 
   if (isLoading) {

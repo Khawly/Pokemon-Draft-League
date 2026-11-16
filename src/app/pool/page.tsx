@@ -26,7 +26,6 @@
 "use client";
 
 import {
-  Suspense,
   memo,
   useCallback,
   useDeferredValue,
@@ -36,7 +35,8 @@ import {
   useState,
 } from "react";
 import Image from "next/image";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
+import { useShellLeague } from "@/components/league-shell-context";
 import { supabase } from "@/lib/supabase/client";
 import {
   FORMS_DATA,
@@ -53,6 +53,7 @@ import { useConfirm } from "@/components/confirm-dialog";
 import { LoadingGif } from "@/components/loading-gif";
 import {
   PageShell,
+  PageShellError,
   PageShellLoading,
 } from "@/components/page-shell";
 import { TablePagination } from "@/components/table-pagination";
@@ -273,27 +274,13 @@ async function createPool(
 /**
  * Entry point for the pool route.
  *
- * Wraps the pool content in a Suspense boundary to satisfy Next.js's client-side
- * streaming requirement for `useSearchParams`.
+ * The league comes from the shell provider, so the page reads no search params
+ * and needs no Suspense boundary of its own.
  *
- * @returns The pool page with a loading fallback.
+ * @returns The pool page.
  */
 export default function PoolPage() {
-  return (
-    <Suspense fallback={<PageShellLoading label="Loading draft pool" />}>
-      <PoolRoute />
-    </Suspense>
-  );
-}
-
-/**
- * Renders the pool page, reading search params within the Suspense boundary.
- *
- * @returns The pool page content.
- */
-function PoolRoute() {
-  const searchParams = useSearchParams();
-  return <PoolPageContent searchParams={searchParams} />;
+  return <PoolPageContent />;
 }
 
 /**
@@ -764,23 +751,27 @@ function buildPoolRowPayload(
  * pools, the default full-national-dex working state, staged inline editing,
  * CSV import/export, and the table + tier list views.
  *
- * @remarks `searchParams` is passed in as a prop to satisfy the Suspense
- * requirement while keeping the page component cache-safe.
  * @returns The pool page markup, loading placeholder, or error state.
  */
-function PoolPageContent({
-  searchParams,
-}: {
-  /** Current URL search params used to select league and view. */
-  searchParams: URLSearchParams | null;
-}) {
+function PoolPageContent() {
   const router = useRouter();
   const { confirm, confirmDialog } = useConfirm();
-  const requestedLeagueId = searchParams?.get("leagueId") ?? null;
+  const shellLeague = useShellLeague();
+  /** The signed-in member's id; the shell resolved it before this page loaded. */
+  const currentUserId = shellLeague.userId;
+  /** True when the shell resolved no league for this member. */
+  const shellLeagueMissing =
+    !shellLeague.isResolving && !shellLeague.signedOut && !shellLeague.leagueId;
+
+  useEffect(() => {
+    if (shellLeague.signedOut) {
+      router.replace("/");
+    }
+  }, [shellLeague.signedOut, router]);
+
   const [leagueId, setLeagueId] = useState<string | null>(null);
   const [leagueName, setLeagueName] = useState("");
   const [seasonId, setSeasonId] = useState<string | null>(null);
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [pools, setPools] = useState<PoolSummary[]>([]);
   const [activePoolId, setActivePoolId] = useState<string | null>(null);
   const [poolName, setPoolName] = useState("");
@@ -860,49 +851,25 @@ function PoolPageContent({
     return false;
   }, [rows, savedRows, poolName, savedPoolName]);
 
-  // Load the user, league, season, and the list of saved pools.
+  // Load the league, season, and the list of saved pools.
   useEffect(() => {
+    // Wait for the shell: it owns the URL, the session, and the league.
+    if (shellLeague.isResolving || shellLeague.signedOut) {
+      return;
+    }
+
+    if (!shellLeague.leagueId || !currentUserId) {
+      return;
+    }
+
+    const selectedLeagueId = shellLeague.leagueId;
+    const userId = currentUserId;
+
     /** Loads the pool-related data for the selected league. */
     async function loadLeague() {
       try {
         setError(null);
         setSuccessMessage(null);
-
-        const {
-          data: { user },
-          error: userError,
-        } = await supabase.auth.getUser();
-
-        if (userError || !user) {
-          router.replace("/");
-          return;
-        }
-
-        setCurrentUserId(user.id);
-
-        let selectedLeagueId = requestedLeagueId;
-
-        if (!selectedLeagueId) {
-          const { data: memberships, error: membershipsError } = await supabase
-            .from("league_members")
-            .select("league_id")
-            .eq("user_id", user.id)
-            .eq("is_active", true)
-            .order("joined_at", { ascending: false })
-            .limit(1);
-
-          if (membershipsError || !memberships?.length) {
-            setError("You are not a member of any active league.");
-            return;
-          }
-
-          selectedLeagueId = memberships[0].league_id;
-        }
-
-        if (!selectedLeagueId) {
-          setError("Select a league before opening the draft pool.");
-          return;
-        }
 
         const { data: league, error: leagueError } = await supabase
           .from("leagues")
@@ -918,7 +885,7 @@ function PoolPageContent({
         const resolvedLeagueId = league.id;
         setLeagueId(resolvedLeagueId);
         setLeagueName(league.name || "");
-        setIsOwner(league.owner_id === user.id);
+        setIsOwner(league.owner_id === userId);
 
         const { data: seasonRow, error: seasonError } =
           await loadSeason<{ id: string }>(
@@ -1012,7 +979,13 @@ function PoolPageContent({
     }
 
     loadLeague();
-  }, [router, requestedLeagueId]);
+  }, [
+    router,
+    shellLeague.leagueId,
+    shellLeague.isResolving,
+    shellLeague.signedOut,
+    currentUserId,
+  ]);
 
   // Load the rows for the active pool; an owner with no saved pool gets the
   // default full-national-dex working state. The table-area gif stays up until
@@ -2133,6 +2106,14 @@ function PoolPageContent({
   function handlePageSizeChange(nextPageSize: number) {
     setPageSize(nextPageSize);
     setPage(1);
+  }
+
+  if (shellLeagueMissing) {
+    return (
+      <PageShellError>
+        You are not a member of any active league.
+      </PageShellError>
+    );
   }
 
   if (isLoading) {

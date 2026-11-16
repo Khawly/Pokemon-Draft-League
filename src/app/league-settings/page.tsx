@@ -54,9 +54,11 @@ import {
 import { loadLatestSeason, saveSeasonName } from "@/lib/supabase/seasons";
 import { deleteLeague } from "@/lib/supabase/leagues";
 import { MAX_NAME_LENGTH } from "@/lib/name-limits";
+import { useShellLeague } from "@/components/league-shell-context";
 import {
   PageShell,
   PageShellCard,
+  PageShellError,
   PageShellLoading,
 } from "@/components/page-shell";
 import { compressImageFile } from "@/lib/image-upload";
@@ -169,6 +171,16 @@ function LeagueSettingsPageContent() {
   const router = useRouter();
   const { confirm, confirmDialog } = useConfirm();
   const searchParams = useSearchParams();
+  const shellLeague = useShellLeague();
+  /** True when the shell resolved no league for this member. */
+  const shellLeagueMissing =
+    !shellLeague.isResolving && !shellLeague.signedOut && !shellLeague.leagueId;
+
+  useEffect(() => {
+    if (shellLeague.signedOut) {
+      router.replace("/");
+    }
+  }, [shellLeague.signedOut, router]);
   const [leagueId, setLeagueId] = useState<string | null>(null);
   const [seasonId, setSeasonId] = useState<string | null>(null);
   /** False when the page is showing a finished season, which cannot be changed. */
@@ -246,46 +258,23 @@ function LeagueSettingsPageContent() {
   });
 
   useEffect(() => {
+    // Wait for the shell: it owns the URL, the session, and the league. The
+    // missing-league case is handled in the render below.
+    if (
+      shellLeague.isResolving ||
+      shellLeague.signedOut ||
+      !shellLeague.leagueId ||
+      !shellLeague.userId
+    ) {
+      return;
+    }
+
+    const selectedLeagueId = shellLeague.leagueId;
+    const currentUserId = shellLeague.userId;
+
     /** Loads league metadata and the latest season's settings for the selected league. */
     async function loadLeagueSettings() {
       try {
-        const {
-          data: { user },
-          error: userError,
-        } = await supabase.auth.getUser();
-
-        if (userError || !user) {
-          router.replace("/");
-          return;
-        }
-
-        let selectedLeagueId = searchParams.get("leagueId");
-
-        // Fall back to the user's most recently joined active league when no league is specified.
-        if (!selectedLeagueId) {
-          const { data: memberships, error: membershipsError } = await supabase
-            .from("league_members")
-            .select("league_id")
-            .eq("user_id", user.id)
-            .eq("is_active", true)
-            .order("joined_at", { ascending: false })
-            .limit(1);
-
-          if (membershipsError || !memberships?.length) {
-            setLeagueId(null);
-            setSeasonId(null);
-            return;
-          }
-
-          selectedLeagueId = memberships[0].league_id;
-        }
-
-        if (!selectedLeagueId) {
-          setLeagueId(null);
-          setSeasonId(null);
-          return;
-        }
-
         let leagueData: {
           name?: string | null;
           number_of_players?: number | null;
@@ -295,7 +284,7 @@ function LeagueSettingsPageContent() {
         const { data: membershipData, error: membershipError } = await supabase
           .from("league_members")
           .select("league_id, role, leagues(name)")
-          .eq("user_id", user.id)
+          .eq("user_id", currentUserId)
           .eq("is_active", true)
           .order("joined_at", { ascending: false });
 
@@ -546,7 +535,14 @@ function LeagueSettingsPageContent() {
     }
 
     loadLeagueSettings();
-  }, [router, searchParams]);
+  }, [
+    router,
+    searchParams,
+    shellLeague.leagueId,
+    shellLeague.userId,
+    shellLeague.isResolving,
+    shellLeague.signedOut,
+  ]);
 
   const timeZoneOptions = useMemo(() => listTimeZones(), []);
 
@@ -1260,6 +1256,14 @@ function LeagueSettingsPageContent() {
     } finally {
       setIsSaving(false);
     }
+  }
+
+  if (shellLeagueMissing) {
+    return (
+      <PageShellError>
+        You are not a member of any active league.
+      </PageShellError>
+    );
   }
 
   if (isLoading) {

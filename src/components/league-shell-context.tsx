@@ -594,6 +594,8 @@ export function useLeagueShell(): LeagueShellContextValue {
 export interface ShellLeague {
   /** The league to load, or null when the shell resolved none. */
   leagueId: string | null;
+  /** The signed-in member's id, or null while resolution is pending or signed out. */
+  userId: string | null;
   /** True until the shell has resolved the URL, the member, and the league. */
   isResolving: boolean;
   /** True once the shell knows the visitor is not signed in. */
@@ -607,7 +609,7 @@ export interface ShellLeague {
  * query - work the navigation bar had already done. The "create-league" sentinel
  * is mapped to null so a page only has to handle "no league to show" once.
  *
- * @returns The league id plus the two states a page must wait on.
+ * @returns The league id, the member id, and the states a page must wait on.
  */
 export function useShellLeague(): ShellLeague {
   const { isReady, userId, selectedLeague } = useLeagueShell();
@@ -615,6 +617,7 @@ export function useShellLeague(): ShellLeague {
 
   return {
     leagueId: hasLeague ? selectedLeague : null,
+    userId,
     isResolving: !isReady,
     signedOut: isReady && !userId,
   };

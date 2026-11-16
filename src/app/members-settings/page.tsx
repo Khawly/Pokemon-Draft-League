@@ -19,8 +19,10 @@ import { useUserTimeZone } from "@/lib/user-timezone";
 import { useConfirm } from "@/components/confirm-dialog";
 import { MemberName } from "@/components/member-name";
 import { MemberAvatar } from "@/components/member-avatar";
+import { useShellLeague } from "@/components/league-shell-context";
 import {
   PageShell,
+  PageShellError,
   PageShellLoading,
 } from "@/components/page-shell";
 import { getSelectedSeason } from "@/lib/season-selection";
@@ -165,6 +167,18 @@ function MembersSettingsPageContent() {
   const router = useRouter();
   const { confirm, confirmDialog } = useConfirm();
   const searchParams = useSearchParams();
+  const shellLeague = useShellLeague();
+  /** The signed-in member's id; the shell resolved it before this page loaded. */
+  const currentUserId = shellLeague.userId;
+  /** True when the shell resolved no league for this member. */
+  const shellLeagueMissing =
+    !shellLeague.isResolving && !shellLeague.signedOut && !shellLeague.leagueId;
+
+  useEffect(() => {
+    if (shellLeague.signedOut) {
+      router.replace("/");
+    }
+  }, [shellLeague.signedOut, router]);
   const [leagueId, setLeagueId] = useState<string | null>(null);
   const [leagueName, setLeagueName] = useState("");
   const [members, setMembers] = useState<MemberRow[]>([]);
@@ -178,7 +192,6 @@ function MembersSettingsPageContent() {
   const [savedSalaries, setSavedSalaries] = useState<
     Record<string, number | null>
   >({});
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
   const [ownerUserId, setOwnerUserId] = useState<string | null>(null);
   const [allowPerTeamSalary, setAllowPerTeamSalary] = useState(false);
@@ -198,46 +211,25 @@ function MembersSettingsPageContent() {
   const timeZone = useUserTimeZone();
 
   useEffect(() => {
+    // Wait for the shell: it owns the URL, the session, and the league. The
+    // missing-league case is handled in the render below.
+    if (
+      shellLeague.isResolving ||
+      shellLeague.signedOut ||
+      !shellLeague.leagueId ||
+      !currentUserId
+    ) {
+      return;
+    }
+
+    const selectedLeagueId = shellLeague.leagueId;
+    const userId = currentUserId;
+
     /** Loads the active league's members, the current user's role, and salary settings. */
     async function loadMembers() {
       try {
         setError(null);
         setSuccessMessage(null);
-
-        const {
-          data: { user },
-          error: userError,
-        } = await supabase.auth.getUser();
-
-        if (userError || !user) {
-          router.replace("/");
-          return;
-        }
-
-        setCurrentUserId(user.id);
-
-        let selectedLeagueId = searchParams.get("leagueId");
-
-        // Fall back to the user's most recently joined active league when no league is specified.
-        if (!selectedLeagueId) {
-          const { data: memberships, error: membershipsError } = await supabase
-            .from("league_members")
-            .select("league_id")
-            .eq("user_id", user.id)
-            .eq("is_active", true)
-            .order("joined_at", { ascending: false })
-            .limit(1);
-
-          if (membershipsError || !memberships?.length) {
-            setLeagueId(null);
-            setLeagueName("");
-            setMembers([]);
-            setError("You are not a member of any active league.");
-            return;
-          }
-
-          selectedLeagueId = memberships[0].league_id;
-        }
 
         const { data: league, error: leagueError } = await supabase
           .from("leagues")
@@ -370,7 +362,7 @@ function MembersSettingsPageContent() {
         );
 
         const userRole =
-          normalizedMembers.find((member) => member.user_id === user.id)
+          normalizedMembers.find((member) => member.user_id === userId)
             ?.role ?? null;
         setCurrentUserRole(userRole);
       } catch (caughtError) {
@@ -385,7 +377,14 @@ function MembersSettingsPageContent() {
     }
 
     loadMembers();
-  }, [router, searchParams]);
+  }, [
+    router,
+    searchParams,
+    shellLeague.leagueId,
+    shellLeague.isResolving,
+    shellLeague.signedOut,
+    currentUserId,
+  ]);
 
   /*
    * Re-reads the roster after a change that can alter who holds which role.
@@ -786,6 +785,14 @@ function MembersSettingsPageContent() {
     } finally {
       setIsBusy(false);
     }
+  }
+
+  if (shellLeagueMissing) {
+    return (
+      <PageShellError>
+        You are not a member of any active league.
+      </PageShellError>
+    );
   }
 
   if (isLoading) {

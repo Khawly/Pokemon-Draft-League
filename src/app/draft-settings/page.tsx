@@ -11,8 +11,10 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import { loadUserTimeZone } from "@/lib/user-timezone";
+import { useShellLeague } from "@/components/league-shell-context";
 import {
   PageShell,
+  PageShellError,
   PageShellLoading,
 } from "@/components/page-shell";
 import { getSelectedSeason } from "@/lib/season-selection";
@@ -42,6 +44,16 @@ export default function DraftSettingsPage() {
 function DraftSettingsPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const shellLeague = useShellLeague();
+  /** True when the shell resolved no league for this member. */
+  const shellLeagueMissing =
+    !shellLeague.isResolving && !shellLeague.signedOut && !shellLeague.leagueId;
+
+  useEffect(() => {
+    if (shellLeague.signedOut) {
+      router.replace("/");
+    }
+  }, [shellLeague.signedOut, router]);
   const [draftFormat, setDraftFormat] = useState("snake");
   /**
    * Kept as the raw input string so the field can be cleared while typing;
@@ -93,48 +105,21 @@ function DraftSettingsPageContent() {
   });
 
   useEffect(() => {
+    // Wait for the shell: it owns the URL, the session, and the league. The
+    // missing-league case is handled in the render below.
+    if (
+      shellLeague.isResolving ||
+      shellLeague.signedOut ||
+      !shellLeague.leagueId
+    ) {
+      return;
+    }
+
+    const resolvedLeagueId = shellLeague.leagueId;
+
     /** Loads the active user's draft settings for the selected league and latest season. */
     async function loadLeagueSettings() {
       try {
-        const {
-          data: { user },
-          error: userError,
-        } = await supabase.auth.getUser();
-
-        if (userError || !user) {
-          router.replace("/");
-          return;
-        }
-
-        let selectedLeagueId = searchParams.get("leagueId");
-
-        // Fall back to the user's most recently joined active league when no league is specified.
-        if (!selectedLeagueId) {
-          const { data: memberships, error: membershipsError } = await supabase
-            .from("league_members")
-            .select("league_id")
-            .eq("user_id", user.id)
-            .eq("is_active", true)
-            .order("joined_at", { ascending: false })
-            .limit(1);
-
-          if (membershipsError || !memberships?.length) {
-            setLeagueId(null);
-            setSeasonId(null);
-            return;
-          }
-
-          selectedLeagueId = memberships[0].league_id;
-        }
-
-        if (!selectedLeagueId) {
-          setLeagueId(null);
-          setSeasonId(null);
-          return;
-        }
-
-        const resolvedLeagueId: string = selectedLeagueId;
-
         setLeagueId(resolvedLeagueId);
 
         const { data: seasonData, error: seasonError } = await loadSeason<{
@@ -211,7 +196,13 @@ function DraftSettingsPageContent() {
     }
 
     loadLeagueSettings();
-  }, [router, searchParams]);
+  }, [
+    router,
+    searchParams,
+    shellLeague.leagueId,
+    shellLeague.isResolving,
+    shellLeague.signedOut,
+  ]);
 
   /**
    * Saves the current draft settings via upsert for the active league/season,
@@ -308,6 +299,14 @@ function DraftSettingsPageContent() {
     } finally {
       setIsSaving(false);
     }
+  }
+
+  if (shellLeagueMissing) {
+    return (
+      <PageShellError>
+        You are not a member of any active league.
+      </PageShellError>
+    );
   }
 
   if (isLoading) {

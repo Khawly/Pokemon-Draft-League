@@ -54,8 +54,6 @@ import { getSelectedSeason } from "@/lib/season-selection";
 import { readReplaySummary } from "@/lib/replay-summary";
 import { useConfirm } from "@/components/confirm-dialog";
 import { MemberName } from "@/components/member-name";
-import { MemberAvatar } from "@/components/member-avatar";
-import { PlayoffBracket } from "@/components/playoff-bracket";
 import { ManualScheduleEditor } from "@/components/manual-schedule-editor";
 import { CrownProvider } from "@/components/crown-provider";
 import { MatchupPicker } from "@/components/matchup-picker";
@@ -94,7 +92,9 @@ import {
 } from "@/lib/supabase/availability";
 import * as scheduleApi from "@/lib/supabase/schedule";
 import { LoadingGif } from "@/components/loading-gif";
-import { Card } from "@/components/card";
+import { Avatar, SectionCard } from "./schedule-ui";
+import { StandingsTab } from "./standings-tab";
+import { PlayoffsTab } from "./playoffs-tab";
 
 /** Labels enumerating the visible tabs (Setup is owner-only). */
 const TABS = ["Schedule", "Standings", "Playoffs", "History", "Setup"] as const;
@@ -446,45 +446,6 @@ function upcomingWeekKeyOf(match: scheduleApi.ScheduleMatch): string {
     : `week-${match.week_number}`;
 }
 
-/** A player's avatar: owner image or an initial-based circle. */
-function Avatar({
-  name,
-  nameColor,
-  avatarUrl,
-  initials,
-  size = 36,
-  winner = false,
-}: {
-  /** Display name used for the fallback initial. */
-  name: string;
-  nameColor?: string | null;
-  avatarUrl: string | null;
-  /**
-   * The player's stored avatar initials, or null to derive them from their name.
-   */
-  initials?: string | null;
-  /** Square pixel dimensions. */
-  size?: number;
-  winner?: boolean;
-}) {
-  /*
-   * MemberAvatar rather than a local circle: the schedule used to draw its own, which
-   * is why a member's initials could not pick up their chosen colour here while the
-   * rest of the app did. It keeps the winner highlight, which is a momentary state
-   * that outranks a standing preference.
-   */
-  return (
-    <MemberAvatar
-      name={name}
-      color={nameColor}
-      avatarUrl={avatarUrl}
-      initials={initials}
-      size={size}
-      winner={winner}
-    />
-  );
-}
-
 /** Props for {@link RosterSprites}. */
 interface RosterSpritesProps {
   /** The team's roster to draw, richest Pokemon first. */
@@ -639,26 +600,6 @@ function Spoiler({
   );
 }
 
-/** Wraps a schedule section in the app's card styling. */
-function SectionCard({
-  title,
-  action,
-  children,
-}: {
-  title: string;
-  action?: React.ReactNode;
-  children: React.ReactNode;
-}) {
-  return (
-    <Card className="p-4 shadow-lg sm:p-6 shadow-slate-950/30">
-      <div className="flex items-center justify-between gap-4">
-        <h2 className="text-xl font-bold text-white">{title}</h2>
-        {action}
-      </div>
-      <div className="mt-4">{children}</div>
-    </Card>
-  );
-}
 
 /**
  * Timestamp shape for the owner proposal log.
@@ -4171,180 +4112,25 @@ function SchedulePageContent({
           )}
 
           {activeTab === "Standings" && (
-            <SectionCard title="Standings">
-              <div className="overflow-x-auto rounded-xl border border-slate-800">
-                <table className="min-w-full divide-y divide-slate-800 text-sm">
-                  <thead className="bg-slate-950 text-slate-300">
-                    <tr>
-                      <th className="px-4 py-3 text-left font-semibold">
-                        Rank
-                      </th>
-                      <th className="px-4 py-3 text-left font-semibold">
-                        Player
-                      </th>
-                      <th className="px-4 py-3 text-center font-semibold">W</th>
-                      <th className="px-4 py-3 text-center font-semibold">L</th>
-                      <th className="px-4 py-3 text-center font-semibold">
-                        KO Diff
-                      </th>
-                      <th
-                        className="px-4 py-3 text-center font-semibold"
-                        title="Prediction points: one per correct winner pick"
-                      >
-                        PP
-                      </th>
-                      <th className="px-4 py-3 text-left font-semibold">
-                        Pokemon
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-800 bg-slate-900">
-                    {goods.standings.map((row, index) => (
-                      <tr key={row.team_id} className="hover:bg-slate-800/80">
-                        <td className="px-4 py-3 font-medium text-slate-100">
-                          {index + 1}
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-3">
-                            <Avatar
-                              name={teamLabel(row.team_id, row.team_name)}
-                              nameColor={teamColor(row.team_id)}
-                              avatarUrl={
-                                goods.teams.find(
-                                  (team) => team.id === row.team_id,
-                                )?.owner_avatar_url ?? null
-                              }
-                              initials={teamInitials(row.team_id)}
-                              size={28}
-                            />
-                            <span className="font-medium text-slate-100">
-                              <MemberName
-                                name={teamLabel(row.team_id, row.team_name)}
-                                color={teamColor(row.team_id)}
-                                className="font-medium text-slate-100"
-                                userId={teamOwnerId(row.team_id)}
-                              />
-                            </span>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 text-center text-slate-300">
-                          {row.wins}
-                        </td>
-                        <td className="px-4 py-3 text-center text-slate-300">
-                          {row.losses}
-                        </td>
-                        <td className="px-4 py-3 text-center font-medium text-slate-100">
-                          {row.ko_diff}
-                        </td>
-                        <td className="px-4 py-3 text-center font-medium text-white">
-                          {row.prediction_points}
-                        </td>
-                        <td className="px-4 py-3">
-                          <ul className="flex flex-wrap items-center gap-1.5">
-                            {(goods.rostersByTeam[row.team_id] ?? []).map(
-                              (pokemon) => (
-                                <li key={pokemon.id}>
-                                  {pokemon.spriteId > 0 ? (
-                                    <img
-                                      src={getSpriteUrl(pokemon.spriteId)}
-                                      alt={pokemon.name}
-                                      title={pokemon.name}
-                                      width={56}
-                                      height={56}
-                                      loading="lazy"
-                                      className="h-14 w-14 object-contain"
-                                    />
-                                  ) : (
-                                    <span className="flex h-14 w-14 items-center justify-center rounded-full bg-slate-700 text-base text-slate-400">
-                                      ?
-                                    </span>
-                                  )}
-                                </li>
-                              ),
-                            )}
-                          </ul>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <p className="mt-3 text-xs text-slate-500">
-                PP = prediction points: one for each correct winner pick,
-                credited to the picker&apos;s team.
-              </p>
-            </SectionCard>
+            <StandingsTab
+              goods={goods}
+              teamLabel={teamLabel}
+              teamColor={teamColor}
+              teamInitials={teamInitials}
+              teamOwnerId={teamOwnerId}
+            />
           )}
 
           {activeTab === "Playoffs" && (
-            <SectionCard
-              title="Playoff bracket"
-              action={
-                goods.isOwner &&
-                goods.isCurrentSeason &&
-                goods.season?.status === "draft_complete" ? (
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      disabled={isBusy}
-                      onClick={handleResetPlayoffs}
-                      title="Delete every playoff match and result so the bracket can be rebuilt"
-                      className="rounded-xl border border-slate-700 bg-slate-800 px-3.5 py-2 text-sm font-medium text-slate-300 transition hover:border-rose-800 hover:text-rose-300 disabled:opacity-50"
-                    >
-                      Reset playoffs
-                    </button>
-                    <button
-                      type="button"
-                      disabled={isBusy}
-                      onClick={handleAdvancePlayoffs}
-                      className="rounded-xl bg-amber-500 px-3.5 py-2 text-sm font-semibold text-slate-950 transition hover:bg-amber-400 disabled:opacity-50"
-                    >
-                      Advance playoffs
-                    </button>
-                  </div>
-                ) : undefined
-              }
-            >
-              {goods.settings && (
-                <p className="mb-4 text-sm text-slate-400">
-                  {goods.settings.playoff_team_count} teams •{" "}
-                  {goods.settings.playoff_format === "single_elimination"
-                    ? "Single elimination"
-                    : "Double elimination"}{" "}
-                  •{" "}
-                  {goods.settings.playoff_match_format === "single"
-                    ? "Single games"
-                    : "Best of 3"}
-                </p>
-              )}
-              {playoffTemplateRows.length === 0 ? (
-                <p className="text-sm text-slate-400">
-                  {goods.playoffTemplate?.unavailableReason ??
-                    (goods.season?.status === "draft_complete"
-                      ? "No bracket is defined for this league yet."
-                      : "The playoff bracket appears after the draft is complete.")}
-                </p>
-              ) : (
-                <PlayoffBracket
-                  rows={playoffTemplateRows}
-                  matches={goods.matches.filter((match) => match.is_playoff)}
-                  resolveTeam={playoffTeamResolver}
-                />
-              )}
-
-              {championWinner && (
-                <p className="mt-4 rounded-xl border border-emerald-800 bg-emerald-900/30 p-3 text-sm text-emerald-200">
-                  Champion:{" "}
-                  <strong>
-                    <MemberName
-                      name={championWinner.name}
-                      color={championWinner.color}
-                    />
-                  </strong>{" "}
-                  <span className="text-emerald-400">— League champion</span>
-                </p>
-              )}
-            </SectionCard>
+            <PlayoffsTab
+              goods={goods}
+              isBusy={isBusy}
+              onResetPlayoffs={() => void handleResetPlayoffs()}
+              onAdvancePlayoffs={() => void handleAdvancePlayoffs()}
+              rows={playoffTemplateRows}
+              resolveTeam={playoffTeamResolver}
+              championWinner={championWinner}
+            />
           )}
 
           {activeTab === "History" && (

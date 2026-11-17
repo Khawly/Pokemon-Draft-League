@@ -59,6 +59,7 @@ import { getSelectedSeason } from "@/lib/season-selection";
 import { TYPE_STYLES } from "@/lib/type-styles";
 import { isCurrentSeason as checkIsCurrentSeason, loadSeason } from "@/lib/supabase/seasons";
 import { createUuid } from "@/lib/uuid";
+import { Card } from "@/components/card";
 
 /** Sortable table columns, including the national-dex default ordering. */
 type SortKey =
@@ -2139,9 +2140,9 @@ function PoolPageContent() {
         {selectedTab === "tiers" && (
           <div className="space-y-6">
             {groupedByTier.length === 0 ? (
-              <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-center text-sm text-slate-400">
+              <Card className="p-8 text-center text-sm text-slate-400">
                 No in-pool Pokémon to tier yet.
-              </div>
+              </Card>
             ) : (
               groupedByTier.map((group) => (
                 <section

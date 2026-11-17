@@ -94,6 +94,7 @@ import {
 } from "@/lib/supabase/availability";
 import * as scheduleApi from "@/lib/supabase/schedule";
 import { LoadingGif } from "@/components/loading-gif";
+import { Card } from "@/components/card";
 
 /** Labels enumerating the visible tabs (Setup is owner-only). */
 const TABS = ["Schedule", "Standings", "Playoffs", "History", "Setup"] as const;
@@ -649,13 +650,13 @@ function SectionCard({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-lg sm:p-6 shadow-slate-950/30">
+    <Card className="p-4 shadow-lg sm:p-6 shadow-slate-950/30">
       <div className="flex items-center justify-between gap-4">
         <h2 className="text-xl font-bold text-white">{title}</h2>
         {action}
       </div>
       <div className="mt-4">{children}</div>
-    </div>
+    </Card>
   );
 }
 

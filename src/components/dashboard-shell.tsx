@@ -35,6 +35,8 @@ import {
 import { formatSeasonLabel } from "@/lib/supabase/seasons";
 import { useUserTimeZone } from "@/lib/user-timezone";
 import { formatDateTimeInZone } from "@/lib/datetime";
+import { Card } from "@/components/card";
+import { SectionLabel } from "@/components/section-label";
 
 /** Props for the {@link DashboardShell} component. */
 export interface DashboardShellProps {
@@ -107,9 +109,9 @@ function RulesPanel({ rules, timeZone, isOwner, leagueId }: RulesPanelProps) {
     <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-lg sm:p-6 shadow-slate-950/30">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">
+          <SectionLabel>
             Rules
-          </p>
+          </SectionLabel>
           <h2 className="mt-2 text-xl font-bold text-white">League rules</h2>
         </div>
         <button
@@ -540,9 +542,9 @@ export function DashboardShell({
           <section className="grid gap-6 xl:grid-cols-[1.5fr_0.9fr]">
             <div className="xl:col-span-2 rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-lg sm:p-6 shadow-slate-950/30">
               <div className="flex items-center justify-between gap-3">
-                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">
+                <SectionLabel>
                   Notifications
-                </p>
+                </SectionLabel>
                 {/*
                  * Always rendered, and disabled rather than hidden on an empty
                  * list. Hiding it meant a member whose panel was empty had no
@@ -630,12 +632,12 @@ export function DashboardShell({
               )}
             </div>
 
-            <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-lg sm:p-6 shadow-slate-950/30">
+            <Card className="p-4 shadow-lg sm:p-6 shadow-slate-950/30">
               <div className="flex items-center justify-between gap-4">
                 <div>
-                  <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">
+                  <SectionLabel>
                     Schedule
-                  </p>
+                  </SectionLabel>
                   <h2 className="mt-2 text-xl font-bold text-white">
                     {goods.currentWeek != null
                       ? `Week ${goods.currentWeek} matchups`
@@ -783,13 +785,13 @@ export function DashboardShell({
                   ))}
                 </div>
               )}
-            </div>
+            </Card>
 
             <aside className="space-y-6">
-              <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-lg sm:p-6 shadow-slate-950/30">
-                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">
+              <Card className="p-4 shadow-lg sm:p-6 shadow-slate-950/30">
+                <SectionLabel>
                   Next match
-                </p>
+                </SectionLabel>
                 {goods.nextMatch ? (
                   <>
                     <p className="mt-3 text-sm text-slate-300">
@@ -866,14 +868,14 @@ export function DashboardShell({
                       : "You do not have a team in this season."}
                   </p>
                 )}
-              </div>
+              </Card>
 
-              <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-lg sm:p-6 shadow-slate-950/30">
+              <Card className="p-4 shadow-lg sm:p-6 shadow-slate-950/30">
                 <div className="flex items-center justify-between gap-4">
                   <div>
-                    <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">
+                    <SectionLabel>
                       Standings
-                    </p>
+                    </SectionLabel>
                     <h2 className="mt-2 text-xl font-bold text-white">
                       Season snapshot
                     </h2>
@@ -957,7 +959,7 @@ export function DashboardShell({
                   PP = prediction points: one for each correct winner pick,
                   credited to the picker&apos;s team.
                 </p>
-              </div>
+              </Card>
             </aside>
           </section>
         </>

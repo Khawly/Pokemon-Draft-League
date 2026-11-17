@@ -50,6 +50,8 @@ import {
   type PokemonTeamOption,
 } from "@/lib/supabase/pokemon";
 import { TablePagination } from "@/components/table-pagination";
+import { Card } from "@/components/card";
+import { SectionLabel } from "@/components/section-label";
 
 /**
  * The free agent pool.
@@ -856,9 +858,9 @@ function TransactionHistory({
 
   return (
     <aside className="w-full min-w-0 rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-lg sm:p-6 shadow-slate-950/30">
-      <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">
+      <SectionLabel>
         Transaction history
-      </p>
+      </SectionLabel>
       <h2 className="mt-1 text-xl font-bold text-white">Recent moves</h2>
 
       {transactions.length === 0 ? (
@@ -1494,15 +1496,15 @@ function PokemonPageContent() {
         )}
 
         {isBusy && (
-          <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 text-sm text-slate-400">
+          <Card className="p-4 text-sm text-slate-400">
             Picking up Pokémon...
-          </div>
+          </Card>
         )}
 
         {!canPickup && pickupHint && (
-          <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 text-sm text-slate-400">
+          <Card className="p-4 text-sm text-slate-400">
             {pickupHint}
-          </div>
+          </Card>
         )}
 
         {/*
@@ -1516,9 +1518,9 @@ function PokemonPageContent() {
           <div className="w-full min-w-0 rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-lg sm:p-6 shadow-slate-950/30">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">
+                <SectionLabel>
                   Free agents
-                </p>
+                </SectionLabel>
                 <h2 className="mt-1 text-xl font-bold text-white">
                   {filtered.length} available
                 </h2>

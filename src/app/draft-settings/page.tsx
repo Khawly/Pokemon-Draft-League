@@ -18,6 +18,7 @@ import { useShellLeague } from "@/components/league-shell-context";
 import { PageShell, PageShellError, PageShellLoading } from "@/components/page-shell";
 import { getSelectedSeason } from "@/lib/season-selection";
 import { isCurrentSeason as checkIsCurrentSeason, loadSeason } from "@/lib/supabase/seasons";
+import { Card } from "@/components/card";
 
 /**
  * Draft settings page that suspends rendering until the client-only
@@ -363,7 +364,7 @@ function DraftSettingsPageContent() {
           className="min-w-0 border-0 p-0"
         >
           <section className="grid gap-6 lg:grid-cols-2">
-          <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-lg sm:p-6 shadow-slate-950/30">
+          <Card className="p-4 shadow-lg sm:p-6 shadow-slate-950/30">
             <div className="space-y-5">
               <div>
                 <label className="mb-2 block text-sm font-medium text-slate-300">
@@ -442,9 +443,9 @@ function DraftSettingsPageContent() {
                 />
               </label>
             </div>
-          </div>
+          </Card>
 
-          <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-lg sm:p-6 shadow-slate-950/30">
+          <Card className="p-4 shadow-lg sm:p-6 shadow-slate-950/30">
             <div className="space-y-5">
               <div>
                 <label className="mb-2 block text-sm font-medium text-slate-300">
@@ -555,7 +556,7 @@ function DraftSettingsPageContent() {
                 </p>
               )}
             </div>
-          </div>
+          </Card>
         </section>
         </fieldset>
     </PageShell>

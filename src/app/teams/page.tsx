@@ -44,6 +44,8 @@ import {
   type TeamPageGoods,
   type TeamRosterPokemon,
 } from "@/lib/supabase/teams";
+import { Card } from "@/components/card";
+import { SectionLabel } from "@/components/section-label";
 
 /** Sortable columns of the team stats table. */
 type StatSortKey =
@@ -226,9 +228,9 @@ function TeamStatsTable({
     <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-lg sm:p-6 shadow-slate-950/30">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">
+          <SectionLabel>
             Team stats
-          </p>
+          </SectionLabel>
           <h2 className="mt-1 text-xl font-bold text-white">{teamName}</h2>
         </div>
 
@@ -504,9 +506,9 @@ function DefensiveTypingGrid({
     <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-lg sm:p-6 shadow-slate-950/30">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">
+          <SectionLabel>
             Defensive typing
-          </p>
+          </SectionLabel>
           <h2 className="mt-1 text-xl font-bold text-white">{teamName}</h2>
         </div>
         <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-slate-300">
@@ -677,9 +679,9 @@ function MatchHistory({
 
   return (
     <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-lg sm:p-6 shadow-slate-950/30">
-      <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">
+      <SectionLabel>
         Match history
-      </p>
+      </SectionLabel>
       <h2 className="mt-1 text-xl font-bold text-white">{teamName}</h2>
 
       {matches.length === 0 ? (
@@ -1255,15 +1257,15 @@ function TeamsPageContent({
         )}
 
         {isBusy && (
-          <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 text-sm text-slate-400">
+          <Card className="p-4 text-sm text-slate-400">
             Updating roster...
-          </div>
+          </Card>
         )}
 
         {teamOptions.length === 0 ? (
-          <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-sm text-slate-400">
+          <Card className="p-8 text-sm text-slate-400">
             No teams exist for this league&apos;s current season yet.
-          </div>
+          </Card>
         ) : (
           <>
             {!(compareTeam && compareLayout === "together") && (

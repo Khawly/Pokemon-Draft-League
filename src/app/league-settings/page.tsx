@@ -69,6 +69,7 @@ import { PageShell, PageShellCard, PageShellError, PageShellLoading } from "@/co
 import { compressImageFile } from "@/lib/image-upload";
 import { clearSelectedSeason, getSelectedSeason } from "@/lib/season-selection";
 import { clearSelectedLeague } from "@/lib/league-selection";
+import { Card } from "@/components/card";
 
 /**
  * Picks a sensible first weekly deadline date: today when the chosen time is
@@ -1369,7 +1370,7 @@ function LeagueSettingsPageContent() {
           className="min-w-0 border-0 p-0"
         >
         <section className="grid gap-6 lg:grid-cols-2">
-          <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-lg sm:p-6 shadow-slate-950/30">
+          <Card className="p-4 shadow-lg sm:p-6 shadow-slate-950/30">
             <div className="space-y-5">
               <div>
                 <label className="mb-2 block text-sm font-medium text-slate-300">
@@ -1511,9 +1512,9 @@ function LeagueSettingsPageContent() {
                 </div>
               )}
             </div>
-          </div>
+          </Card>
 
-          <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-lg sm:p-6 shadow-slate-950/30">
+          <Card className="p-4 shadow-lg sm:p-6 shadow-slate-950/30">
             <div className="space-y-5">
               <label className="flex items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-950/60 p-3 text-sm text-slate-200">
                 <span>Owner has to approve trades</span>
@@ -1594,7 +1595,7 @@ function LeagueSettingsPageContent() {
                 </p>
               </div>
             </div>
-          </div>
+          </Card>
         </section>
 
         <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-lg sm:p-6 shadow-slate-950/30">

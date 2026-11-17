@@ -63,6 +63,7 @@ import { useUserTimeZone } from "@/lib/user-timezone";
 import { PageShell, PageShellCard, PageShellError, PageShellLoading } from "@/components/page-shell";
 import { TablePagination } from "@/components/table-pagination";
 import { getSelectedSeason } from "@/lib/season-selection";
+import { Card } from "@/components/card";
 
 /*
  * Small shared building blocks, mirroring the pool page's sprite/type/tier
@@ -1790,9 +1791,9 @@ const PoolPanel = memo(function PoolPanel({
       {tab === "tiers" && (
         <div className="min-h-0 flex-1 overflow-auto p-4">
           {groupedByTier.length === 0 ? (
-            <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-8 text-center text-sm text-slate-400">
+            <Card className="p-8 text-center text-sm text-slate-400">
               No Pokémon match your filters.
-            </div>
+            </Card>
           ) : (
             <div className="space-y-6">
               {groupedByTier.map((group) => (
@@ -2538,14 +2539,14 @@ function sameEntries(
  */
 function EmptyDraft({ leagueName }: { leagueName: string }) {
   return (
-    <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-10 text-center">
+    <Card className="p-10 text-center">
       <p className="text-sm font-medium text-slate-400">
         {leagueName} has no draft season yet.
       </p>
       <p className="mt-2 text-sm text-slate-500">
         Start the draft from the draft board to open the arena.
       </p>
-    </div>
+    </Card>
   );
 }
 
@@ -3314,10 +3315,10 @@ function DraftArena({ leagueId }: { leagueId: string }) {
                * season it is history, and every control in it would try to write to a
                * season that can no longer change.
                */
-              <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 text-sm text-slate-400">
+              <Card className="p-6 text-sm text-slate-400">
                 This draft is finished, so its priority list is a record rather
                 than something to edit.
-              </div>
+              </Card>
             )}
           </div>
         </div>

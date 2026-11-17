@@ -43,6 +43,7 @@ import { MemberName } from "@/components/member-name";
 import { MemberAvatar } from "@/components/member-avatar";
 import { resolveAvatarInitials } from "@/lib/avatar-initials";
 import { PageShell, PageShellLoading } from "@/components/page-shell";
+import { Card } from "@/components/card";
 
 /**
  * Picks the zone to show in the settings form for a stored profile value.
@@ -616,7 +617,7 @@ export default function SettingsPage() {
             </div>
           </aside>
 
-          <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-lg sm:p-6 shadow-slate-950/30">
+          <Card className="p-4 shadow-lg sm:p-6 shadow-slate-950/30">
             <div className="space-y-5">
               <div>
                 <label className="mb-2 block text-sm font-medium text-slate-300">
@@ -818,7 +819,7 @@ export default function SettingsPage() {
                 </div>
               )}
             </div>
-          </div>
+          </Card>
         </section>
 
         {confirmDialog}

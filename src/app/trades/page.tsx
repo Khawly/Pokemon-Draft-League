@@ -73,6 +73,9 @@ import {
   type TradePokemon,
   type TradesGoods,
 } from "@/lib/supabase/trades";
+import { Card } from "@/components/card";
+import { SectionLabel } from "@/components/section-label";
+import { Button } from "@/components/button";
 
 /** Pill styling per status, so a trade's state is legible without reading the text. */
 const STATUS_STYLES: Record<Trade["status"], string> = {
@@ -218,9 +221,9 @@ function PokemonPicker({
   return (
     <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">
+        <SectionLabel>
           {title}
-        </p>
+        </SectionLabel>
         {costsEnabled && selected.length > 0 && (
           <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-semibold text-amber-300">
             {selectedTier} tokens
@@ -578,64 +581,64 @@ function TradeCard({
       <footer className="mt-5 flex flex-wrap gap-2 border-t border-slate-800 pt-4">
         {readerIsRecipient && trade.status === "awaiting_response" && (
           <>
-            <button
+            <Button
               type="button"
               disabled={busy || deadlinePassed}
               onClick={() => onAction("accept", trade)}
-              className="rounded-xl bg-amber-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-amber-400 disabled:opacity-50"
+              variant="primary"
             >
               Accept
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               disabled={busy}
               onClick={() => onAction("decline", trade)}
-              className="rounded-xl border border-slate-700 bg-slate-800 px-4 py-2 text-sm font-medium text-slate-100 transition hover:border-rose-800 hover:text-rose-200 disabled:opacity-50"
+              variant="danger-outline"
             >
               Decline
-            </button>
+            </Button>
           </>
         )}
 
         {readerIsProposer && trade.status === "awaiting_response" && (
-          <button
+          <Button
             type="button"
             disabled={busy}
             onClick={() => onAction("withdraw", trade)}
-            className="rounded-xl border border-slate-700 bg-slate-800 px-4 py-2 text-sm font-medium text-slate-100 transition hover:border-slate-500 disabled:opacity-50"
+            variant="secondary"
           >
             Withdraw
-          </button>
+          </Button>
         )}
 
         {canVote && trade.status === "pending_approval" && (
           <>
-            <button
+            <Button
               type="button"
               disabled={busy || deadlinePassed}
               onClick={() => onAction("approve", trade)}
-              className="rounded-xl bg-amber-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-amber-400 disabled:opacity-50"
+              variant="primary"
             >
               Approve
-            </button>
+            </Button>
             {isOwner && (
-              <button
+              <Button
                 type="button"
                 disabled={busy || deadlinePassed}
                 onClick={() => onAction("override", trade)}
-                className="rounded-xl border border-amber-700 bg-amber-500/10 px-4 py-2 text-sm font-semibold text-amber-200 transition hover:bg-amber-500/20 disabled:opacity-50"
+                variant="warning"
               >
                 Approve (Override)
-              </button>
+              </Button>
             )}
-            <button
+            <Button
               type="button"
               disabled={busy}
               onClick={() => onAction("reject", trade)}
-              className="rounded-xl border border-slate-700 bg-slate-800 px-4 py-2 text-sm font-medium text-slate-100 transition hover:border-rose-800 hover:text-rose-200 disabled:opacity-50"
+              variant="danger-outline"
             >
               Reject
-            </button>
+            </Button>
             {/*
               Rejecting is a vote like any other, so a single one no longer settles
               the trade -- it needs the same quorum an approval does. The Owner keeps
@@ -643,14 +646,14 @@ function TradeCard({
               that is only a vote is never mistaken for one that ends the trade.
             */}
             {isOwner && (
-              <button
+              <Button
                 type="button"
                 disabled={busy}
                 onClick={() => onAction("reject-override", trade)}
-                className="rounded-xl border border-rose-900 bg-rose-950/40 px-4 py-2 text-sm font-semibold text-rose-200 transition hover:bg-rose-950/70 disabled:opacity-50"
+                variant="danger"
               >
                 Reject (Override)
-              </button>
+              </Button>
             )}
           </>
         )}
@@ -1011,28 +1014,28 @@ function ProposalBuilder({
 
   if (!goods.myTeam) {
     return (
-      <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6">
+      <Card className="p-6">
         <p className="text-sm text-slate-400">
           You do not own a team in this season, so you cannot propose a trade.
         </p>
-      </div>
+      </Card>
     );
   }
 
   if (goods.season?.status !== "draft_complete") {
     return (
-      <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6">
+      <Card className="p-6">
         <p className="text-sm text-slate-400">
           Trades unlock once the draft is complete. This season is still{" "}
           {goods.season?.status === "draft_active" ? "drafting" : "waiting to draft"}.
         </p>
-      </div>
+      </Card>
     );
   }
 
   return (
     <div className="space-y-5">
-      <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-lg sm:p-6 shadow-slate-950/30">
+      <Card className="p-4 shadow-lg sm:p-6 shadow-slate-950/30">
         <label className="block">
           <span className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">
             Trade with
@@ -1056,7 +1059,7 @@ function ProposalBuilder({
             ))}
           </select>
         </label>
-      </div>
+      </Card>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <PokemonPicker
@@ -1076,10 +1079,10 @@ function ProposalBuilder({
         />
       </div>
       {tokenTradesAllowed && (
-        <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-lg sm:p-6 shadow-slate-950/30">
-          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">
+        <Card className="p-4 shadow-lg sm:p-6 shadow-slate-950/30">
+          <SectionLabel>
             Tokens
-          </p>
+          </SectionLabel>
           <p className="mt-1 text-sm text-slate-400">
             Tokens you send come out of your budget; tokens you receive go onto
             theirs. Leave both blank to trade Pokémon only.
@@ -1099,13 +1102,13 @@ function ProposalBuilder({
               onChange={setRecipientTokensRaw}
             />
           </div>
-        </div>
+        </Card>
       )}
 
-      <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-lg sm:p-6 shadow-slate-950/30">
-        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">
+      <Card className="p-4 shadow-lg sm:p-6 shadow-slate-950/30">
+        <SectionLabel>
           Projected balances
-        </p>
+        </SectionLabel>
 
         {!recipient ? (
           <p className="mt-3 text-sm text-slate-500">
@@ -1171,7 +1174,7 @@ function ProposalBuilder({
             </span>
           )}
         </div>
-      </div>
+      </Card>
     </div>
   );
 }

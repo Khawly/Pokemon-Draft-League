@@ -22,7 +22,6 @@ import { TopNav } from "@/components/top-nav";
 /**
  * Renders the app-wide navigation chrome around the current page.
  *
- * @param props.children - The rendered page content.
  * @returns The top navigation bar and the page, or only the page on the auth
  *   landing route.
  */

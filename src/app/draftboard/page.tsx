@@ -593,11 +593,8 @@ function membersDisplayName(member: Pick<DraftboardMember, "display_name">) {
  * Card showing the league invite link with copy and regenerate actions.
  *
  * @param props.inviteUrl - Full invite URL, or null while preparing.
- * @param props.copied - Whether the link was just copied.
  * @param props.isBusy - Disables regenerate while a request is in flight.
  * @param props.isOwner - Whether the current user may regenerate the invite.
- * @param props.onCopy - Handler for copying the invite link.
- * @param props.onRegenerate - Handler for generating a fresh invite link.
  * @returns The invite link card markup.
  */
 function InviteCard({
@@ -662,13 +659,6 @@ function InviteCard({
 /**
  * Card listing what must be complete before the draft can start.
  *
- * @param props.goods - Loaded draft board data.
- * @param props.slotsFilled - Whether all player slots are filled.
- * @param props.positionsAssigned - Whether every member has a unique position.
- * @param props.poolComplete - Whether the draft pool is set up.
- * @param props.checklistComplete - Whether every checklist item passes.
- * @param props.takenPositions - Positions already assigned to a member.
- * @param props.onOpenDraftSettings - Opens the draft pool page.
  * @returns The draft checklist card markup.
  */
 function ChecklistCard({
@@ -770,9 +760,6 @@ function ChecklistCard({
 /**
  * A single checklist row with a completion indicator.
  *
- * @param props.complete - Whether this checklist item is satisfied.
- * @param props.label - Text describing the checklist item.
- * @param props.children - Optional extra content alongside the label.
  * @returns A checklist list-item element.
  */
 function ChecklistItem({
@@ -815,7 +802,6 @@ function ChecklistItem({
  * Changes button; members only see read-only values. Members without a
  * position show a dash rather than "No team".
  *
- * @param props.goods - Loaded draft board data.
  * @param props.members - League members with (possibly staged) positions.
  * @param props.isBusy - Disables position controls while a request is in flight.
  * @param props.isOwner - Whether the current user may edit positions.

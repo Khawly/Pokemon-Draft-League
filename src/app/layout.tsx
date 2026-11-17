@@ -35,7 +35,6 @@ export const metadata: Metadata = {
  * the shared top navigation bar.
  *
  * @param props - Next.js layout props.
- * @param props.children - The rendered page content for the current route.
  */
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (

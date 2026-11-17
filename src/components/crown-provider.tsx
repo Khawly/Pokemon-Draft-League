@@ -102,7 +102,6 @@ export function CrownProvider({
  *
  * A failed read is not fatal: the badges are decoration, and the page they sit on is not.
  *
- * @param props.children - The rendered page.
  * @returns The children, with the honors published.
  */
 export function CrownScope({ children }: { children: ReactNode }) {

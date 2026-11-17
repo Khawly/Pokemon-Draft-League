@@ -78,8 +78,6 @@ import { Card } from "@/components/card";
  *
  * @param props.type - The type name, or null for the All chip.
  * @param props.count - How many Pokemon of the type remain in the pool.
- * @param props.selected - True when this chip is the active filter.
- * @param props.dimmed - True while another chip is active.
  * @param props.onSelect - Selects this chip (or clears the filter for All).
  * @returns The filter chip button.
  */
@@ -290,7 +288,6 @@ function formatDuration(ms: number): string {
  * frozen once the draft completes.
  *
  * @param props.limitMinutes - Pick time limit from draft settings.
- * @param props.status - The season's draft lifecycle status.
  * @param props.startedAt - When the current on-clock pick started (persisted).
  * @param props.pausedAt - When the owner paused the timer, or null when running.
  * @param props.now - Current wall-clock timestamp.
@@ -906,9 +903,7 @@ function PickBoard({ goods }: ArenaPanelProps) {
  * round filling in as picks are made. Players come from the league roster so the
  * board renders before the draft starts.
  *
- * @param props.goods - The loaded draft state.
  * @param props.rows - Per-player rows from {@link usePickBoardRows}.
- * @param props.rounds - Every round number in the draft.
  * @param props.cardsInRow - Whether cards sit side by side or one per row.
  * @returns The player card markup.
  */
@@ -1177,7 +1172,6 @@ function PickBoardCards({
  *
  * @param props.goods - The loaded draft state, used to mark the viewer's own row.
  * @param props.rows - Per-player rows from {@link usePickBoardRows}.
- * @param props.rounds - Every round number in the draft.
  * @returns The pick board table markup.
  */
 function PickBoardTable({
@@ -3442,9 +3436,6 @@ function playTone(
   oscillator.start();
   oscillator.stop(context.currentTime + duration + 0.05);
 }
-
-// The helpers above intentionally avoid a global client store; everything the
-// arena needs flows from the single loadDraftData payload the page polls.
 
 // The helpers above intentionally avoid a global client store; everything the
 // arena needs flows from the single loadDraftData payload the page polls.

@@ -1188,9 +1188,7 @@ function ProposalBuilder({
  * what counts as a legal amount.
  *
  * @param props.label - Which side of the trade the amount belongs to.
- * @param props.value - The raw field contents.
  * @param props.disabled - True while the proposal is submitting or unusable.
- * @param props.onChange - Receives the raw field contents on every keystroke.
  * @returns The labelled number input.
  */
 function TokenAmountField({

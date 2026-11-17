@@ -92,45 +92,7 @@ import {
   type AvailabilityWindow,
   type MemberAvailability,
 } from "@/lib/supabase/availability";
-import {
-  cancelMatchProposal,
-  forfeitMatch,
-  ownerForfeitMatch,
-  ownerRevertForfeit,
-  gameRecord,
-  generatePlayoffRound,
-  resetPlayoffBracket,
-  generateSchedule,
-  groupProposalHistoryByWeek,
-  firstPlayoffWeekOf,
-  isByeMatch,
-  loadProposalHistory,
-  loadScheduleMatches,
-  loadSchedulePageData,
-  loadScheduleStandings,
-  matchWeekLabel,
-  movesStandings,
-  nextPowerOfTwo,
-  orderMatchesForPicker,
-  proposeMatchTime,
-  proposalOutcomeLabel,
-  proposalOutcomeTone,
-  proposalWeekLabel,
-  respondToMatchProposal,
-  saveManualSchedule,
-  seasonPhaseLabel,
-  setMatchPrediction,
-  setToiletBowl,
-  submitGameResult,
-  updateGameResult,
-  type ProposalHistoryEntry,
-  type ProposalHistoryGroup,
-  type ManualScheduleGame,
-  type ScheduleMatch,
-  type ScheduleMatchResult,
-  type ScheduleRosterSprite,
-  type SchedulePageGoods,
-} from "@/lib/supabase/schedule";
+import * as scheduleApi from "@/lib/supabase/schedule";
 import { LoadingGif } from "@/components/loading-gif";
 
 /** Labels enumerating the visible tabs (Setup is owner-only). */
@@ -157,7 +119,7 @@ type ReplayReadState =
  */
 type GameRow = {
   /** The game being rendered; a mirror reuses game 2's row with a new key. */
-  result: ScheduleMatchResult;
+  result: scheduleApi.ScheduleMatchResult;
   /** Whether this row is the synthetic third game. */
   mirrored: boolean;
 };
@@ -174,7 +136,7 @@ type GameRow = {
  * @returns The real game rows, plus the mirror when one applies.
  */
 function buildGameRows(
-  match: ScheduleMatch,
+  match: scheduleApi.ScheduleMatch,
   matchFormat: "single" | "best_of_3" | null,
 ): GameRow[] {
   const rows: GameRow[] = match.results
@@ -217,7 +179,7 @@ function buildGameRows(
  * @returns The winner's display name and stored name colour.
  */
 function sideByTeamId(
-  match: ScheduleMatch,
+  match: scheduleApi.ScheduleMatch,
   teamId: string,
 ): { name: string; color: string | null } {
   return teamId === match.player_1_team_id
@@ -242,14 +204,14 @@ function MatchupHistoryCard({
   rostersByTeam,
   firstPlayoffWeek,
 }: {
-  match: ScheduleMatch;
+  match: scheduleApi.ScheduleMatch;
   matchFormat: "single" | "best_of_3" | null;
   timeZone: string;
   hideSpoilers: boolean;
   selected: boolean;
   onSelect: () => void;
   /** Sprite rosters keyed by team id, so each side shows its Pokemon. */
-  rostersByTeam: Record<string, ScheduleRosterSprite[]>;
+  rostersByTeam: Record<string, scheduleApi.ScheduleRosterSprite[]>;
   /** The season's first playoff week, so a bracket round reads as "Playoffs (Week 1)". */
   firstPlayoffWeek: number | null;
 }) {
@@ -294,10 +256,10 @@ function MatchupHistoryCard({
         }
         showdownUsername={showdownUsername}
       />
-      {gameRecord(match, teamId) && (
+      {scheduleApi.gameRecord(match, teamId) && (
         <Spoiler hidden={hideSpoilers}>
           <span className="text-sm text-slate-400">
-            {gameRecord(match, teamId)}
+            {scheduleApi.gameRecord(match, teamId)}
           </span>
         </Spoiler>
       )}
@@ -318,7 +280,7 @@ function MatchupHistoryCard({
       }`}
     >
       <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
-        {matchWeekLabel(match, firstPlayoffWeek)}
+        {scheduleApi.matchWeekLabel(match, firstPlayoffWeek)}
         {match.scheduled_at
           ? ` • ${formatDateTimeInZone(match.scheduled_at, timeZone)}`
           : ""}
@@ -472,12 +434,12 @@ const STATUS_LABELS: Record<string, string> = {
  * Collapsing it meant a bracket spanning twelve rounds offered a single "Postseason"
  * option, so the week selector could not get a member to the round they were looking
  * for. Keying by week keeps the rounds apart, and the label counts them from the first
- * one; see {@link matchWeekLabel}.
+ * one; see {@link scheduleApi.matchWeekLabel}.
  *
  * @param match - The match to classify.
  * @returns A stable key such as "week-3" or "playoffs-7".
  */
-function upcomingWeekKeyOf(match: ScheduleMatch): string {
+function upcomingWeekKeyOf(match: scheduleApi.ScheduleMatch): string {
   return match.is_playoff
     ? `playoffs-${match.week_number}`
     : `week-${match.week_number}`;
@@ -525,7 +487,7 @@ function Avatar({
 /** Props for {@link RosterSprites}. */
 interface RosterSpritesProps {
   /** The team's roster to draw, richest Pokemon first. */
-  roster: ScheduleRosterSprite[];
+  roster: scheduleApi.ScheduleRosterSprite[];
   align?: "center" | "start";
   /** Whether to print each Pokemon's name under its sprite. Off by default. */
   showNames?: boolean;
@@ -562,7 +524,7 @@ function RosterSprites({
   }
 
   /** Renders one roster entry, identical in the named and unnamed layouts. */
-  function renderPokemon(pokemon: ScheduleRosterSprite) {
+  function renderPokemon(pokemon: scheduleApi.ScheduleRosterSprite) {
     return (
       <li key={pokemon.id} className="flex flex-col items-center gap-1">
         <div className="relative flex h-16 w-16 items-center justify-center overflow-hidden rounded-full border-2 border-slate-900 shadow-md shadow-slate-950/50">
@@ -631,7 +593,7 @@ function RosterSprites({
 }
 
 /** A small status pill for a match. */
-function StatusBadge({ status }: { status: ScheduleMatch["status"] }) {
+function StatusBadge({ status }: { status: scheduleApi.ScheduleMatch["status"] }) {
   return (
     <span
       className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
@@ -747,7 +709,7 @@ function ProposalHistoryPanel({
   isLoading,
   loadError,
 }: {
-  groups: ProposalHistoryGroup[];
+  groups: scheduleApi.ProposalHistoryGroup[];
   timeZone: string;
   /** The season's first playoff week, so a bracket round reads as "Playoffs (Week 1)". */
   firstPlayoffWeek: number | null;
@@ -793,7 +755,7 @@ function ProposalHistoryPanel({
         {groups.map((group) => (
           <div key={group.week_number}>
             <h3 className="mb-2 text-sm font-semibold uppercase tracking-[0.15em] text-slate-300">
-              {proposalWeekLabel(group, firstPlayoffWeek)}
+              {scheduleApi.proposalWeekLabel(group, firstPlayoffWeek)}
             </h3>
             <div className="space-y-2">
               {group.entries.map((entry) => (
@@ -814,9 +776,9 @@ function ProposalHistoryPanel({
                       />
                     </p>
                     <span
-                      className={`rounded-full border px-2.5 py-0.5 text-xs font-medium ${proposalOutcomeTone(entry.status)}`}
+                      className={`rounded-full border px-2.5 py-0.5 text-xs font-medium ${scheduleApi.proposalOutcomeTone(entry.status)}`}
                     >
-                      {proposalOutcomeLabel(entry)}
+                      {scheduleApi.proposalOutcomeLabel(entry)}
                     </span>
                   </div>
                   <dl className="mt-2 grid gap-x-4 gap-y-1 text-xs text-slate-400 sm:grid-cols-2">
@@ -913,7 +875,7 @@ function SchedulePageContent({
 }) {
   const router = useRouter();
   const { confirm, confirmDialog } = useConfirm();
-  const [goods, setGoods] = useState<SchedulePageGoods | null>(null);
+  const [goods, setGoods] = useState<scheduleApi.SchedulePageGoods | null>(null);
 
   /**
    * The current payload, readable from a callback without re-creating it.
@@ -922,7 +884,7 @@ function SchedulePageContent({
    * to know whether the standings moved, and taking `goods` as a dependency would tear
    * down and rebuild the realtime subscription on every update it made.
    */
-  const goodsRef = useRef<SchedulePageGoods | null>(null);
+  const goodsRef = useRef<scheduleApi.SchedulePageGoods | null>(null);
 
   // Kept in step with the state, so a callback can read the latest without depending on it.
   useEffect(() => {
@@ -945,7 +907,7 @@ function SchedulePageContent({
    */
   const [proposalHistoryState, setProposalHistoryState] = useState<{
     key: string;
-    entries: ProposalHistoryEntry[];
+    entries: scheduleApi.ProposalHistoryEntry[];
     isLoading: boolean;
     error: string | null;
   } | null>(null);
@@ -1066,7 +1028,7 @@ function SchedulePageContent({
   const timeZone = useUserTimeZone();
 
   const refresh = useCallback(async (leagueId: string) => {
-    const next = await loadSchedulePageData(
+    const next = await scheduleApi.loadSchedulePageData(
       leagueId,
       getSelectedSeason(leagueId),
     );
@@ -1237,7 +1199,7 @@ function SchedulePageContent({
    */
   const phaseLabel = useMemo(
     () =>
-      seasonPhaseLabel({
+      scheduleApi.seasonPhaseLabel({
         currentWeek,
         regularSeasonCompleted:
           goods?.isCurrentSeason === true &&
@@ -1326,7 +1288,7 @@ function SchedulePageContent({
    * already trigger.
    *
    * The standings and champion are re-read only when a result actually landed, which is
-   * what they are derived from; see {@link movesStandings}. That makes the usual realtime
+   * what they are derived from; see {@link scheduleApi.movesStandings}. That makes the usual realtime
    * update a single request.
    */
   const reloadForRealtime = useCallback(async () => {
@@ -1344,7 +1306,7 @@ function SchedulePageContent({
           .map((team) => team.id),
       );
 
-      const matches = await loadScheduleMatches(
+      const matches = await scheduleApi.loadScheduleMatches(
         leagueId,
         seasonId,
         goodsRef.current?.ownerDisplayName ?? null,
@@ -1352,7 +1314,7 @@ function SchedulePageContent({
         vacantTeamIds,
       );
 
-      const standingsMoved = movesStandings(
+      const standingsMoved = scheduleApi.movesStandings(
         goodsRef.current?.matches ?? [],
         matches,
       );
@@ -1364,7 +1326,7 @@ function SchedulePageContent({
        */
       const live = standingsMoved
         ? await Promise.all([
-            loadScheduleStandings(leagueId, seasonId),
+            scheduleApi.loadScheduleStandings(leagueId, seasonId),
             loadWeekProgressState(leagueId).catch(() => null),
           ])
         : null;
@@ -1429,7 +1391,7 @@ function SchedulePageContent({
     try {
       setProposalHistoryState({
         key,
-        entries: await loadProposalHistory(leagueId, seasonId),
+        entries: await scheduleApi.loadProposalHistory(leagueId, seasonId),
         isLoading: false,
         error: null,
       });
@@ -1754,11 +1716,11 @@ function SchedulePageContent({
 
   // Per-player game records for the matchup card, e.g. "2-1". Both are spoilers.
   const playerOneRecord = selectedMatch
-    ? gameRecord(selectedMatch, selectedMatch.player_1_team_id)
+    ? scheduleApi.gameRecord(selectedMatch, selectedMatch.player_1_team_id)
     : null;
   const playerTwoRecord = selectedMatch
     ? selectedMatch.player_2_team_id
-      ? gameRecord(selectedMatch, selectedMatch.player_2_team_id)
+      ? scheduleApi.gameRecord(selectedMatch, selectedMatch.player_2_team_id)
       : null
     : null;
 
@@ -1783,7 +1745,7 @@ function SchedulePageContent({
 
   /** Format for any match, which differs for playoff rounds. */
   const formatFor = useCallback(
-    (match: ScheduleMatch) =>
+    (match: scheduleApi.ScheduleMatch) =>
       match.is_playoff
         ? (goods?.settings?.playoff_match_format ?? null)
         : (goods?.settings?.match_format ?? null),
@@ -1799,7 +1761,7 @@ function SchedulePageContent({
           // A bye is settled as a win so the bracket can move on, but it has no opponent
           // and is not a result anyone played. It stays on the bracket, which draws from
           // the season's whole match list, and out of the matchup lists here.
-          !isByeMatch(match),
+          !scheduleApi.isByeMatch(match),
       ),
     [goods?.matches],
   );
@@ -1815,7 +1777,7 @@ function SchedulePageContent({
         match.status !== "cancelled" &&
         // Byes are settled automatically and have no opponent, so they belong on the
         // bracket rather than in a list of matchups waiting to be played.
-        !isByeMatch(match),
+        !scheduleApi.isByeMatch(match),
     );
     return [...open].sort((a, b) => {
       const aMine =
@@ -1843,7 +1805,7 @@ function SchedulePageContent({
    * panel is showing.
    */
   const firstPlayoffWeek = useMemo(
-    () => firstPlayoffWeekOf(goods?.matches ?? []),
+    () => scheduleApi.firstPlayoffWeekOf(goods?.matches ?? []),
     [goods?.matches],
   );
 
@@ -1862,8 +1824,8 @@ function SchedulePageContent({
    */
   const matchPickerMatches = useMemo(
     () =>
-      orderMatchesForPicker(
-        (goods?.matches ?? []).filter((match) => !isByeMatch(match)),
+      scheduleApi.orderMatchesForPicker(
+        (goods?.matches ?? []).filter((match) => !scheduleApi.isByeMatch(match)),
       ),
     [goods?.matches],
   );
@@ -1873,7 +1835,7 @@ function SchedulePageContent({
     () =>
       matchPickerMatches.map((match) => ({
         id: match.id,
-        label: matchWeekLabel(match, firstPlayoffWeek),
+        label: scheduleApi.matchWeekLabel(match, firstPlayoffWeek),
         matchup: `${match.player_1_name} vs ${match.player_2_name}`,
       })),
     [matchPickerMatches, firstPlayoffWeek],
@@ -1897,7 +1859,7 @@ function SchedulePageContent({
       if (!options.has(key)) {
         options.set(key, {
           key,
-          label: matchWeekLabel(match, firstPlayoffWeek),
+          label: scheduleApi.matchWeekLabel(match, firstPlayoffWeek),
           // Playoff rounds continue past every regular one, so the latest round is the
           // highest number in either sequence.
           order: match.week_number,
@@ -1954,7 +1916,7 @@ function SchedulePageContent({
       if (!options.has(key)) {
         options.set(key, {
           key,
-          label: matchWeekLabel(match, firstPlayoffWeek),
+          label: scheduleApi.matchWeekLabel(match, firstPlayoffWeek),
           order: match.week_number,
         });
       }
@@ -2031,7 +1993,7 @@ function SchedulePageContent({
     if (!goods) {
       return [];
     }
-    const games: (ScheduleMatchResult & { match: ScheduleMatch })[] = [];
+    const games: (scheduleApi.ScheduleMatchResult & { match: scheduleApi.ScheduleMatch })[] = [];
     for (const match of goods.matches) {
       for (const result of match.results) {
         games.push({ ...result, match });
@@ -2052,12 +2014,12 @@ function SchedulePageContent({
   const maxPlayoffTeams = leagueSize;
   const byes =
     form.playoffTeams >= 2 && form.playoffTeams <= maxPlayoffTeams
-      ? nextPowerOfTwo(form.playoffTeams) - form.playoffTeams
+      ? scheduleApi.nextPowerOfTwo(form.playoffTeams) - form.playoffTeams
       : 0;
 
   /** The owner's proposal log, bucketed into weeks for the history panel. */
   const proposalHistoryGroups = useMemo(
-    () => groupProposalHistoryByWeek(proposalHistory?.entries ?? []),
+    () => scheduleApi.groupProposalHistoryByWeek(proposalHistory?.entries ?? []),
     [proposalHistory],
   );
 
@@ -2105,7 +2067,7 @@ function SchedulePageContent({
     }
     await canRunMutation(
       () =>
-        generateSchedule(goods.league.id, {
+        scheduleApi.generateSchedule(goods.league.id, {
           regular_season_weeks: form.weeks,
           match_format: form.matchFormat,
           playoff_team_count: form.playoffTeams,
@@ -2124,7 +2086,7 @@ function SchedulePageContent({
    * season's matches either way and an owner who forgot they had results would otherwise
    * lose them without warning.
    */
-  async function handleSaveManualSchedule(games: ManualScheduleGame[]) {
+  async function handleSaveManualSchedule(games: scheduleApi.ManualScheduleGame[]) {
     if (!goods) {
       return;
     }
@@ -2149,7 +2111,7 @@ function SchedulePageContent({
     try {
       await canRunMutation(
         () =>
-          saveManualSchedule(
+          scheduleApi.saveManualSchedule(
             goods.league.id,
             {
               regular_season_weeks: form.weeks,
@@ -2178,7 +2140,7 @@ function SchedulePageContent({
     setIsSavingToilet(enabled);
 
     try {
-      await setToiletBowl(goods.league.id, enabled);
+      await scheduleApi.setToiletBowl(goods.league.id, enabled);
       setGoods((previous) =>
         previous && previous.settings
           ? {
@@ -2208,7 +2170,7 @@ function SchedulePageContent({
       return;
     }
     await canRunMutation(
-      () => generatePlayoffRound(goods.league.id),
+      () => scheduleApi.generatePlayoffRound(goods.league.id),
       goods.league.id,
     );
     setNotice("Playoff bracket advanced.");
@@ -2239,7 +2201,7 @@ function SchedulePageContent({
     }
 
     await canRunMutation(async () => {
-      const removed = await resetPlayoffBracket(goods.league.id);
+      const removed = await scheduleApi.resetPlayoffBracket(goods.league.id);
       setNotice(
         removed === 0
           ? "There was no playoff bracket to reset."
@@ -2376,7 +2338,7 @@ function SchedulePageContent({
     }
 
     await canRunMutation(
-      () => proposeMatchTime(selectedMatch.id, proposedAt, scheduleNotes),
+      () => scheduleApi.proposeMatchTime(selectedMatch.id, proposedAt, scheduleNotes),
       goods.league.id,
     );
     setSchedulingMatchId(null);
@@ -2405,7 +2367,7 @@ function SchedulePageContent({
     }
 
     await canRunMutation(
-      () => respondToMatchProposal(matchId, accept),
+      () => scheduleApi.respondToMatchProposal(matchId, accept),
       goods.league.id,
     );
     setNotice(
@@ -2431,7 +2393,7 @@ function SchedulePageContent({
       return;
     }
 
-    await canRunMutation(() => cancelMatchProposal(matchId), goods.league.id);
+    await canRunMutation(() => scheduleApi.cancelMatchProposal(matchId), goods.league.id);
     setNotice("Proposal withdrawn.");
   }
 
@@ -2499,7 +2461,7 @@ function SchedulePageContent({
     const alive = reportAlive.trim() ? Number(reportAlive) : null;
     await canRunMutation(
       () =>
-        submitGameResult(
+        scheduleApi.submitGameResult(
           selectedMatch.id,
           Number(reportGame),
           reportWinner,
@@ -2527,7 +2489,7 @@ function SchedulePageContent({
     }
 
     const saved = await canRunMutation(
-      () => setMatchPrediction(matchId, teamId),
+      () => scheduleApi.setMatchPrediction(matchId, teamId),
       goods.league.id,
     );
 
@@ -2536,7 +2498,7 @@ function SchedulePageContent({
     }
   }
 
-  function openEditResult(result: ScheduleMatchResult) {
+  function openEditResult(result: scheduleApi.ScheduleMatchResult) {
     setEditingResultId(result.id);
     setEditWinner(result.winner_team_id);
     setEditUrl(result.replay_url ?? "");
@@ -2547,13 +2509,13 @@ function SchedulePageContent({
     );
   }
 
-  async function handleSaveEditResult(result: ScheduleMatchResult) {
+  async function handleSaveEditResult(result: scheduleApi.ScheduleMatchResult) {
     if (!goods || !selectedMatch) {
       return;
     }
     const alive = editAlive.trim() ? Number(editAlive) : null;
     await canRunMutation(
-      () => updateGameResult(result.id, editWinner, editUrl.trim(), alive),
+      () => scheduleApi.updateGameResult(result.id, editWinner, editUrl.trim(), alive),
       goods.league.id,
     );
     setEditingResultId(null);
@@ -2579,7 +2541,7 @@ function SchedulePageContent({
     if (!forfeiting) {
       return;
     }
-    await canRunMutation(() => forfeitMatch(selectedMatch.id), goods.league.id);
+    await canRunMutation(() => scheduleApi.forfeitMatch(selectedMatch.id), goods.league.id);
     setNotice("Match forfeited.");
   }
 
@@ -2615,7 +2577,7 @@ function SchedulePageContent({
       return;
     }
     await canRunMutation(
-      () => ownerForfeitMatch(selectedMatch.id, side),
+      () => scheduleApi.ownerForfeitMatch(selectedMatch.id, side),
       goods.league.id,
     );
     setNotice("Match forfeited.");
@@ -2642,13 +2604,13 @@ function SchedulePageContent({
       return;
     }
     await canRunMutation(
-      () => ownerRevertForfeit(selectedMatch.id),
+      () => scheduleApi.ownerRevertForfeit(selectedMatch.id),
       goods.league.id,
     );
     setNotice("Forfeit reverted.");
   }
 
-  async function handleDeleteMatch(match: ScheduleMatch) {
+  async function handleDeleteMatch(match: scheduleApi.ScheduleMatch) {
     if (!goods) {
       return;
     }
@@ -3016,7 +2978,7 @@ function SchedulePageContent({
                     weeks={Math.max(1, form.weeks)}
                     initialGames={goods.matches
                       .filter(
-                        (match) => !match.is_playoff && !isByeMatch(match),
+                        (match) => !match.is_playoff && !scheduleApi.isByeMatch(match),
                       )
                       .map((match) => ({
                         week: match.week_number,
@@ -4006,7 +3968,7 @@ function SchedulePageContent({
                         >
                           <div className="flex w-full items-start justify-between gap-3">
                             <p className="font-semibold text-slate-100">
-                              {matchWeekLabel(match, firstPlayoffWeek)}
+                              {scheduleApi.matchWeekLabel(match, firstPlayoffWeek)}
                             </p>
                             <StatusBadge status={match.status} />
                           </div>
@@ -4431,7 +4393,7 @@ function SchedulePageContent({
                                   />
                                 </span>
                                 <span className="ml-2 rounded-full bg-slate-800 px-2 py-0.5 text-xs font-semibold text-slate-300">
-                                  {matchWeekLabel(match, firstPlayoffWeek)} •
+                                  {scheduleApi.matchWeekLabel(match, firstPlayoffWeek)} •
                                   Game {game_number}
                                 </span>
                               </p>

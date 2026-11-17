@@ -515,7 +515,7 @@ function MembersSettingsPageContent() {
               </h1>
               <p className="mt-2 text-sm text-slate-400">
                 {leagueName || "League members"}
-                {season ? ` â€¢ ${formatSeasonLabel(season)}` : ""}
+                {season ? ` • ${formatSeasonLabel(season)}` : ""}
               </p>
             </div>
 
@@ -711,7 +711,7 @@ function MembersSettingsPageContent() {
                       <td className="px-3 py-3 text-slate-400">
                         {member.joined_at
                           ? formatDateTimeInZone(member.joined_at, timeZone)
-                          : "â€”"}
+                          : "—"}
                       </td>
                       <td className="px-3 py-3">
                         {canManage ? (
@@ -775,7 +775,7 @@ function MembersSettingsPageContent() {
                               ? "Owner"
                               : isCurrentUser
                                 ? "Current user"
-                                : "â€”"}
+                                : "—"}
                           </div>
                         )}
                       </td>
@@ -834,7 +834,7 @@ function MembersSettingsPageContent() {
                         <span className="text-slate-400">
                           {edit.previous_salary ?? "Default"}
                         </span>
-                        <span className="mx-1.5 text-slate-500">â†’</span>
+                        <span className="mx-1.5 text-slate-500">→</span>
                         <span className="font-semibold text-amber-200">
                           {edit.new_salary}
                         </span>

@@ -54,4 +54,20 @@ Every source file must be documented. This applies to new files, edited files, a
 - Never add emojis.
 - Follow existing spacing/style in the file.
 
+## Module boundaries
+
+- Pages and components read league data through a feature module under
+  `@/lib/supabase/` (`auth`, `dashboard`, `draft`, `draftboard`, `pokemon`,
+  `schedule`, `seasons`, `teams`, `trades`, `week-deadline`, `availability`,
+  `rules`, `honors`, `invites`). Add a loader or RPC wrapper there instead of
+  querying `@/lib/supabase/client` from a page. The shell provider and the
+  realtime helper are the only components that talk to the client directly.
+- Import shared helpers from the module that owns them (`@/lib/datetime`,
+  `@/lib/type-styles`, `@/lib/deadlines`, `@/lib/trades-view`). Do not re-derive
+  or inline the same logic in a page.
+- Always import through the `@/` alias. No `../..` paths.
+- Keep one import statement per module: merge value and type imports
+  (`import { loadThing, type Thing } from "..."`). `no-duplicate-imports` enforces
+  this.
+
 <!-- END:documentation-rules -->

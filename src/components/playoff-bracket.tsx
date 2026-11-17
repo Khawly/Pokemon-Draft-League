@@ -17,9 +17,8 @@
  */
 "use client";
 
-import type { ScheduleMatch } from "@/lib/supabase/schedule";
+import type { ScheduleMatch, SchedulePlayoffTemplateRow } from "@/lib/supabase/schedule";
 import { MemberName } from "@/components/member-name";
-import type { SchedulePlayoffTemplateRow } from "@/lib/supabase/schedule";
 
 import {
   bracketSideIsBye,

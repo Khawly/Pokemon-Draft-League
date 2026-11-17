@@ -10,7 +10,7 @@
  * Run: node scripts/generate-pokemon-forms.mjs
  */
 
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -282,7 +282,6 @@ async function main() {
 function readBaseFile() {
   return BunFile();
 }
-import { readFileSync } from "node:fs";
 function BunFile() {
   return readFileSync(
     join(dirname(fileURLToPath(import.meta.url)), "..", "src", "data", "pokemon.json"),

@@ -18,8 +18,7 @@
 
 import { useMemo, useState } from "react";
 
-import type { ManualScheduleGame } from "@/lib/supabase/schedule";
-import { inspectManualSchedule } from "@/lib/supabase/schedule";
+import { inspectManualSchedule, type ManualScheduleGame } from "@/lib/supabase/schedule";
 
 /** A row being edited. Carries a local id so React keys survive reordering and removal. */
 type DraftRow = ManualScheduleGame & { key: string };

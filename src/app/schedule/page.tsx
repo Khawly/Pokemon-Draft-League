@@ -54,7 +54,6 @@ import { getSelectedSeason } from "@/lib/season-selection";
 import { readReplaySummary } from "@/lib/replay-summary";
 import { useConfirm } from "@/components/confirm-dialog";
 import { MemberName } from "@/components/member-name";
-import { ManualScheduleEditor } from "@/components/manual-schedule-editor";
 import { CrownProvider } from "@/components/crown-provider";
 import { MatchupPicker } from "@/components/matchup-picker";
 import { MatchPredictionButton } from "@/components/match-prediction-buttons";
@@ -92,9 +91,11 @@ import {
 } from "@/lib/supabase/availability";
 import * as scheduleApi from "@/lib/supabase/schedule";
 import { LoadingGif } from "@/components/loading-gif";
-import { Avatar, SectionCard } from "./schedule-ui";
+import { Avatar, Field, SectionCard, sideByTeamId } from "./schedule-ui";
 import { StandingsTab } from "./standings-tab";
 import { PlayoffsTab } from "./playoffs-tab";
+import { SetupTab } from "./setup-tab";
+import { HistoryTab } from "./history-tab";
 
 /** Labels enumerating the visible tabs (Setup is owner-only). */
 const TABS = ["Schedule", "Standings", "Playoffs", "History", "Setup"] as const;
@@ -179,14 +180,7 @@ function buildGameRows(
  * @param teamId - The winning team's id.
  * @returns The winner's display name and stored name colour.
  */
-function sideByTeamId(
-  match: scheduleApi.ScheduleMatch,
-  teamId: string,
-): { name: string; color: string | null } {
-  return teamId === match.player_1_team_id
-    ? { name: match.player_1_name, color: match.player_1_name_color }
-    : { name: match.player_2_name, color: match.player_2_name_color };
-}
+
 
 /**
  * A read-only matchup card for a completed match, used by the match history
@@ -601,186 +595,7 @@ function Spoiler({
 }
 
 
-/**
- * Timestamp shape for the owner proposal log.
- *
- * Wider than the page default because the log stacks an offered time, a proposed
- * time, and an answered time in adjacent rows, and the bare `7 Oct 2026, 8:00 PM`
- * the pages use elsewhere makes those hard to tell apart at a glance. The weekday
- * anchors each to a day of the week, which is also how availability is described.
- *
- * `timeZoneName: "short"` is what puts `EDT` or `GMT+1` on the end of every value.
- * These timestamps were written by whichever player proposed them, and an owner
- * reading a converted 5:00 PM has no other way to know which 5:00 PM it is. Intl
- * gives the region abbreviation where one exists and falls back to a GMT offset
- * where one does not, which is the same vocabulary `formatTimeZoneLabel` uses
- * without having to maintain a second table.
- *
- * The clock is left to the reader's locale rather than pinned to 24-hour, so the
- * log reads the way every other timestamp in the app does.
- */
-const LOG_TIMESTAMP_FORMAT: Intl.DateTimeFormatOptions = {
-  weekday: "short",
-  day: "numeric",
-  month: "short",
-  year: "numeric",
-  hour: "numeric",
-  minute: "2-digit",
-  timeZoneName: "short",
-};
 
-/**
- * The owner-only log of every match-time proposal made this season.
- *
- * Reads as a record of how each matchup came to be scheduled: who offered a
- * time, when they offered it, and how the other player answered. It is a full
- * log rather than the single pending offer a matchup card shows, because the
- * point of asking the owner is to see the whole negotiation, including the
- * attempts that were declined or pulled.
- *
- * @param props.Groups - The log bucketed by week, newest week first.
- * @param props.timeZone - The owner's zone, so every offered time is shown in
- *   the same wall clock rather than the proposer's.
- * @param props.isLoading - Whether the log is still being fetched.
- * @param props.loadError - Message to show in place of the log if the read failed.
- */
-function ProposalHistoryPanel({
-  groups,
-  timeZone,
-  firstPlayoffWeek,
-  isLoading,
-  loadError,
-}: {
-  groups: scheduleApi.ProposalHistoryGroup[];
-  timeZone: string;
-  /** The season's first playoff week, so a bracket round reads as "Playoffs (Week 1)". */
-  firstPlayoffWeek: number | null;
-  isLoading: boolean;
-  loadError: string | null;
-}) {
-  if (isLoading) {
-    return (
-      <SectionCard title="Match proposal history">
-        <p className="text-sm text-slate-400">
-          <LoadingGif label="Loading the match proposal log" />
-        </p>
-      </SectionCard>
-    );
-  }
-
-  if (loadError) {
-    return (
-      <SectionCard title="Match proposal history">
-        <p className="text-sm text-rose-300">{loadError}</p>
-      </SectionCard>
-    );
-  }
-
-  if (groups.length === 0) {
-    return (
-      <SectionCard title="Match proposal history">
-        <p className="text-sm text-slate-400">
-          No match times have been proposed this season.
-        </p>
-      </SectionCard>
-    );
-  }
-
-  return (
-    <SectionCard title="Match proposal history">
-      <p className="mb-4 text-sm text-slate-400">
-        Every proposed match time this season and how it was answered. Times are
-        converted into your own zone and labelled with it, since each was
-        proposed by whichever player suggested it.
-      </p>
-      <div className="space-y-5">
-        {groups.map((group) => (
-          <div key={group.week_number}>
-            <h3 className="mb-2 text-sm font-semibold uppercase tracking-[0.15em] text-slate-300">
-              {scheduleApi.proposalWeekLabel(group, firstPlayoffWeek)}
-            </h3>
-            <div className="space-y-2">
-              {group.entries.map((entry) => (
-                <div
-                  key={entry.id}
-                  className="rounded-xl border border-slate-800 bg-slate-950/50 p-3"
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="flex flex-wrap items-center gap-x-1 text-sm text-slate-200">
-                      <MemberName
-                        name={entry.player_1_name}
-                        color={entry.player_1_name_color}
-                      />
-                      <span>vs</span>
-                      <MemberName
-                        name={entry.player_2_name}
-                        color={entry.player_2_name_color}
-                      />
-                    </p>
-                    <span
-                      className={`rounded-full border px-2.5 py-0.5 text-xs font-medium ${scheduleApi.proposalOutcomeTone(entry.status)}`}
-                    >
-                      {scheduleApi.proposalOutcomeLabel(entry)}
-                    </span>
-                  </div>
-                  <dl className="mt-2 grid gap-x-4 gap-y-1 text-xs text-slate-400 sm:grid-cols-2">
-                    <div className="flex gap-1.5">
-                      <dt className="text-slate-500">Offered time</dt>
-                      <dd className="text-slate-300">
-                        {formatDateTimeInZone(
-                          entry.proposed_at,
-                          timeZone,
-                          LOG_TIMESTAMP_FORMAT,
-                        )}
-                      </dd>
-                    </div>
-                    <div className="flex gap-1.5">
-                      <dt className="text-slate-500">Proposed by</dt>
-                      <dd className="text-slate-300">
-                        <MemberName
-                          name={entry.proposed_by_name}
-                          color={entry.proposed_by_name_color}
-                        />
-                      </dd>
-                    </div>
-                    <div className="flex gap-1.5">
-                      <dt className="text-slate-500">Proposed at</dt>
-                      <dd className="text-slate-300">
-                        {formatDateTimeInZone(
-                          entry.created_at,
-                          timeZone,
-                          LOG_TIMESTAMP_FORMAT,
-                        )}
-                      </dd>
-                    </div>
-                    {entry.responded_at && (
-                      <div className="flex gap-1.5">
-                        <dt className="text-slate-500">Answered at</dt>
-                        <dd className="text-slate-300">
-                          {formatDateTimeInZone(
-                            entry.responded_at,
-                            timeZone,
-                            LOG_TIMESTAMP_FORMAT,
-                          )}
-                        </dd>
-                      </div>
-                    )}
-                    {entry.notes && (
-                      <div className="flex gap-1.5 sm:col-span-2">
-                        <dt className="shrink-0 text-slate-500">Notes</dt>
-                        <dd className="text-slate-300">{entry.notes}</dd>
-                      </div>
-                    )}
-                  </dl>
-                </div>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
-    </SectionCard>
-  );
-}
 
 /**
  * Wraps the schedule content in a Suspense boundary to satisfy Next.js's
@@ -2747,200 +2562,26 @@ function SchedulePageContent({
           )}
 
           {activeTab === "Setup" && goods.isOwner && goods.isCurrentSeason && (
-            <SectionCard
-              title="Schedule setup"
-              action={
-                scheduleMode === "automatic" ? (
-                  <button
-                    type="button"
-                    disabled={generateDisabled}
-                    onClick={handleGenerateSchedule}
-                    className="rounded-xl bg-amber-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    Generate schedule
-                  </button>
-                ) : null
+            <SetupTab
+              goods={goods}
+              scheduleMode={scheduleMode}
+              onScheduleModeChange={setScheduleMode}
+              form={form}
+              onFormChange={setForm}
+              maxPlayoffTeams={maxPlayoffTeams}
+              byes={byes}
+              generateDisabled={generateDisabled}
+              onGenerateSchedule={() => void handleGenerateSchedule()}
+              isSavingToilet={isSavingToilet}
+              onToggleToiletBowl={(enabled) =>
+                void handleToggleToiletBowl(enabled)
               }
-            >
-              <div className="mb-5 flex flex-wrap items-center gap-2">
-                <span className="text-sm text-slate-400">Schedule method</span>
-                {(
-                  [
-                    ["automatic", "Automatic"],
-                    ["manual", "Manual"],
-                  ] as const
-                ).map(([value, label]) => (
-                  <button
-                    key={value}
-                    type="button"
-                    onClick={() => setScheduleMode(value)}
-                    className={`rounded-lg border px-3 py-1.5 text-sm transition ${
-                      scheduleMode === value
-                        ? "border-amber-500/60 bg-amber-500/15 text-amber-200"
-                        : "border-slate-700 text-slate-300 hover:border-slate-500 hover:text-white"
-                    }`}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-
-              <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
-                <Field label="Regular season weeks">
-                  <input
-                    type="number"
-                    min={1}
-                    max={52}
-                    value={form.weeks}
-                    onChange={(event) =>
-                      setForm({ ...form, weeks: Number(event.target.value) })
-                    }
-                    className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-500"
-                  />
-                </Field>
-                <Field label="Match format">
-                  <select
-                    value={form.matchFormat}
-                    onChange={(event) =>
-                      setForm({
-                        ...form,
-                        matchFormat: event.target.value as
-                          | "single"
-                          | "best_of_3",
-                      })
-                    }
-                    className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-500"
-                  >
-                    <option value="single">Single Game</option>
-                    <option value="best_of_3">Best of 3</option>
-                  </select>
-                </Field>
-                <Field label={`Playoff teams (max ${maxPlayoffTeams})`}>
-                  <input
-                    type="number"
-                    min={0}
-                    max={maxPlayoffTeams}
-                    value={form.playoffTeams}
-                    onChange={(event) =>
-                      setForm({
-                        ...form,
-                        playoffTeams: Number(event.target.value),
-                      })
-                    }
-                    className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-500"
-                  />
-                </Field>
-                <Field label="Playoff match format">
-                  <select
-                    value={form.playoffMatchFormat}
-                    onChange={(event) =>
-                      setForm({
-                        ...form,
-                        playoffMatchFormat: event.target.value as
-                          | "single"
-                          | "best_of_3",
-                      })
-                    }
-                    className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-500"
-                  >
-                    <option value="single">Single Game</option>
-                    <option value="best_of_3">Best of 3</option>
-                  </select>
-                </Field>
-                <Field label="Playoff format">
-                  <select
-                    value={form.playoffFormat}
-                    onChange={(event) =>
-                      setForm({
-                        ...form,
-                        playoffFormat: event.target.value as
-                          | "single_elimination"
-                          | "double_elimination",
-                      })
-                    }
-                    className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-500"
-                  >
-                    <option value="single_elimination">
-                      Single Elimination
-                    </option>
-                    <option value="double_elimination">
-                      Double Elimination
-                    </option>
-                  </select>
-                </Field>
-                <Field label="First-round byes (calculated)">
-                  <div className="rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-300">
-                    {form.playoffTeams >= 2 &&
-                    form.playoffTeams <= maxPlayoffTeams
-                      ? byes
-                      : "—"}
-                  </div>
-                </Field>
-              </div>
-
-              <div className="mt-5 rounded-xl border border-slate-800 bg-slate-950/60 p-3">
-                <label className="flex items-center justify-between gap-3 text-sm text-slate-200">
-                  <span>Toilet Bowl bracket</span>
-                  <input
-                    type="checkbox"
-                    checked={goods.settings?.enable_toilet_bowl === true}
-                    disabled={isSavingToilet}
-                    onChange={(event) =>
-                      void handleToggleToiletBowl(event.target.checked)
-                    }
-                    className="h-4 w-4 accent-amber-500"
-                  />
-                </label>
-                <p className="mt-2 text-xs text-slate-500">
-                  Every team that misses the playoff field plays its own
-                  single-elimination consolation bracket, seeded by the regular
-                  season standings. It appears on the Playoffs tab and advances
-                  with the same button. Its winner does not get the champion
-                  crown.
-                </p>
-              </div>
-              {scheduleMode === "automatic" ? (
-                <p className="mt-4 text-sm text-slate-400">
-                  Generate button is enabled once regular season weeks is a
-                  valid integer of at least 1. Generating replaces the current
-                  season&apos;s schedule and draws every matchup and home/away
-                  side at random, so regenerating produces a different schedule.
-                  Each team meets each other team once per round-robin pass, so
-                  weeks beyond a full pass re-draw the matchups instead of
-                  replaying them. The playoff bracket is advanced from the
-                  Playoffs tab once the draft is complete.
-                </p>
-              ) : (
-                <div className="mt-6 border-t border-slate-800 pt-5">
-                  <ManualScheduleEditor
-                    teams={goods.teams.map((team) => ({
-                      id: team.id,
-                      name: team.owner_name?.trim() || team.team_name,
-                    }))}
-                    weeks={Math.max(1, form.weeks)}
-                    initialGames={goods.matches
-                      .filter(
-                        (match) => !match.is_playoff && !scheduleApi.isByeMatch(match),
-                      )
-                      .map((match) => ({
-                        week: match.week_number,
-                        player_1_team_id: match.player_1_team_id,
-                        player_2_team_id: match.player_2_team_id ?? "",
-                      }))
-                      .filter(
-                        (game) =>
-                          // A scheduled bye has no second side, so it is not a pairing
-                          // to carry back into the editor.
-                          game.player_2_team_id !== "",
-                      )}
-                    saving={isSavingManual}
-                    onSave={handleSaveManualSchedule}
-                  />
-                </div>
-              )}
-            </SectionCard>
+              isSavingManual={isSavingManual}
+              onSaveManualSchedule={(games) =>
+                void handleSaveManualSchedule(games)
+              }
+            />
           )}
-
           {activeTab === "Schedule" && (
             <>
               <SectionCard
@@ -4134,132 +3775,20 @@ function SchedulePageContent({
           )}
 
           {activeTab === "History" && (
-            <>
-              <SectionCard title="Match history">
-                {history.length === 0 ? (
-                  <p className="text-sm text-slate-400">
-                    No games have been posted yet.
-                  </p>
-                ) : (
-                  <div className="space-y-2">
-                    {history.map(
-                      ({
-                        match,
-                        id,
-                        winner_team_id,
-                        game_number,
-                        replay_url,
-                        submitted_at,
-                        reporter_name,
-                        reporter_name_color,
-                      }) => {
-                        const winner = sideByTeamId(match, winner_team_id);
-
-                        return (
-                          <div
-                            key={id}
-                            className="flex items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-950/50 p-3 text-sm"
-                          >
-                            <div>
-                              <p className="font-semibold text-slate-100">
-                                <span className="inline-flex flex-wrap items-baseline gap-x-1">
-                                  <MemberName
-                                    name={match.player_1_name}
-                                    color={match.player_1_name_color}
-                                    showdownUsername={
-                                      match.player_1_showdown_username
-                                    }
-                                  />
-                                  <span>vs</span>
-                                  <MemberName
-                                    name={match.player_2_name}
-                                    color={match.player_2_name_color}
-                                    showdownUsername={
-                                      match.player_2_showdown_username
-                                    }
-                                  />
-                                </span>
-                                <span className="ml-2 rounded-full bg-slate-800 px-2 py-0.5 text-xs font-semibold text-slate-300">
-                                  {scheduleApi.matchWeekLabel(match, firstPlayoffWeek)} •
-                                  Game {game_number}
-                                </span>
-                              </p>
-                              <p className="mt-0.5 text-slate-400">
-                                <span className="text-emerald-300">
-                                  <MemberName
-                                    name={winner.name}
-                                    color={winner.color}
-                                  />
-                                </span>{" "}
-                                won •{" "}
-                                {formatDateTimeInZone(submitted_at, timeZone)}
-                              </p>
-                              {reporter_name && (
-                                <p className="mt-0.5 text-xs text-slate-500">
-                                  Submitted by{" "}
-                                  <MemberName
-                                    name={reporter_name}
-                                    color={reporter_name_color}
-                                  />
-                                </p>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-2">
-                              {replay_url && (
-                                <a
-                                  href={replay_url}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="text-sky-400 underline decoration-sky-700 hover:text-sky-300"
-                                >
-                                  Replay
-                                </a>
-                              )}
-                              {goods.isStaff && goods.isCurrentSeason && (
-                                <button
-                                  type="button"
-                                  disabled={isBusy}
-                                  onClick={() => handleDeleteMatch(match)}
-                                  className="rounded-lg border border-rose-800 px-2.5 py-1 text-xs text-rose-300 transition hover:bg-rose-900/40"
-                                >
-                                  Delete
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      },
-                    )}
-                  </div>
-                )}
-              </SectionCard>
-
-              {/*
-               * Owner-only, and gated on ownership twice over: the panel is not
-               * rendered at all for a member, and the database would refuse the log
-               * to one anyway. It sits under the match history because the two
-               * answer the same question at different resolutions, one per game
-               * played and one per time proposed.
-               */}
-              {goods.isOwner && (
-                <ProposalHistoryPanel
-                  groups={proposalHistoryGroups}
-                  firstPlayoffWeek={firstPlayoffWeek}
-                  timeZone={timeZone}
-                  /*
-                   * Still loading until the first read for this league and season
-                   * comes back. Deriving it from the absence of a matching log
-                   * rather than from a separate flag keeps the panel from claiming
-                   * to be empty in the gap before the first response arrives.
-                   */
-                  isLoading={
-                    Boolean(proposalHistoryKey) &&
-                    proposalHistory?.isLoading !== false
-                  }
-                  loadError={proposalHistory?.error ?? null}
-                />
-              )}
-            </>
+            <HistoryTab
+              goods={goods}
+              history={history}
+              firstPlayoffWeek={firstPlayoffWeek}
+              timeZone={timeZone}
+              isBusy={isBusy}
+              onDeleteMatch={(match) => void handleDeleteMatch(match)}
+              proposalHistoryGroups={proposalHistoryGroups}
+              proposalHistoryIsLoading={
+                Boolean(proposalHistoryKey) &&
+                proposalHistory?.isLoading !== false
+              }
+              proposalHistoryError={proposalHistory?.error ?? null}
+            />
           )}
 
           {confirmDialog}
@@ -4269,25 +3798,4 @@ function SchedulePageContent({
   );
 }
 
-/** A labeled form field wrapper used across the schedule page forms. */
-function Field({
-  label,
-  hint,
-  children,
-}: {
-  label: string;
-  hint?: React.ReactNode;
-  children: React.ReactNode;
-}) {
-  return (
-    <label className="block">
-      <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.15em] text-slate-400">
-        {label}
-      </span>
-      {children}
-      {hint ? (
-        <span className="mt-1 block text-xs text-slate-400">{hint}</span>
-      ) : null}
-    </label>
-  );
-}
+

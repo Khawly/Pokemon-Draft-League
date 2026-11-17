@@ -10,8 +10,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useShellLeague } from "@/components/league-shell-context";
-import { supabase } from "@/lib/supabase/client";
-import { loadDraftboardData, type DraftboardGoods, type DraftboardMember } from "@/lib/supabase/draftboard";
+import { loadDraftboardData, saveDraftPositions, startDraft, type DraftboardGoods, type DraftboardMember } from "@/lib/supabase/draftboard";
 import { createLeagueInvite } from "@/lib/supabase/invites";
 import { formatSeasonLabel } from "@/lib/supabase/seasons";
 import { useConfirm } from "@/components/confirm-dialog";
@@ -351,53 +350,21 @@ function DraftBoardPageContent() {
     setSuccessMessage(null);
 
     try {
-      const idToPosition = new Map(
+      await saveDraftPositions(goods.league.id, dirtyEntries);
+
+      const savedPositions = new Map(
         dirtyEntries.map((entry) => [entry.userId, entry.position]),
       );
-
-      // Clear positions first so a swap never transiently holds the same
-      // position twice, which the per-league uniqueness index rejects. The
-      // partial index skips NULLs, so cleared rows cannot collide. Assignments
-      // come second; every target position is distinct and now free.
-      const clearResults = await Promise.all(
-        dirtyEntries.map(({ userId }) =>
-          supabase
-            .from("league_members")
-            .update({ draft_position: null })
-            .eq("league_id", goods.league.id)
-            .eq("user_id", userId),
-        ),
-      );
-
-      const clearError = clearResults.find((result) => result.error)?.error;
-      if (clearError) {
-        throw new Error(clearError.message);
-      }
-
-      const assignResults = await Promise.all(
-        dirtyEntries.map(({ userId, position }) =>
-          supabase
-            .from("league_members")
-            .update({ draft_position: position })
-            .eq("league_id", goods.league.id)
-            .eq("user_id", userId),
-        ),
-      );
-
-      const assignError = assignResults.find((result) => result.error)?.error;
-      if (assignError) {
-        throw new Error(assignError.message);
-      }
 
       setGoods((current) =>
         current
           ? {
               ...current,
               members: current.members.map((member) =>
-                idToPosition.has(member.user_id)
+                savedPositions.has(member.user_id)
                   ? {
                       ...member,
-                      draft_position: idToPosition.get(member.user_id)!,
+                      draft_position: savedPositions.get(member.user_id)!,
                     }
                   : member,
               ),
@@ -442,17 +409,7 @@ function DraftBoardPageContent() {
 
     try {
       // The RPC flips the season to draft_active and returns its new status.
-      const { data, error: startError } = await supabase.rpc("start_draft", {
-        p_league_id: goods.league.id,
-      });
-
-      if (startError) {
-        throw new Error(startError.message);
-      }
-
-      const result =
-        (data as Array<{ season_id: string; status: string }> | null)?.[0] ??
-        null;
+      const result = await startDraft(goods.league.id);
 
       setGoods((current) =>
         current && result

@@ -10,8 +10,15 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { MAX_DISPLAY_NAME_LENGTH, signOut, updateUserProfile } from "@/lib/supabase/auth";
-import { supabase } from "@/lib/supabase/client";
+import {
+  MAX_DISPLAY_NAME_LENGTH,
+  getSession,
+  loadUserProfile,
+  removeAvatar,
+  signOut,
+  updateUserProfile,
+  uploadAvatar,
+} from "@/lib/supabase/auth";
 import { useConfirm } from "@/components/confirm-dialog";
 import { browserTimeZone, listTimeZones, formatTimeZoneLabel } from "@/lib/datetime";
 import { cacheUserTimeZone } from "@/lib/user-timezone";
@@ -102,9 +109,7 @@ export default function SettingsPage() {
   useEffect(() => {
     async function loadProfile() {
       try {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
+        const session = await getSession();
 
         if (!session?.user) {
           router.replace("/");
@@ -114,25 +119,11 @@ export default function SettingsPage() {
         const currentUser = session.user;
         setUserId(currentUser.id);
 
-        const [profileResult, availabilityWeek] = await Promise.all([
-          supabase
-            .from("profiles")
-            .select(
-              "display_name, pokemon_showdown_username, avatar_url, avatar_initials, timezone, name_color",
-            )
-            .eq("id", currentUser.id)
-            .maybeSingle(),
+        const [data, availabilityWeek] = await Promise.all([
+          loadUserProfile(currentUser.id),
           loadOwnAvailabilityWeek(currentUser.id),
         ]);
 
-        const { error: profileError } = profileResult;
-
-        if (profileError) {
-          setError(profileError.message);
-          return;
-        }
-
-        const data = profileResult.data;
         const nextDisplayName =
           data?.display_name ||
           (currentUser.user_metadata?.display_name as string | undefined) ||
@@ -369,15 +360,7 @@ export default function SettingsPage() {
       let nextAvatarUrl = avatarUrl;
 
       if (pendingAvatarActionRef.current === "remove") {
-        const avatarPath = `${userId}/avatars/avatar.webp`;
-        const { error: deleteError } = await supabase.storage
-          .from("avatars")
-          .remove([avatarPath]);
-
-        if (deleteError) {
-          throw new Error(deleteError.message);
-        }
-
+        await removeAvatar(userId);
         nextAvatarUrl = null;
       }
 
@@ -387,22 +370,7 @@ export default function SettingsPage() {
           throw new Error("No pending avatar upload found.");
         }
 
-        const filePath = `${userId}/avatars/avatar.webp`;
-        const { error: uploadError } = await supabase.storage
-          .from("avatars")
-          .upload(filePath, fileToPersist, {
-            cacheControl: "0",
-            upsert: true,
-          });
-
-        if (uploadError) {
-          throw new Error(uploadError.message);
-        }
-
-        const { data } = supabase.storage
-          .from("avatars")
-          .getPublicUrl(filePath);
-        nextAvatarUrl = `${data.publicUrl}?t=${Date.now()}`;
+        nextAvatarUrl = await uploadAvatar(userId, fileToPersist);
       }
 
       await updateUserProfile({

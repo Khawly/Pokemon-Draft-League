@@ -12,6 +12,55 @@ const eslintConfig = defineConfig([
       "no-duplicate-imports": "error",
     },
   },
+  {
+    /*
+     * League data belongs to a feature module under `@/lib/supabase`. Pages and
+     * components ask those modules for rows; they do not open queries
+     * themselves.
+     *
+     * The three page-level exemptions still own their read logic from before
+     * the boundary existed. Their mutations already go through the modules;
+     * each is waiting for its loader to be extracted.
+     */
+    files: ["src/app/**/*.tsx"],
+    ignores: [
+      "src/app/pool/page.tsx",
+      "src/app/league-settings/page.tsx",
+      "src/app/members-settings/page.tsx",
+    ],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "@/lib/supabase/client",
+              message:
+                "Read league data through a @/lib/supabase feature module instead of the client.",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ["src/components/**/*.tsx"],
+    ignores: ["src/components/league-shell-context.tsx"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "@/lib/supabase/client",
+              message:
+                "Read league data through a @/lib/supabase feature module instead of the client.",
+            },
+          ],
+        },
+      ],
+    },
+  },
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:

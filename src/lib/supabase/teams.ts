@@ -602,3 +602,30 @@ export async function deleteMatch(matchId: string): Promise<void> {
     throw new Error(error.message || "Unable to delete that match.");
   }
 }
+
+/**
+ * Sets a member's token salary for one season.
+ *
+ * @param leagueId - The league the member belongs to.
+ * @param seasonId - The season whose salary is being edited.
+ * @param userId - The member whose salary changes.
+ * @param totalTokenSalary - The new salary, or null to clear the override.
+ * @throws When the caller is not the owner or the RPC fails.
+ */
+export async function updateTeamSalaryForSeason(
+  leagueId: string,
+  seasonId: string,
+  userId: string,
+  totalTokenSalary: number | null,
+): Promise<void> {
+  const { error } = await supabase.rpc("update_team_salary_for_season", {
+    p_league_id: leagueId,
+    p_season_id: seasonId,
+    p_user_id: userId,
+    p_total_token_salary: totalTokenSalary,
+  });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}

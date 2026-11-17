@@ -165,3 +165,24 @@ export async function loadEliteFinishers(
       displayName: profileRow(team.profiles)?.display_name ?? null,
     }));
 }
+
+/**
+ * Loads the members who wear a champion crown this season.
+ *
+ * @param leagueId - The league whose crowns to read.
+ * @returns The crowned members' ids and display names.
+ * @throws When the RPC fails.
+ */
+export async function loadCrownedMemberNames(
+  leagueId: string,
+): Promise<{ user_id: string; display_name: string | null }[]> {
+  const { data, error } = await supabase.rpc("crowned_member_names", {
+    p_league_id: leagueId,
+  });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return (data ?? []) as { user_id: string; display_name: string | null }[];
+}

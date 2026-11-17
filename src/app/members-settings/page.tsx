@@ -22,6 +22,8 @@ import { MemberAvatar } from "@/components/member-avatar";
 import { useShellLeague } from "@/components/league-shell-context";
 import { PageShell, PageShellError, PageShellLoading } from "@/components/page-shell";
 import { getSelectedSeason } from "@/lib/season-selection";
+import { leaveLeague, transferLeagueOwnership } from "@/lib/supabase/leagues";
+import { updateTeamSalaryForSeason } from "@/lib/supabase/teams";
 import { formatSeasonLabel, loadSeason } from "@/lib/supabase/seasons";
 
 /** Normalized representation of an active league member for display and mutation. */
@@ -493,20 +495,15 @@ function MembersSettingsPageContent() {
             ? member.total_token_salary
             : defaultTotalTokenSalary;
 
-        return supabase.rpc("update_team_salary_for_season", {
-          p_league_id: leagueId,
-          p_season_id: season.id,
-          p_user_id: member.user_id,
-          p_total_token_salary: nextValue,
-        });
+        return updateTeamSalaryForSeason(
+          leagueId,
+          season.id,
+          member.user_id,
+          nextValue,
+        );
       });
 
-      const results = await Promise.all(updatePromises);
-      const firstError = results.find((result) => result.error)?.error;
-
-      if (firstError) {
-        throw firstError;
-      }
+      await Promise.all(updatePromises);
 
       setHasMemberSalaryChanges(false);
       setSuccessMessage("Member total salary settings saved.");
@@ -531,7 +528,7 @@ function MembersSettingsPageContent() {
    * Soft-deletes the current user's membership from the league.
    * Owners see a warning that ownership may transfer; non-owners are simply removed.
    */
-  async function leaveLeague() {
+  async function handleLeaveLeague() {
     if (!leagueId) {
       setError("Select a league before leaving it.");
       return;
@@ -556,13 +553,7 @@ function MembersSettingsPageContent() {
     setSuccessMessage(null);
 
     try {
-      const { error: leaveError } = await supabase.rpc("leave_league", {
-        p_league_id: leagueId,
-      });
-
-      if (leaveError) {
-        throw leaveError;
-      }
+      await leaveLeague(leagueId);
 
       setSuccessMessage("You left the league.");
       router.push("/dashboard");
@@ -688,17 +679,7 @@ function MembersSettingsPageContent() {
     setSuccessMessage(null);
 
     try {
-      const { error: transferError } = await supabase.rpc(
-        "transfer_league_ownership",
-        {
-          p_league_id: leagueId,
-          p_new_owner_user_id: targetUserId,
-        },
-      );
-
-      if (transferError) {
-        throw transferError;
-      }
+      await transferLeagueOwnership(leagueId, targetUserId);
 
       setSuccessMessage(
         `${targetMember?.display_name || "That admin"} is now the league owner. You are now an admin.`,
@@ -855,7 +836,7 @@ function MembersSettingsPageContent() {
               </span>
               <button
                 type="button"
-                onClick={leaveLeague}
+                onClick={handleLeaveLeague}
                 disabled={isBusy}
                 className="rounded-xl border border-red-800 bg-red-950/60 px-3 py-2 text-sm font-medium text-red-200 transition hover:bg-red-900/80 disabled:cursor-not-allowed disabled:opacity-50"
               >

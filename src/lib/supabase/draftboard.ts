@@ -230,3 +230,74 @@ avatar_url: row.profiles?.avatar_url ?? null,
     isOwner: league.owner_id === user.id,
   };
 }
+/**
+ * Starts the league's draft and locks the order.
+ *
+ * @param leagueId - The league whose draft should start.
+ * @returns The new season id and status, or null when the RPC returned no row.
+ * @throws When the RPC fails.
+ */
+export async function startDraft(
+  leagueId: string,
+): Promise<{ seasonId: string; status: string } | null> {
+  const { data, error } = await supabase.rpc("start_draft", {
+    p_league_id: leagueId,
+  });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  const row =
+    (data as Array<{ season_id: string; status: string }> | null)?.[0] ?? null;
+
+  return row ? { seasonId: row.season_id, status: row.status } : null;
+}
+
+/**
+ * Saves draft order positions for a set of members.
+ *
+ * Positions are cleared before they are assigned: the per-league uniqueness
+ * index rejects a swap that transiently holds the same position twice, and the
+ * partial index skips NULLs.
+ *
+ * @param leagueId - The league whose order is being saved.
+ * @param entries - Each member's new position.
+ * @throws When any write is rejected.
+ */
+export async function saveDraftPositions(
+  leagueId: string,
+  entries: { userId: string; position: number }[],
+): Promise<void> {
+  const clears = await Promise.all(
+    entries.map(({ userId }) =>
+      supabase
+        .from("league_members")
+        .update({ draft_position: null })
+        .eq("league_id", leagueId)
+        .eq("user_id", userId),
+    ),
+  );
+
+  const clearError = clears.find((result) => result.error)?.error;
+
+  if (clearError) {
+    throw new Error(clearError.message);
+  }
+
+  const assignments = await Promise.all(
+    entries.map(({ userId, position }) =>
+      supabase
+        .from("league_members")
+        .update({ draft_position: position })
+        .eq("league_id", leagueId)
+        .eq("user_id", userId),
+    ),
+  );
+
+  const assignError = assignments.find((result) => result.error)?.error;
+
+  if (assignError) {
+    throw new Error(assignError.message);
+  }
+}

@@ -103,3 +103,110 @@ export async function deleteLeague(leagueId: string): Promise<void> {
     throw new Error(error.message || "Unable to delete the league.");
   }
 }
+
+/** Bucket holding uploaded league images. */
+const LEAGUE_IMAGE_BUCKET = "league-images";
+
+/**
+ * Path of a league's uploaded image inside the bucket.
+ *
+ * @param leagueId - The league whose image is addressed.
+ * @returns The storage path.
+ */
+function leagueImagePath(leagueId: string): string {
+  return `${leagueId}/image.webp`;
+}
+
+/**
+ * Removes a league's uploaded image.
+ *
+ * @param leagueId - The league whose image to remove.
+ * @throws When storage rejects the delete.
+ */
+export async function removeLeagueImage(leagueId: string): Promise<void> {
+  const { error } = await supabase.storage
+    .from(LEAGUE_IMAGE_BUCKET)
+    .remove([leagueImagePath(leagueId)]);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
+/**
+ * Uploads a league image and returns its public URL.
+ *
+ * @param leagueId - The league whose image to replace.
+ * @param file - The image to store.
+ * @returns The public URL, cache-busted so the new image is picked up.
+ * @throws When storage rejects the upload.
+ */
+export async function uploadLeagueImage(
+  leagueId: string,
+  file: File,
+): Promise<string> {
+  const path = leagueImagePath(leagueId);
+  const { error } = await supabase.storage
+    .from(LEAGUE_IMAGE_BUCKET)
+    .upload(path, file, { cacheControl: "0", upsert: true });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  const { data } = supabase.storage.from(LEAGUE_IMAGE_BUCKET).getPublicUrl(path);
+  return `${data.publicUrl}?t=${Date.now()}`;
+}
+
+/**
+ * Starts a new season for a league and archives the closing one.
+ *
+ * @param leagueId - The league to advance.
+ * @throws When the RPC fails.
+ */
+export async function startNewSeason(leagueId: string): Promise<void> {
+  const { error } = await supabase.rpc("start_new_season", {
+    p_league_id: leagueId,
+  });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
+/**
+ * Leaves a league.
+ *
+ * @param leagueId - The league to leave.
+ * @throws When the RPC refuses the departure.
+ */
+export async function leaveLeague(leagueId: string): Promise<void> {
+  const { error } = await supabase.rpc("leave_league", {
+    p_league_id: leagueId,
+  });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
+/**
+ * Transfers league ownership to another member.
+ *
+ * @param leagueId - The league being transferred.
+ * @param newOwnerUserId - The member who becomes owner.
+ * @throws When the caller is not the current owner or the RPC fails.
+ */
+export async function transferLeagueOwnership(
+  leagueId: string,
+  newOwnerUserId: string,
+): Promise<void> {
+  const { error } = await supabase.rpc("transfer_league_ownership", {
+    p_league_id: leagueId,
+    p_new_owner_user_id: newOwnerUserId,
+  });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}

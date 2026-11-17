@@ -20,8 +20,7 @@ import Image from "next/image";
 import { AuthForm, type AuthMode } from "@/components/auth-form";
 import { LoadingGif } from "@/components/loading-gif";
 import { getSelectedLeague } from "@/lib/league-selection";
-import { signOut } from "@/lib/supabase/auth";
-import { supabase } from "@/lib/supabase/client";
+import { getSession, onAuthStateChange, setSession, signOut } from "@/lib/supabase/auth";
 
 /** A feature shown in the landing page's capability grid. */
 interface Feature {
@@ -125,10 +124,7 @@ export default function Home() {
               };
 
               if (tokens.access_token && tokens.refresh_token) {
-                await supabase.auth.setSession({
-                  access_token: tokens.access_token,
-                  refresh_token: tokens.refresh_token,
-                });
+                await setSession(tokens.access_token, tokens.refresh_token);
 
                 if (isMounted) {
                   router.replace("/dashboard");
@@ -141,9 +137,7 @@ export default function Home() {
         }
       }
 
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+      const session = await getSession();
 
       if (!isMounted) {
         return;
@@ -160,9 +154,7 @@ export default function Home() {
 
     checkSession();
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    const unsubscribe = onAuthStateChange((session) => {
       if (!isMounted) {
         return;
       }
@@ -178,7 +170,7 @@ export default function Home() {
 
     return () => {
       isMounted = false;
-      subscription.unsubscribe();
+      unsubscribe();
     };
   }, [router]);
 

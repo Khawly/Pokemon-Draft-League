@@ -7,6 +7,8 @@
  * The profile update also carries the member's display preferences, so the
  * chosen time zone and name colour persist alongside the identity fields.
  */
+import type { Session } from "@supabase/supabase-js";
+
 import { supabase } from "@/lib/supabase/client";
 import { normalizeNameColor } from "@/lib/name-colors";
 import { normalizeAvatarInitials } from "@/lib/avatar-initials";
@@ -249,4 +251,140 @@ export async function signOut() {
   if (error) {
     throw new Error(error.message);
   }
+}
+
+/** The profile fields the settings page reads and writes. */
+export interface UserProfileRow {
+  display_name: string | null;
+  pokemon_showdown_username: string | null;
+  avatar_url: string | null;
+  avatar_initials: string | null;
+  timezone: string | null;
+  name_color: string | null;
+}
+
+/** Bucket holding profile avatars. */
+const AVATAR_BUCKET = "avatars";
+
+/**
+ * Path of a member's avatar inside the bucket.
+ *
+ * @param userId - The member whose avatar is addressed.
+ * @returns The storage path.
+ */
+function avatarPath(userId: string): string {
+  return `${userId}/avatars/avatar.webp`;
+}
+
+/**
+ * Reads the current browser session.
+ *
+ * @returns The session, or null when the visitor is signed out.
+ */
+export async function getSession(): Promise<Session | null> {
+  const { data } = await supabase.auth.getSession();
+  return data.session;
+}
+
+/**
+ * Installs a session from an access/refresh pair, used by the dev auto-login.
+ *
+ * @param accessToken - The session's access token.
+ * @param refreshToken - The session's refresh token.
+ * @throws When Supabase rejects the tokens.
+ */
+export async function setSession(
+  accessToken: string,
+  refreshToken: string,
+): Promise<void> {
+  const { error } = await supabase.auth.setSession({
+    access_token: accessToken,
+    refresh_token: refreshToken,
+  });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
+/**
+ * Subscribes to sign-in and sign-out events.
+ *
+ * @param listener - Receives the new session, or null after a sign-out.
+ * @returns A function that removes the subscription.
+ */
+export function onAuthStateChange(
+  listener: (session: Session | null) => void,
+): () => void {
+  const {
+    data: { subscription },
+  } = supabase.auth.onAuthStateChange((_event, session) => listener(session));
+
+  return () => subscription.unsubscribe();
+}
+
+/**
+ * Loads the profile fields the settings page edits.
+ *
+ * @param userId - The member whose profile to read.
+ * @returns The profile row, or null when it has not been provisioned yet.
+ * @throws When the read fails.
+ */
+export async function loadUserProfile(
+  userId: string,
+): Promise<UserProfileRow | null> {
+  const { data, error } = await supabase
+    .from("profiles")
+    .select(
+      "display_name, pokemon_showdown_username, avatar_url, avatar_initials, timezone, name_color",
+    )
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return (data as UserProfileRow | null) ?? null;
+}
+
+/**
+ * Removes a member's uploaded avatar.
+ *
+ * @param userId - The member whose avatar to remove.
+ * @throws When storage rejects the delete.
+ */
+export async function removeAvatar(userId: string): Promise<void> {
+  const { error } = await supabase.storage
+    .from(AVATAR_BUCKET)
+    .remove([avatarPath(userId)]);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
+/**
+ * Uploads a member's avatar and returns its public URL.
+ *
+ * @param userId - The member whose avatar to replace.
+ * @param file - The image to store.
+ * @returns The public URL, cache-busted so the new image is picked up.
+ * @throws When storage rejects the upload.
+ */
+export async function uploadAvatar(
+  userId: string,
+  file: File,
+): Promise<string> {
+  const path = avatarPath(userId);
+  const { error } = await supabase.storage
+    .from(AVATAR_BUCKET)
+    .upload(path, file, { cacheControl: "0", upsert: true });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  const { data } = supabase.storage.from(AVATAR_BUCKET).getPublicUrl(path);
+  return `${data.publicUrl}?t=${Date.now()}`;
 }

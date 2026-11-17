@@ -18,9 +18,8 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { crownKeys, memberHonor, NO_CROWN, type CrownKeys, type MemberHonor } from "@/lib/champion-crown";
-import { loadEliteFinishers } from "@/lib/supabase/honors";
+import { loadCrownedMemberNames, loadEliteFinishers } from "@/lib/supabase/honors";
 import { getSelectedLeague, SELECTED_LEAGUE_CHANGED_EVENT } from "@/lib/league-selection";
-import { supabase } from "@/lib/supabase/client";
 
 /**
  * The default is empty, so a name rendered outside a provider -- a dialog, a test, a page
@@ -149,7 +148,7 @@ export function CrownScope({ children }: { children: ReactNode }) {
 
     void (async () => {
       const [championResult, eliteResult] = await Promise.allSettled([
-        supabase.rpc("crowned_member_names", { p_league_id: leagueId }),
+        loadCrownedMemberNames(leagueId),
         loadEliteFinishers(leagueId),
       ]);
 
@@ -158,12 +157,7 @@ export function CrownScope({ children }: { children: ReactNode }) {
       }
 
       const championRows =
-        championResult.status === "fulfilled" && !championResult.value.error
-          ? ((championResult.value.data ?? []) as {
-              user_id: string;
-              display_name: string | null;
-            }[])
-          : [];
+        championResult.status === "fulfilled" ? championResult.value : [];
 
       const elite =
         eliteResult.status === "fulfilled" ? eliteResult.value : [];

@@ -50,7 +50,12 @@ import {
   loadSeason,
   saveSeasonName,
 } from "@/lib/supabase/seasons";
-import { deleteLeague } from "@/lib/supabase/leagues";
+import {
+  deleteLeague,
+  removeLeagueImage,
+  startNewSeason,
+  uploadLeagueImage,
+} from "@/lib/supabase/leagues";
 import { MAX_NAME_LENGTH } from "@/lib/name-limits";
 import { useShellLeague } from "@/components/league-shell-context";
 import { PageShell, PageShellCard, PageShellError, PageShellLoading } from "@/components/page-shell";
@@ -80,9 +85,6 @@ function defaultFirstDeadlineDate(time: string, timeZone: string): string {
     toZonedParts(new Date(now.getTime() + 86_400_000), timeZone)?.date ?? today
   );
 }
-
-/** Storage bucket holding uploaded league images. */
-const LEAGUE_IMAGE_BUCKET = "league-images";
 
 /**
  * Default value for a newly enabled trade or free agency deadline: one week
@@ -886,7 +888,7 @@ function LeagueSettingsPageContent() {
   }
 
   /** Stages the current league image for removal; the delete happens on save. */
-  function removeLeagueImage() {
+  function stageRemoveLeagueImage() {
     leagueImageActionRef.current = "remove";
     leagueImageFileRef.current = null;
     setLeagueImagePreview(null);
@@ -1068,14 +1070,7 @@ function LeagueSettingsPageContent() {
       let nextLeagueImageUrl = leagueImageUrl;
 
       if (leagueImageActionRef.current === "remove") {
-        const { error: removeImageError } = await supabase.storage
-          .from(LEAGUE_IMAGE_BUCKET)
-          .remove([`${leagueId}/image.webp`]);
-
-        if (removeImageError) {
-          throw new Error(removeImageError.message);
-        }
-
+        await removeLeagueImage(leagueId);
         nextLeagueImageUrl = null;
       }
 
@@ -1086,22 +1081,10 @@ function LeagueSettingsPageContent() {
           throw new Error("No pending league image upload found.");
         }
 
-        const filePath = `${leagueId}/image.webp`;
-        const { error: uploadImageError } = await supabase.storage
-          .from(LEAGUE_IMAGE_BUCKET)
-          .upload(filePath, fileToPersist, {
-            cacheControl: "0",
-            upsert: true,
-          });
-
-        if (uploadImageError) {
-          throw new Error(uploadImageError.message);
-        }
-
-        const { data } = supabase.storage
-          .from(LEAGUE_IMAGE_BUCKET)
-          .getPublicUrl(filePath);
-        nextLeagueImageUrl = `${data.publicUrl}?t=${Date.now()}`;
+        nextLeagueImageUrl = await uploadLeagueImage(
+          leagueId,
+          fileToPersist,
+        );
       }
 
       const leagueUpdatePayload: {
@@ -1307,13 +1290,7 @@ function LeagueSettingsPageContent() {
     setError(null);
 
     try {
-      const { error: startError } = await supabase.rpc("start_new_season", {
-        p_league_id: leagueId,
-      });
-
-      if (startError) {
-        throw new Error(startError.message);
-      }
+      await startNewSeason(leagueId);
 
       window.location.reload();
     } catch (cause) {
@@ -1499,7 +1476,7 @@ function LeagueSettingsPageContent() {
                     </button>
                     <button
                       type="button"
-                      onClick={removeLeagueImage}
+                      onClick={stageRemoveLeagueImage}
                       disabled={isUploadingLeagueImage || !leagueImagePreview}
                       className="rounded-xl border border-red-800 bg-red-950/60 px-4 py-2 text-sm font-medium text-red-200 transition hover:bg-red-900/80 disabled:cursor-not-allowed disabled:opacity-50"
                     >

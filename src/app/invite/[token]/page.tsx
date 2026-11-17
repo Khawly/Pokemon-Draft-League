@@ -9,8 +9,13 @@
 
 import { Suspense, use, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabase/client";
-import { getLeagueInviteInfo, joinLeagueByInvite, type LeagueInviteInfo } from "@/lib/supabase/invites";
+import {
+  getLeagueInviteInfo,
+  isActiveLeagueMember,
+  joinLeagueByInvite,
+  type LeagueInviteInfo,
+} from "@/lib/supabase/invites";
+import { getSession } from "@/lib/supabase/auth";
 import { LoadingGif } from "@/components/loading-gif";
 
 /**
@@ -79,27 +84,18 @@ function InviteContent({ params }: { params: Promise<{ token: string }> }) {
 
         setInfo(inviteInfo);
 
-        const {
-          data: { user },
-          error: userError,
-        } = await supabase.auth.getUser();
+        const session = await getSession();
+        const user = session?.user;
 
-        if (userError || !user) {
+        if (!user) {
           setSignedIn(false);
           return;
         }
 
         setSignedIn(true);
-
-        // Determine whether the signed-in viewer is already an active member.
-        const { data: membership } = await supabase
-          .from("league_members")
-          .select("is_active")
-          .eq("league_id", inviteInfo.league_id)
-          .eq("user_id", user.id)
-          .maybeSingle();
-
-        setAlreadyMember(Boolean(membership && (membership as { is_active: boolean }).is_active));
+        setAlreadyMember(
+          await isActiveLeagueMember(inviteInfo.league_id, user.id),
+        );
       } catch (caughtError) {
         const message =
           caughtError instanceof Error

@@ -9,7 +9,10 @@
 
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { supabase } from "@/lib/supabase/client";
+import {
+  loadLeagueSettingsRow,
+  saveLeagueSettingsRow,
+} from "@/lib/supabase/league-settings";
 import { loadUserTimeZone } from "@/lib/user-timezone";
 import { useShellLeague } from "@/components/league-shell-context";
 import { PageShell, PageShellError, PageShellLoading } from "@/components/page-shell";
@@ -134,14 +137,12 @@ function DraftSettingsPageContent() {
           await checkIsCurrentSeason(resolvedLeagueId, seasonData.id),
         );
 
-        const { data: settingsData, error: settingsError } = await supabase
-          .from("league_settings")
-          .select("*")
-          .eq("league_id", resolvedLeagueId)
-          .eq("season_id", seasonData.id)
-          .maybeSingle();
+        const settingsData = await loadLeagueSettingsRow(
+          resolvedLeagueId,
+          seasonData.id,
+        );
 
-        if (settingsError || !settingsData) {
+        if (!settingsData) {
           return;
         }
 
@@ -226,43 +227,32 @@ function DraftSettingsPageContent() {
     setSuccessMessage(null);
 
     try {
-      const { error: saveError } = await supabase
-        .from("league_settings")
-        .upsert(
-          {
-            league_id: leagueId,
-            season_id: seasonId,
-            draft_format: draftFormat,
-            total_rounds: parsedTotalRounds,
-            enable_pokemon_costs: enableCosts,
-            total_token_salary: enableCosts
-              ? Number(totalTokenSalary) || 0
-              : null,
-            allow_per_team_salary: allowPerTeamSalary,
-            pick_time_limit_minutes: Number(pickTimeLimit) || 5,
-            auto_pick_on_timeout: autoPickOnTimeout,
-            skip_player_on_timeout: skipPlayerOnTimeout,
-            quiet_hours_enabled: quietHoursEnabled,
-            quiet_hours_start_est: quietHoursEnabled ? quietHoursStart : null,
-            quiet_hours_end_est: quietHoursEnabled ? quietHoursEnd : null,
-            /*
-             * quiet_hours_timezone is deliberately not written from here.
-             *
-             * draft_quiet_hours resolves the zone from the league owner's profile on
-             * every sweep, so this page has nothing to contribute and could only
-             * contribute it wrongly: the value would come from a component state
-             * seeded once on mount, so a tab left open across a zone change in user
-             * settings would write the old zone back over the new one on the next
-             * save. The column stays as the fallback the migration populated, for
-             * the case where the owner has no usable profile zone at all.
-             */
-          },
-          { onConflict: "league_id, season_id" },
-        );
-
-      if (saveError) {
-        throw new Error(saveError.message);
-      }
+      await saveLeagueSettingsRow({
+        league_id: leagueId,
+        season_id: seasonId,
+        draft_format: draftFormat,
+        total_rounds: parsedTotalRounds,
+        enable_pokemon_costs: enableCosts,
+        total_token_salary: enableCosts ? Number(totalTokenSalary) || 0 : null,
+        allow_per_team_salary: allowPerTeamSalary,
+        pick_time_limit_minutes: Number(pickTimeLimit) || 5,
+        auto_pick_on_timeout: autoPickOnTimeout,
+        skip_player_on_timeout: skipPlayerOnTimeout,
+        quiet_hours_enabled: quietHoursEnabled,
+        quiet_hours_start_est: quietHoursEnabled ? quietHoursStart : null,
+        quiet_hours_end_est: quietHoursEnabled ? quietHoursEnd : null,
+        /*
+         * quiet_hours_timezone is deliberately not written from here.
+         *
+         * draft_quiet_hours resolves the zone from the league owner's profile on
+         * every sweep, so this page has nothing to contribute and could only
+         * contribute it wrongly: the value would come from a component state
+         * seeded once on mount, so a tab left open across a zone change in user
+         * settings would write the old zone back over the new one on the next
+         * save. The column stays as the fallback the migration populated, for
+         * the case where the owner has no usable profile zone at all.
+         */
+      });
 
       originalSettingsRef.current = {
         draftFormat,

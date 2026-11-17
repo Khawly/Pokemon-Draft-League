@@ -142,3 +142,23 @@ export async function joinLeagueByInvite(token: string): Promise<{
   return (data as Array<{ league_id: string; league_name: string }> | null)?.[0] ??
     null;
 }
+/**
+ * Reports whether a member is active in a league.
+ *
+ * @param leagueId - The league to check.
+ * @param userId - The member to check.
+ * @returns True when the member has an active membership row.
+ */
+export async function isActiveLeagueMember(
+  leagueId: string,
+  userId: string,
+): Promise<boolean> {
+  const { data } = await supabase
+    .from("league_members")
+    .select("is_active")
+    .eq("league_id", leagueId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  return Boolean((data as { is_active: boolean } | null)?.is_active);
+}

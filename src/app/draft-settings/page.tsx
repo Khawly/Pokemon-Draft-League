@@ -105,8 +105,6 @@ function DraftSettingsPageContent() {
   });
 
   useEffect(() => {
-    // Wait for the shell: it owns the URL, the session, and the league. The
-    // missing-league case is handled in the render below.
     if (
       shellLeague.isResolving ||
       shellLeague.signedOut ||

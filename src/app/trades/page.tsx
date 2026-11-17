@@ -1035,7 +1035,6 @@ function ProposalBuilder({
     !(tokenTradesAllowed && (proposerTokens > 0 || recipientTokens > 0));
   const blocked = busy || nothingSelected || !goods.myTeam || !recipient;
   const canSubmit = !blocked && (projection?.affordable ?? false);
-  /* Whether anything at all is on the table, which is what earns a delta readout. */
   const hasValue =
     offer.length + request.length > 0 || proposerTokens > 0 || recipientTokens > 0;
 
@@ -1105,8 +1104,6 @@ function ProposalBuilder({
           disabled={!recipient}
         />
       </div>
-
-      {/* Token inputs, mirroring the two Pokémon pickers above. */}
       {tokenTradesAllowed && (
         <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-lg sm:p-6 shadow-slate-950/30">
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">

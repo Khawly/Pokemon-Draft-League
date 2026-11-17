@@ -850,10 +850,7 @@ function PoolPageContent() {
     }
     return false;
   }, [rows, savedRows, poolName, savedPoolName]);
-
-  // Load the league, season, and the list of saved pools.
   useEffect(() => {
-    // Wait for the shell: it owns the URL, the session, and the league.
     if (shellLeague.isResolving || shellLeague.signedOut) {
       return;
     }
@@ -1212,7 +1209,6 @@ function PoolPageContent() {
           trimmedName,
         );
       } else {
-        // Rename the existing pool when its name changed.
         const { data: poolRow, error: poolError } = await supabase
           .from("draft_pools")
           .select("id, name")
@@ -1320,8 +1316,6 @@ function PoolPageContent() {
       loadedRowsInPoolOnlyRef.current = false;
       setPoolName(trimmedName);
       setSavedPoolName(trimmedName);
-
-      // Register a newly created pool in the dropdown.
       if (activePoolId !== targetPoolId) {
         setPools((current) =>
           current.some((pool) => pool.id === targetPoolId)
@@ -1512,9 +1506,6 @@ function PoolPageContent() {
             updateError.message || "Unable to confirm the tier change.",
           );
         }
-
-        // Reflect the persisted tier in the saved baseline so this card's
-        // pending state (and the dirty indicator) clears.
         setSavedRows((current) =>
           current.map((saved) =>
             saved.key === rowId
@@ -1535,9 +1526,6 @@ function PoolPageContent() {
             upsertError.message || "Unable to confirm the tier change.",
           );
         }
-
-        // Adopt the generated id and mirror the row into the saved baseline so
-        // the editor no longer treats this tier as an unconfirmed change.
         setRows((current) =>
           current.map((candidate) =>
             candidate.key === rowId ? { ...candidate, id: newId } : candidate,
@@ -2151,11 +2139,8 @@ function PoolPageContent() {
               : "Read-only history: this is not the league's current season, so its pool cannot be changed. Only Pokémon currently in the pool are shown."}
           </p>
         )}
-
-        {/* Top bar: pool selection + pool management + document actions */}
         <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-xl sm:p-6 shadow-slate-950/40">
           <div className="flex flex-col gap-5">
-            {/* Row 1: saved pool / name, plus the pool management buttons */}
             <div className="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-center md:justify-between">
               <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
                 <label className="flex items-center gap-2 text-sm text-slate-300">
@@ -2226,11 +2211,7 @@ function PoolPageContent() {
                 </div>
               )}
             </div>
-
-            {/* Divider between pool selection and document actions */}
             <div className="h-px bg-slate-800/60" />
-
-            {/* Row 2: CSV import/export on the left, save / set pool on the right */}
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div className="flex flex-wrap items-center gap-3">
                 <button
@@ -2336,7 +2317,6 @@ function PoolPageContent() {
           </section>
         ) : (
           <>
-        {/* Summary panel */}
         <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <div className="rounded-2xl border border-emerald-800 bg-emerald-950/40 p-5">
             <p className="text-xs uppercase tracking-wider text-emerald-300">
@@ -2355,8 +2335,6 @@ function PoolPageContent() {
             <p className="mt-1 text-2xl font-bold text-slate-200">{untieredCount}</p>
           </div>
         </section>
-
-        {/* Tabs: Tiers and Table */}
         <div className="flex items-center gap-2 text-sm">
           {(
             [
@@ -2378,8 +2356,6 @@ function PoolPageContent() {
             </button>
           ))}
         </div>
-
-        {/* Table tab with sorting and filtering */}
         {selectedTab === "table" && (
           <section className="space-y-4">
             <div className="flex flex-col gap-3 rounded-2xl border border-slate-800 bg-slate-900/80 p-4 sm:flex-row sm:items-center">
@@ -2620,8 +2596,6 @@ function PoolPageContent() {
             />
           </section>
         )}
-
-        {/* Tiers tab */}
         {selectedTab === "tiers" && (
           <div className="space-y-6">
             {groupedByTier.length === 0 ? (

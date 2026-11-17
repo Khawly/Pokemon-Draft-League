@@ -137,7 +137,6 @@ export default function Home() {
               }
             }
           } catch {
-            // Fall through to the normal session check / auth form.
           }
         }
       }

@@ -46,7 +46,9 @@ Every source file must be documented. This applies to new files, edited files, a
 ## Rules of thumb
 
 - Prefer documenting exported API surface (functions, components, types).
-- Keep comments meaningful — don't restate the code line-by-line.
+- Do not add inline comments unless they explain a critical non-obvious design
+  decision or business constraint. Express intent through function and variable
+  naming instead.
 - Never add emojis.
 - Follow existing spacing/style in the file.
 

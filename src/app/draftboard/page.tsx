@@ -83,7 +83,6 @@ function DraftBoardPageContent() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    // Wait for the shell: it owns the URL, the session, and the league.
     if (shellLeague.isResolving || shellLeague.signedOut) {
       return;
     }

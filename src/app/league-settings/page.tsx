@@ -258,8 +258,6 @@ function LeagueSettingsPageContent() {
   });
 
   useEffect(() => {
-    // Wait for the shell: it owns the URL, the session, and the league. The
-    // missing-league case is handled in the render below.
     if (
       shellLeague.isResolving ||
       shellLeague.signedOut ||
@@ -1043,7 +1041,6 @@ function LeagueSettingsPageContent() {
       }
 
       try {
-        // Re-probe league_settings columns before saving.
         const { data: settingsProbe, error: settingsProbeError } =
           await supabase
             .from("league_settings")

@@ -998,7 +998,6 @@ function PickBoardCards({
                 : "border-slate-800 bg-slate-950/50"
             }`}
           >
-            {/* Player card header */}
             <div className="flex items-center gap-2">
               <MemberAvatar
                 name={name}
@@ -1425,8 +1424,6 @@ const PoolPanel = memo(function PoolPanel({
     () => new Set(goods.picks.map((pick) => pick.pokemon_id)),
     [goods.picks],
   );
-
-  // Query and type-filtered rows shared by both the table and the tier list.
   const filteredRows = useMemo(() => {
     const q = query.trim().toLowerCase();
     return goods.poolRows.filter((row) => {
@@ -2678,9 +2675,7 @@ function DraftArena({ leagueId }: { leagueId: string }) {
   const [busyPick, setBusyPick] = useState(false);
   const [busyReset, setBusyReset] = useState(false);
   const [busyPause, setBusyPause] = useState(false);
-  // Pokemon id awaiting the pick confirmation dialog, or null when none.
   const [pendingPickId, setPendingPickId] = useState<string | null>(null);
-  // Pokemon id awaiting the mobile round picker (add to priority), or null.
   const [pendingAddId, setPendingAddId] = useState<string | null>(null);
   const audioRef = useRef<AudioContext | null>(null);
   const prevDeadlineRef = useRef<number | null>(null);
@@ -2767,8 +2762,6 @@ function DraftArena({ leagueId }: { leagueId: string }) {
     }
     return getTeamSalary(goods, goods.myTeamId).remaining;
   }, [goods]);
-
-  // The pool row backing the pending pick confirmation dialog, if any.
   const pendingPickRow = useMemo(
     () =>
       goods && pendingPickId
@@ -2777,8 +2770,6 @@ function DraftArena({ leagueId }: { leagueId: string }) {
         : null,
     [goods, pendingPickId],
   );
-
-  // The pool row backing the mobile round picker, if any.
   const pendingAddRow = useMemo(
     () =>
       goods && pendingAddId
@@ -2787,9 +2778,6 @@ function DraftArena({ leagueId }: { leagueId: string }) {
         : null,
     [goods, pendingAddId],
   );
-
-  // How many priority entries each round already holds, for the round picker's
-  // per-round counts.
   const priorityRoundCounts = useMemo(() => {
     const counts = new Map<number, number>();
     priorityEntries.forEach((entry) => {
@@ -2810,8 +2798,6 @@ function DraftArena({ leagueId }: { leagueId: string }) {
         .map((entry) => entry.round_number),
     );
   }, [priorityEntries, pendingAddId]);
-
-  // Refresh draft state on the poll interval, and tick the wall clock.
   useEffect(() => {
     let cancelled = false;
 
@@ -2882,13 +2868,10 @@ function DraftArena({ leagueId }: { leagueId: string }) {
       playTone(audioRef, 880, 0.12);
       warnedRef.current = false;
     } else if (deadline !== prevDeadlineRef.current) {
-      // A fresh pick after resolving the previous timer.
       playTone(audioRef, 880, 0.12);
       warnedRef.current = false;
     }
     prevDeadlineRef.current = deadline;
-
-    // One-minute warning.
     if (deadline - now <= URGENT_THRESHOLD_MS && !warnedRef.current) {
       playTone(audioRef, 440, 0.35);
       warnedRef.current = true;

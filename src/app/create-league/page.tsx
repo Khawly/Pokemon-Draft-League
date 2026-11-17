@@ -29,8 +29,6 @@ export default function CreateLeaguePage() {
     try {
       setIsCreating(true);
       setError(null);
-
-      // Create the league, then navigate to the dashboard pre-selecting it.
       const result = await createLeagueForUser({
         name: leagueName,
         numberOfPlayers,

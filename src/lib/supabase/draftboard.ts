@@ -155,8 +155,6 @@ export async function loadDraftboardData(
   if (memberResult.error) {
     throw new Error("League data could not be loaded.");
   }
-
-  // Reshape the joined rows into the flat member shape the UI consumes.
   const members = ((memberResult.data ?? []) as MemberRow[]).map((row) => ({
     user_id: row.user_id,
     role: row.role,

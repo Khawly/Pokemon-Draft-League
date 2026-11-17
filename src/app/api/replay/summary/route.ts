@@ -131,8 +131,6 @@ export async function POST(request: Request) {
       error instanceof Error ? error.message : "That replay could not be read.";
     return NextResponse.json({ error: message }, { status: 422 });
   }
-
-  // Map the log's `|win|` username onto a league team by Showdown handle.
   const winnerHandle = summary.winnerName?.toLowerCase() ?? null;
   let winningTeam = winnerHandle
     ? participants.find((team) => team.showdownUsername?.toLowerCase() === winnerHandle)

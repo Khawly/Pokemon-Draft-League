@@ -46,8 +46,6 @@ export function AuthForm({ mode, onModeChange }: AuthFormProps) {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  // Derive the card heading from the current auth mode.
   const title = useMemo(
     () => (mode === "login" ? "Welcome back" : "Create your account"),
     [mode],
@@ -60,7 +58,6 @@ export function AuthForm({ mode, onModeChange }: AuthFormProps) {
     setIsSubmitting(true);
 
     try {
-      // Signup shows a verification message; login redirects to the dashboard.
       if (mode === "signup") {
         await signUpWithEmail({
           email,

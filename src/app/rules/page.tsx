@@ -78,7 +78,6 @@ function RulesPageContent() {
   const load = useCallback(async (leagueId: string) => {
     const data = await loadRulesPageData(
       leagueId,
-      // The season the member last chose for this league, or null for the newest.
       getSelectedSeason(leagueId),
     );
     setLeagueName(data.league?.name ?? "");

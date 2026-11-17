@@ -14,20 +14,11 @@ const eslintConfig = defineConfig([
   },
   {
     /*
-     * League data belongs to a feature module under `@/lib/supabase`. Pages and
-     * components ask those modules for rows; they do not open queries
-     * themselves.
-     *
-     * The three page-level exemptions still own their read logic from before
-     * the boundary existed. Their mutations already go through the modules;
-     * each is waiting for its loader to be extracted.
+     * League data belongs to a feature module under `@/lib/supabase`. Pages ask
+     * those modules for rows; they do not open queries themselves. The shell
+     * provider is the only component allowed to talk to the client directly.
      */
     files: ["src/app/**/*.tsx"],
-    ignores: [
-      "src/app/pool/page.tsx",
-      "src/app/league-settings/page.tsx",
-      "src/app/members-settings/page.tsx",
-    ],
     rules: {
       "no-restricted-imports": [
         "error",

@@ -13,7 +13,6 @@
 
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { supabase } from "@/lib/supabase/client";
 import { formatDateTimeInZone } from "@/lib/datetime";
 import { useUserTimeZone } from "@/lib/user-timezone";
 import { useConfirm } from "@/components/confirm-dialog";
@@ -21,128 +20,19 @@ import { MemberName } from "@/components/member-name";
 import { MemberAvatar } from "@/components/member-avatar";
 import { useShellLeague } from "@/components/league-shell-context";
 import { PageShell, PageShellError, PageShellLoading } from "@/components/page-shell";
-import { getSelectedSeason } from "@/lib/season-selection";
 import { leaveLeague, transferLeagueOwnership } from "@/lib/supabase/leagues";
+import {
+  loadMembersPageData,
+  loadMembersRoster,
+  loadSalaryEditHistory,
+  removeMember,
+  updateMemberRole,
+  type MemberRow,
+  type SalaryEditRow,
+} from "@/lib/supabase/members";
 import { updateTeamSalaryForSeason } from "@/lib/supabase/teams";
-import { formatSeasonLabel, loadSeason } from "@/lib/supabase/seasons";
+import { formatSeasonLabel } from "@/lib/supabase/seasons";
 
-/** Normalized representation of an active league member for display and mutation. */
-type MemberRow = {
-  /** Supabase auth user identifier. */
-  user_id: string;
-  /** Member's role within the league: owner, admin, or member. */
-  role: "owner" | "admin" | "member";
-  /** ISO timestamp of when the member joined, or null if unknown. */
-  joined_at: string | null;
-  /** Display name from the user's profile, or a fallback. */
-  display_name: string | null;
-  /** URL of the user's avatar image, or null if unset. */
-  avatar_url: string | null;
-  /**
-   * The member's stored avatar initials, raw, or null when they have not picked
-   * any and the shared derivation from their name applies.
-   */
-  avatar_initials: string | null;
-  /** The member's stored name colour, raw, or null when they have not chosen one. */
-  name_color: string | null;
-  /**
-   * The member's token salary for the selected season: their team override when
-   * one is set, otherwise that season's league default.
-   */
-  total_token_salary: number | null;
-};
-
-/** One recorded total-token-salary change, enriched with both members' names. */
-type SalaryEditRow = {
-  id: string;
-  /** The member whose salary changed. */
-  user_id: string;
-  /** Their effective salary before the edit, or null when it inherited a default. */
-  previous_salary: number | null;
-  /** The salary after the edit. */
-  new_salary: number;
-  /** The user who made the edit. */
-  changed_by: string;
-  created_at: string;
-  member_name: string | null;
-  member_color: string | null;
-  editor_name: string | null;
-  editor_color: string | null;
-};
-
-/**
- * Loads one season's salary edit history, newest first.
- *
- * Names are resolved with a second query rather than an embedded join because
- * both foreign keys point at `profiles`; the separate lookup stays readable and
- * still shows a member who has since left the league.
- *
- * @param leagueId - League whose history to read.
- * @param seasonId - Season whose edits to read.
- * @returns The edits with display names and colours attached.
- */
-async function loadSalaryEditHistory(
-  leagueId: string,
-  seasonId: string,
-): Promise<SalaryEditRow[]> {
-  const { data, error } = await supabase
-    .from("member_salary_edits")
-    .select(
-      "id, user_id, previous_salary, new_salary, changed_by, created_at",
-    )
-    .eq("league_id", leagueId)
-    .eq("season_id", seasonId)
-    .order("created_at", { ascending: false })
-    .limit(100);
-
-  if (error || !data) {
-    return [];
-  }
-
-  const edits = data as {
-    id: string;
-    user_id: string;
-    previous_salary: number | null;
-    new_salary: number;
-    changed_by: string;
-    created_at: string;
-  }[];
-
-  const userIds = [
-    ...new Set(edits.flatMap((edit) => [edit.user_id, edit.changed_by])),
-  ];
-
-  const profileById = new Map<
-    string,
-    { display_name: string | null; name_color: string | null }
-  >();
-
-  if (userIds.length > 0) {
-    const { data: profileRows } = await supabase
-      .from("profiles")
-      .select("id, display_name, name_color")
-      .in("id", userIds);
-
-    for (const profile of (profileRows ?? []) as {
-      id: string;
-      display_name: string | null;
-      name_color: string | null;
-    }[]) {
-      profileById.set(profile.id, {
-        display_name: profile.display_name,
-        name_color: profile.name_color,
-      });
-    }
-  }
-
-  return edits.map((edit) => ({
-    ...edit,
-    member_name: profileById.get(edit.user_id)?.display_name ?? null,
-    member_color: profileById.get(edit.user_id)?.name_color ?? null,
-    editor_name: profileById.get(edit.changed_by)?.display_name ?? null,
-    editor_color: profileById.get(edit.changed_by)?.name_color ?? null,
-  }));
-}
 
 /**
  * Members settings page that suspends rendering until the client-only
@@ -227,140 +117,29 @@ function MembersSettingsPageContent() {
         setError(null);
         setSuccessMessage(null);
 
-        const { data: league, error: leagueError } = await supabase
-          .from("leagues")
-          .select("id, name, owner_id")
-          .eq("id", selectedLeagueId)
-          .maybeSingle();
-
-        if (leagueError || !league) {
-          setError("This league could not be loaded.");
-          return;
-        }
-
-        setLeagueId(league.id);
-        setLeagueName(league.name || "");
-        setOwnerUserId(league.owner_id);
-
-        const { data: seasonData, error: seasonError } = await loadSeason<{
-          id: string;
-          season_number: number;
-          name: string | null;
-        }>(
-          league.id,
-          "id, season_number, name",
-          // The settings menu carries the season on screen; a direct visit falls
-          // back to the last season the member chose, then to the newest.
-          searchParams.get("seasonId") ?? getSelectedSeason(league.id),
+        const data = await loadMembersPageData(
+          selectedLeagueId,
+          searchParams.get("seasonId"),
+          userId,
         );
 
-        if (seasonError || !seasonData) {
-          setError("This league's season could not be loaded.");
-          return;
-        }
-
-        setSeason(seasonData);
-
-        const { data: settingsData, error: settingsError } = await supabase
-          .from("league_settings")
-          .select("total_token_salary, allow_per_team_salary")
-          .eq("league_id", league.id)
-          .eq("season_id", seasonData.id)
-          .maybeSingle();
-
-        const seasonDefaultSalary = Number(
-          settingsData?.total_token_salary ?? 0,
-        );
-
-        if (!settingsError && settingsData) {
-          setAllowPerTeamSalary(Boolean(settingsData.allow_per_team_salary));
-          setDefaultTotalTokenSalary(seasonDefaultSalary);
-        } else {
-          setAllowPerTeamSalary(false);
-          setDefaultTotalTokenSalary(0);
-        }
-
-        /*
-         * Salaries are stored per team and season, so read the selected season's
-         * team rows. league_members.total_token_salary is only a league-wide
-         * template and would show a newer season's value while looking back.
-         */
-        const { data: teamSalaryRows, error: teamSalaryError } = await supabase
-          .from("teams")
-          .select("owner_user_id, total_salary_override")
-          .eq("league_id", league.id)
-          .eq("season_id", seasonData.id);
-
-        if (teamSalaryError) {
-          throw teamSalaryError;
-        }
-
-        const salaryByOwner = new Map(
-          ((teamSalaryRows ?? []) as {
-            owner_user_id: string;
-            total_salary_override: number | null;
-          }[]).map((row) => [row.owner_user_id, row.total_salary_override]),
-        );
-
-        const { data: memberships, error: membershipsError } = await supabase
-          .from("league_members")
-          .select(
-            "user_id, role, joined_at, is_active, profiles: user_id (display_name, avatar_url, avatar_initials, name_color)",
-          )
-          .eq("league_id", league.id)
-          .eq("is_active", true)
-          .order("joined_at", { ascending: true });
-
-        if (membershipsError) {
-          throw membershipsError;
-        }
-
-        const normalizedMembers = (memberships ?? []).map((member) => {
-          const profile = member.profiles as {
-            display_name?: string | null;
-            avatar_url?: string | null;
-            avatar_initials?: string | null;
-            name_color?: string | null;
-          } | null;
-
-          const seasonOverride = salaryByOwner.get(member.user_id);
-
-          return {
-            user_id: member.user_id,
-            role:
-              (member.role as "owner" | "admin" | "member") || "member",
-            joined_at: member.joined_at,
-            display_name: profile?.display_name || "Member",
-            avatar_url: profile?.avatar_url || null,
-            avatar_initials: profile?.avatar_initials ?? null,
-            name_color: profile?.name_color ?? null,
-            total_token_salary:
-              typeof seasonOverride === "number"
-                ? seasonOverride
-                : settingsData?.allow_per_team_salary
-                  ? seasonDefaultSalary
-                  : null,
-          } satisfies MemberRow;
-        });
-
-        setMembers(normalizedMembers);
+        setLeagueId(data.league.id);
+        setLeagueName(data.league.name);
+        setOwnerUserId(data.league.owner_id);
+        setSeason(data.season);
+        setAllowPerTeamSalary(data.allowPerTeamSalary);
+        setDefaultTotalTokenSalary(data.defaultTotalTokenSalary);
+        setMembers(data.members);
         setSavedSalaries(
           Object.fromEntries(
-            normalizedMembers.map((member) => [
+            data.members.map((member) => [
               member.user_id,
               member.total_token_salary,
             ]),
           ),
         );
-
-        setSalaryHistory(
-          await loadSalaryEditHistory(league.id, seasonData.id),
-        );
-
-        const userRole =
-          normalizedMembers.find((member) => member.user_id === userId)
-            ?.role ?? null;
-        setCurrentUserRole(userRole);
+        setSalaryHistory(data.salaryHistory);
+        setCurrentUserRole(data.currentUserRole);
       } catch (caughtError) {
         const message =
           caughtError instanceof Error
@@ -392,57 +171,25 @@ function MembersSettingsPageContent() {
    * "Promote to Owner" button would still be on screen with no permissions behind it.
    */
   const reloadMembers = useCallback(async () => {
-    const { data: league } = await supabase
-      .from("leagues")
-      .select("owner_id")
-      .eq("id", leagueId ?? "")
-      .maybeSingle();
+    const { ownerId, members: roster } = await loadMembersRoster(leagueId ?? "");
 
-    if (league?.owner_id) {
-      setOwnerUserId(league.owner_id);
+    if (ownerId) {
+      setOwnerUserId(ownerId);
     }
 
-    const { data: freshMembers } = await supabase
-      .from("league_members")
-      .select("user_id, role, joined_at")
-      .eq("league_id", leagueId ?? "")
-      .eq("is_active", true);
+    const normalized: MemberRow[] = roster.map((member) => ({
+      ...member,
+      /* Role reloads must not discard a salary the owner has typed but not saved. */
+      total_token_salary:
+        members.find((existing) => existing.user_id === member.user_id)
+          ?.total_token_salary ?? null,
+    }));
 
-    if (freshMembers) {
-      const userIds = freshMembers.map((member) => member.user_id);
-      const { data: freshProfiles } = await supabase
-        .from("profiles")
-        .select("id, display_name, avatar_url, avatar_initials, name_color")
-        .in("id", userIds);
-
-      const profileById = new Map(
-        (freshProfiles ?? []).map((profile) => [profile.id, profile]),
-      );
-
-      const normalized: MemberRow[] = freshMembers.map((member) => {
-        const profile = profileById.get(member.user_id);
-        return {
-          user_id: member.user_id,
-          role: (member.role as "owner" | "admin" | "member") || "member",
-          joined_at: member.joined_at,
-          display_name: profile?.display_name || "Member",
-          avatar_url: profile?.avatar_url || null,
-          avatar_initials: profile?.avatar_initials ?? null,
-          name_color: profile?.name_color ?? null,
-          // Preserved: reloadMembers is about roles, so it must not discard a salary
-          // edit the owner has typed but not yet saved.
-          total_token_salary: members.find(
-            (existing) => existing.user_id === member.user_id,
-          )?.total_token_salary ?? null,
-        };
-      });
-
-      setMembers(normalized);
-      setCurrentUserRole(
-        normalized.find((member) => member.user_id === currentUserId)?.role ??
-          null,
-      );
-    }
+    setMembers(normalized);
+    setCurrentUserRole(
+      normalized.find((member) => member.user_id === currentUserId)?.role ??
+        null,
+    );
   }, [leagueId, currentUserId, members]);
 
   const isOwner = currentUserRole === "owner" || currentUserId === ownerUserId;
@@ -574,7 +321,7 @@ function MembersSettingsPageContent() {
    * @param targetUserId - The user whose role to change.
    * @param nextRole - The new role to assign.
    */
-  async function updateMemberRole(
+  async function handleUpdateMemberRole(
     targetUserId: string,
     nextRole: "admin" | "member",
   ) {
@@ -593,15 +340,7 @@ function MembersSettingsPageContent() {
     setSuccessMessage(null);
 
     try {
-      const { error: updateError } = await supabase
-        .from("league_members")
-        .update({ role: nextRole })
-        .eq("league_id", leagueId)
-        .eq("user_id", targetUserId);
-
-      if (updateError) {
-        throw updateError;
-      }
+      await updateMemberRole(leagueId, targetUserId, nextRole);
 
       setMembers((currentMembers) =>
         currentMembers.map((member) =>
@@ -702,7 +441,7 @@ function MembersSettingsPageContent() {
    * Prompts for confirmation before proceeding.
    * @param targetUserId - The user id of the member to remove.
    */
-  async function removeMember(targetUserId: string) {
+  async function handleRemoveMember(targetUserId: string) {
     if (!leagueId) {
       setError("Select a league before removing a member.");
       return;
@@ -737,15 +476,7 @@ function MembersSettingsPageContent() {
     setSuccessMessage(null);
 
     try {
-      const { error: removeError } = await supabase
-        .from("league_members")
-        .update({ is_active: false })
-        .eq("league_id", leagueId)
-        .eq("user_id", targetUserId);
-
-      if (removeError) {
-        throw removeError;
-      }
+      await removeMember(leagueId, targetUserId);
 
       setMembers((currentMembers) =>
         currentMembers.filter((member) => member.user_id !== targetUserId),
@@ -784,7 +515,7 @@ function MembersSettingsPageContent() {
               </h1>
               <p className="mt-2 text-sm text-slate-400">
                 {leagueName || "League members"}
-                {season ? ` • ${formatSeasonLabel(season)}` : ""}
+                {season ? ` â€¢ ${formatSeasonLabel(season)}` : ""}
               </p>
             </div>
 
@@ -980,7 +711,7 @@ function MembersSettingsPageContent() {
                       <td className="px-3 py-3 text-slate-400">
                         {member.joined_at
                           ? formatDateTimeInZone(member.joined_at, timeZone)
-                          : "—"}
+                          : "â€”"}
                       </td>
                       <td className="px-3 py-3">
                         {canManage ? (
@@ -990,7 +721,7 @@ function MembersSettingsPageContent() {
                                 <button
                                   type="button"
                                   onClick={() =>
-                                    updateMemberRole(member.user_id, "member")
+                                    handleUpdateMemberRole(member.user_id, "member")
                                   }
                                   disabled={isBusy}
                                   className="rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1.5 text-xs text-slate-200 transition hover:border-slate-500 hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
@@ -1020,7 +751,7 @@ function MembersSettingsPageContent() {
                               <button
                                 type="button"
                                 onClick={() =>
-                                  updateMemberRole(member.user_id, "admin")
+                                  handleUpdateMemberRole(member.user_id, "admin")
                                 }
                                 disabled={isBusy}
                                 className="rounded-lg border border-sky-700 bg-sky-950/40 px-2.5 py-1.5 text-xs text-sky-200 transition hover:border-sky-500 hover:bg-sky-900/50 disabled:cursor-not-allowed disabled:opacity-50"
@@ -1031,7 +762,7 @@ function MembersSettingsPageContent() {
 
                             <button
                               type="button"
-                              onClick={() => removeMember(member.user_id)}
+                              onClick={() => handleRemoveMember(member.user_id)}
                               disabled={isBusy}
                               className="rounded-lg border border-red-700 bg-red-950/40 px-2.5 py-1.5 text-xs text-red-200 transition hover:border-red-500 hover:bg-red-900/60 disabled:cursor-not-allowed disabled:opacity-50"
                             >
@@ -1044,7 +775,7 @@ function MembersSettingsPageContent() {
                               ? "Owner"
                               : isCurrentUser
                                 ? "Current user"
-                                : "—"}
+                                : "â€”"}
                           </div>
                         )}
                       </td>
@@ -1103,7 +834,7 @@ function MembersSettingsPageContent() {
                         <span className="text-slate-400">
                           {edit.previous_salary ?? "Default"}
                         </span>
-                        <span className="mx-1.5 text-slate-500">→</span>
+                        <span className="mx-1.5 text-slate-500">â†’</span>
                         <span className="font-semibold text-amber-200">
                           {edit.new_salary}
                         </span>

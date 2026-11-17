@@ -15,7 +15,14 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { supabase } from "@/lib/supabase/client";
+import {
+  loadLeagueColumns,
+  loadLeagueRulesSettings,
+  loadOwnerMemberships,
+  saveLeagueRulesSettings,
+  supportsNumberOfPlayersColumn,
+  updateLeagueRow,
+} from "@/lib/supabase/league-settings";
 import { useConfirm } from "@/components/confirm-dialog";
 import { DateFieldWithCalendar } from "@/components/date-field-with-calendar";
 import {
@@ -270,14 +277,10 @@ function LeagueSettingsPageContent() {
         } | null = null;
         let activeLeagueId = selectedLeagueId;
 
-        const { data: membershipData, error: membershipError } = await supabase
-          .from("league_members")
-          .select("league_id, role, leagues(name)")
-          .eq("user_id", currentUserId)
-          .eq("is_active", true)
-          .order("joined_at", { ascending: false });
+        const { memberships: membershipData, error: membershipError } =
+          await loadOwnerMemberships(currentUserId);
 
-        if (membershipError || !membershipData || membershipData.length === 0) {
+        if (membershipError || membershipData.length === 0) {
           setError("You are not a member of any active league.");
           setLeagueId(null);
           setSeasonId(null);
@@ -327,32 +330,16 @@ function LeagueSettingsPageContent() {
         }
 
         let resolvedNumberOfPlayers = 10;
-        setSupportsNumberOfPlayers(true);
 
-        try {
-          // Optional column: probe for number_of_players and fall back to a default if absent.
-          const { data: detailedLeagueData } = await supabase
-            .from("leagues")
-            .select("number_of_players, image_url")
-            .eq("id", activeLeagueId)
-            .maybeSingle();
+        const columns = await loadLeagueColumns(activeLeagueId);
 
-          if (
-            detailedLeagueData &&
-            typeof detailedLeagueData.number_of_players === "number" &&
-            Number.isFinite(detailedLeagueData.number_of_players)
-          ) {
-            resolvedNumberOfPlayers = detailedLeagueData.number_of_players;
-          }
-
-          const loadedImageUrl =
-            (detailedLeagueData as { image_url?: string | null } | null)
-              ?.image_url ?? null;
-          setLeagueImageUrl(loadedImageUrl);
-          setLeagueImagePreview(loadedImageUrl);
-        } catch {
-          setSupportsNumberOfPlayers(false);
+        if (columns.number_of_players !== null) {
+          resolvedNumberOfPlayers = columns.number_of_players;
         }
+
+        setLeagueImageUrl(columns.image_url);
+        setLeagueImagePreview(columns.image_url);
+        setSupportsNumberOfPlayers(columns.supported);
 
         setLeagueId(activeLeagueId);
         setLeagueName(leagueData.name || "");
@@ -432,22 +419,13 @@ function LeagueSettingsPageContent() {
           free_agency_deadline_at?: string | null;
         } | null = null;
 
-        try {
-          // Optional columns: treat a query error as "columns not present" rather than failing hard.
-          const response = await supabase
-            .from("league_settings")
-            .select(
-              "enable_transaction_costs, transaction_cost, admins_approve_trades, owners_admins_vote_on_trades, allow_token_trades, enable_pokemon_costs, admins_edit_matchups, trade_deadline_at, free_agency_deadline_at",
-            )
-            .eq("league_id", activeLeagueId)
-            .eq("season_id", seasonData.id)
-            .maybeSingle();
+        const loadedRulesSettings = await loadLeagueRulesSettings(
+          activeLeagueId,
+          seasonData.id,
+        );
 
-          settingsData = response.data;
-          setSupportsLeagueSettingsColumns(!response.error);
-        } catch {
-          setSupportsLeagueSettingsColumns(false);
-        }
+        settingsData = loadedRulesSettings.data;
+        setSupportsLeagueSettingsColumns(loadedRulesSettings.supported);
 
         if (!settingsData) {
           setError(null);
@@ -1017,37 +995,15 @@ function LeagueSettingsPageContent() {
         latestSupportsSeasonName = false;
       }
 
-      try {
-        // Re-probe schema support before saving to detect columns added after page load.
-        const { data: schemaProbe } = await supabase
-          .from("leagues")
-          .select("number_of_players")
-          .eq("id", leagueId)
-          .limit(1);
+      latestSupportsNumberOfPlayers =
+        await supportsNumberOfPlayersColumn(leagueId);
 
-        latestSupportsNumberOfPlayers =
-          Array.isArray(schemaProbe) || !!schemaProbe;
-      } catch {
-        latestSupportsNumberOfPlayers = false;
-      }
-
-      try {
-        const { data: settingsProbe, error: settingsProbeError } =
-          await supabase
-            .from("league_settings")
-            .select(
-              "enable_transaction_costs, transaction_cost, admins_approve_trades, owners_admins_vote_on_trades, allow_token_trades, admins_edit_matchups, trade_deadline_at, free_agency_deadline_at",
-            )
-            .eq("league_id", leagueId)
-            .eq("season_id", seasonId)
-            .limit(1);
-
-        latestSupportsLeagueSettingsColumns =
-          !settingsProbeError &&
-          (Array.isArray(settingsProbe) || !!settingsProbe);
-      } catch {
-        latestSupportsLeagueSettingsColumns = false;
-      }
+      const settingsProbe = await loadLeagueRulesSettings(
+        leagueId,
+        seasonId,
+        true,
+      );
+      latestSupportsLeagueSettingsColumns = settingsProbe.supported;
 
       setSupportsNumberOfPlayers(latestSupportsNumberOfPlayers);
       setSupportsLeagueSettingsColumns(latestSupportsLeagueSettingsColumns);
@@ -1108,14 +1064,7 @@ function LeagueSettingsPageContent() {
         leagueUpdatePayload.number_of_players = normalizedPlayers;
       }
 
-      const { error: leagueError } = await supabase
-        .from("leagues")
-        .update(leagueUpdatePayload)
-        .eq("id", leagueId);
-
-      if (leagueError) {
-        throw new Error(leagueError.message);
-      }
+      await updateLeagueRow(leagueId, leagueUpdatePayload);
 
       const settingsPayload: {
         league_id: string;
@@ -1154,13 +1103,9 @@ function LeagueSettingsPageContent() {
         );
       }
 
-      const { error: settingsError } = await supabase
-        .from("league_settings")
-        .upsert(settingsPayload, { onConflict: "league_id, season_id" });
-
-      if (settingsError) {
-        throw new Error(settingsError.message);
-      }
+      await saveLeagueRulesSettings(
+        settingsPayload as unknown as Record<string, unknown>,
+      );
 
       /*
        * Format and weekly deadline live behind owner RPCs rather than the

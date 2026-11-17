@@ -29,17 +29,27 @@ import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useSta
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useShellLeague } from "@/components/league-shell-context";
-import { supabase } from "@/lib/supabase/client";
 import {
   FORMS_DATA,
   getPokemonDetailsBySlug,
-  getPokemonEntryBySlug,
   getPokemonRarity,
   getSpriteUrl,
   isCosmeticPokemonForm,
   matchPokemonName,
   POKEMON_DATA,
 } from "@/lib/pokeapi";
+import {
+  deletePool,
+  fetchPoolRows,
+  loadPoolLeague,
+  loadSavedPools,
+  savePoolRows,
+  setActivePool,
+  updatePoolRowTier,
+  upsertPoolRow,
+  type PoolPokemonRow,
+  type PoolSummary,
+} from "@/lib/supabase/draft-pools";
 import { AbilityTooltip } from "@/components/ability-tooltip";
 import { useConfirm } from "@/components/confirm-dialog";
 import { LoadingGif } from "@/components/loading-gif";
@@ -49,46 +59,6 @@ import { getSelectedSeason } from "@/lib/season-selection";
 import { TYPE_STYLES } from "@/lib/type-styles";
 import { isCurrentSeason as checkIsCurrentSeason, loadSeason } from "@/lib/supabase/seasons";
 import { createUuid } from "@/lib/uuid";
-
-/** A named, saved draft pool for a league season. */
-type PoolSummary = {
-  /** Draft pool primary key. */
-  id: string;
-  /** Display name of the pool. */
-  name: string;
-  /** Whether this is the pool the season's draft uses. */
-  is_active: boolean;
-};
-
-/** A pool Pokémon row, enriched with type/BST/gen and optional notes. */
-type PoolPokemonRow = {
-  /** Stable client key used for React keys, selection, and edit targeting. */
-  key: string;
-  /** Primary key of the draft_pool_pokemon row, or null when not yet saved. */
-  id: string | null;
-  /** National Pokédex number used for ordering (shared by alternate forms). */
-  dex: number;
-  /** Sprite id: the dex number for species, 10001+ for alternate forms. */
-  spriteId: number;
-  /** PokeAPI slug, e.g. "pikachu" or "deoxys-defense". */
-  pokemon_id: string;
-  /** Human-readable display name, e.g. "Deoxys (Defense Forme)". */
-  species_name: string;
-  /** Tier bucket as an arbitrary non-negative integer (0 = unranked). */
-  tier_value: number;
-  /** Whether the species is enabled in the pool for drafting. */
-  is_in_pool: boolean;
-  /** Primary type name, e.g. "electric". */
-  type_primary: string | null;
-  /** Secondary type name or null for single-typed species. */
-  type_secondary: string | null;
-  /** Sum of base stats. */
-  bst: number | null;
-  /** Generation label, e.g. "Gen 1". */
-  generation: string | null;
-  /** Optional trainer note carried through CSV import/export. */
-  notes: string | null;
-};
 
 /** Sortable table columns, including the national-dex default ordering. */
 type SortKey =
@@ -223,40 +193,6 @@ function buildDefaultRows(): PoolPokemonRow[] {
     notes: null,
   }));
   return [...species, ...forms];
-}
-
-/**
- * Creates the league's first draft pool under the given name.
- *
- * @param leagueId - The id of the league owning the pool.
- * @param seasonId - The id of the season the pool belongs to.
- * @param userId - The signed-in league owner creating the pool.
- * @param name - The pool's display name.
- * @returns A promise resolving to the created pool's id.
- * @throws If the DB insert fails (e.g. RLS denies non-owners).
- */
-async function createPool(
-  leagueId: string,
-  seasonId: string,
-  userId: string,
-  name: string,
-): Promise<string> {
-  const { data, error } = await supabase
-    .from("draft_pools")
-    .insert({
-      league_id: leagueId,
-      season_id: seasonId,
-      name,
-      created_by: userId,
-    })
-    .select("id")
-    .single();
-
-  if (error) {
-    throw new Error(error.message || "Unable to create the draft pool.");
-  }
-
-  return (data as { id: string }).id;
 }
 
 /**
@@ -520,205 +456,6 @@ const PoolTableRow = memo(function PoolTableRow({
   );
 });
 
-/** Raw shape of a `draft_pool_pokemon` row as returned by the select below. */
-type PoolRowRecord = {
-  id: string;
-  pokemon_id: string;
-  species_name: string;
-  tier_value: number;
-  is_in_pool: boolean;
-  notes: string | null;
-};
-
-/** Rows fetched per request; matches Supabase/PostgREST's default response cap. */
-const POOL_PAGE_SIZE = 1000;
-
-/**
- * Compact entry stored in `draft_pool_archives.pokemon`.
- *
- * A tuple rather than an object keeps the JSONB array from repeating keys on
- * every Pokémon, which is what lets TOAST compress an archive to a fraction of
- * the rows it replaces.
- */
-type ArchivedPoolEntry = [
-  pokemon_id: string,
-  species_name: string,
-  tier_value: number,
-  is_in_pool: boolean,
-  notes: string | null,
-];
-
-/**
- * Reads a closed season's pool from its compressed archive snapshot.
- *
- * @param poolId - The id of the archived draft pool.
- * @param options - `inPoolOnly` narrows the result to species that were enabled
- *   in the pool, matching the read-only view the page shows members.
- * @returns The archived rows, or null when the pool has no archive row (still
- *   live, or never configured).
- * @throws If the archive query fails.
- */
-async function fetchArchivedPoolRows(
-  poolId: string,
-  options: { inPoolOnly?: boolean } = {},
-): Promise<PoolPokemonRow[] | null> {
-  const { data, error } = await supabase
-    .from("draft_pool_archives")
-    .select("pokemon")
-    .eq("draft_pool_id", poolId)
-    .maybeSingle();
-
-  if (error) {
-    throw new Error(error.message || "The archived pool could not be loaded.");
-  }
-
-  if (!data) {
-    return null;
-  }
-
-  const entries = (data as { pokemon: ArchivedPoolEntry[] }).pokemon ?? [];
-
-  return entries
-    .filter((entry) => !options.inPoolOnly || entry[3])
-    .map(([pokemon_id, species_name, tier_value, is_in_pool, notes]) => {
-      const match = getPokemonEntryBySlug(pokemon_id);
-      return {
-        /*
-         * Archived rows have no draft_pool_pokemon id, so they use a synthetic
-         * key and a null id. Editing is disabled for past seasons, so nothing
-         * ever tries to persist them.
-         */
-        key: `archived:${pokemon_id}`,
-        id: null,
-        dex: match?.dexNumber ?? 0,
-        spriteId: match?.spriteId ?? 0,
-        pokemon_id,
-        species_name: species_name || match?.name || pokemon_id,
-        tier_value,
-        is_in_pool,
-        type_primary: match?.types[0] ?? null,
-        type_secondary: match?.types[1] ?? null,
-        bst: match?.bst ?? null,
-        generation: match?.generation ?? null,
-        notes,
-      };
-    });
-}
-
-/**
- * Fetches the Pokémon rows for a draft pool from the database.
- *
- * Checks the archive snapshot first: a pool belonging to a closed season has no
- * draft_pool_pokemon rows left, and the snapshot is what keeps its historical
- * page readable. Live pools page through the table instead of issuing one
- * unbounded select: Supabase caps a single response (default 1000 rows) and a
- * configured pool holds the full national dex plus alternate forms (>1000 rows).
- * Without paging the rows past the cap silently vanish from the editor after a
- * save-triggered refetch.
- *
- * @param poolId - The id of the draft pool whose rows to fetch.
- * @param options - `inPoolOnly` narrows the read to species currently enabled in
- *   the pool. Read-only members only need those rows; owners need the full table
- *   because they can toggle off-pool species back in.
- * @returns A promise resolving to the ordered list of pool Pokémon rows.
- * @throws If the archive or any page query fails.
- */
-async function fetchPoolRows(
-  poolId: string,
-  options: { inPoolOnly?: boolean } = {},
-): Promise<PoolPokemonRow[]> {
-  const archived = await fetchArchivedPoolRows(poolId, options);
-
-  if (archived !== null) {
-    return archived;
-  }
-
-  const allRows: PoolRowRecord[] = [];
-
-  // The id order keeps each page's window stable across the loop.
-  for (let from = 0; ; from += POOL_PAGE_SIZE) {
-    let query = supabase
-      .from("draft_pool_pokemon")
-      .select("id, pokemon_id, species_name, tier_value, is_in_pool, notes")
-      .eq("draft_pool_id", poolId);
-
-    if (options.inPoolOnly) {
-      query = query.eq("is_in_pool", true);
-    }
-
-    const { data, error: rowsError } = await query
-      .order("id", { ascending: true })
-      .range(from, from + POOL_PAGE_SIZE - 1);
-
-    if (rowsError) {
-      throw new Error(rowsError.message || "The pool could not be loaded.");
-    }
-
-    const page = (data ?? []) as PoolRowRecord[];
-    allRows.push(...page);
-
-    // A short page means the table is exhausted; a full page means another may follow.
-    if (page.length < POOL_PAGE_SIZE) {
-      break;
-    }
-  }
-
-  return allRows.map(
-    (row): PoolPokemonRow => {
-      // Derive the dex number and sprite id from the matched catalog/form entry:
-      // alternate forms keep their base species' dex but render their own sprite.
-      const match = getPokemonEntryBySlug(row.pokemon_id);
-      return {
-        key: row.id,
-        id: row.id,
-        dex: match?.dexNumber ?? 0,
-        spriteId: match?.spriteId ?? 0,
-        pokemon_id: row.pokemon_id,
-        species_name: row.species_name || match?.name || row.pokemon_id,
-        tier_value: row.tier_value,
-        is_in_pool: row.is_in_pool,
-        /*
-         * Typing, BST and generation are derived from the bundled catalog rather
-         * than sent again by PostgREST. The table is thousands of rows and those
-         * columns are static Pokémon metadata, not editable pool state.
-         */
-        type_primary: match?.types[0] ?? null,
-        type_secondary: match?.types[1] ?? null,
-        bst: match?.bst ?? null,
-        generation: match?.generation ?? null,
-        notes: row.notes,
-      };
-    },
-  );
-}
-
-/**
- * Builds the database payload for a pool row, carrying the PK id when known.
- *
- * @param row - The pool row to persist.
- * @param poolId - The id of the pool the row belongs to.
- * @param id - The UUID to write for new rows (the deployed table has no default).
- * @returns The insert/update payload.
- */
-function buildPoolRowPayload(
-  row: PoolPokemonRow,
-  poolId: string,
-  id: string | null,
-): Record<string, unknown> {
-  return {
-    id: id ?? undefined,
-    draft_pool_id: poolId,
-    pokemon_id: row.pokemon_id,
-    species_name: row.species_name,
-    tier_value: row.tier_value,
-    is_in_pool: row.is_in_pool,
-    type_primary: row.type_primary,
-    type_secondary: row.type_secondary,
-    bst: row.bst,
-    generation: row.generation,
-    notes: row.notes,
-  };
-}
 
 /**
  * Client component that loads and renders the league's draft pools.
@@ -844,13 +581,9 @@ function PoolPageContent() {
         setError(null);
         setSuccessMessage(null);
 
-        const { data: league, error: leagueError } = await supabase
-          .from("leagues")
-          .select("id, name, owner_id")
-          .eq("id", selectedLeagueId)
-          .maybeSingle();
+        const league = await loadPoolLeague(selectedLeagueId);
 
-        if (leagueError || !league) {
+        if (!league) {
           setError("This league could not be loaded.");
           return;
         }
@@ -880,52 +613,10 @@ function PoolPageContent() {
         );
         setIsCurrentSeason(seasonIsCurrent);
 
-        // Load the saved pools for this season. The dropdown stays empty (and
-        // no pool is auto-created) until the owner actually saves one.
-        const { data: poolRows, error: poolsError } = await supabase
-          .from("draft_pools")
-          .select("id, name, is_active")
-          .eq("league_id", resolvedLeagueId)
-          .eq("season_id", resolvedSeasonId)
-          .order("created_at", { ascending: true });
-
-        if (poolsError) {
-          throw new Error(poolsError.message || "The draft pools could not be loaded.");
-        }
-
-        const poolList = (poolRows ?? []) as PoolSummary[];
-
-        /*
-         * Earlier builds auto-created a "Default Pool" on first load. An empty
-         * one is just that old placeholder and is left out of the dropdown; once
-         * the owner has saved Pokémon into it, it is real data and stays.
-         */
-        const legacyDefaultIds = poolList
-          .filter((pool) => pool.name.trim().toLowerCase() === "default pool")
-          .map((pool) => pool.id);
-
-        let visiblePools = poolList;
-
-        if (legacyDefaultIds.length > 0) {
-          const { data: legacyRows, error: legacyError } = await supabase
-            .from("draft_pool_pokemon")
-            .select("draft_pool_id")
-            .in("draft_pool_id", legacyDefaultIds);
-
-          if (!legacyError) {
-            const poolsWithRows = new Set(
-              ((legacyRows ?? []) as { draft_pool_id: string }[]).map(
-                (row) => row.draft_pool_id,
-              ),
-            );
-
-            visiblePools = poolList.filter(
-              (pool) =>
-                !legacyDefaultIds.includes(pool.id) ||
-                poolsWithRows.has(pool.id),
-            );
-          }
-        }
+        const visiblePools = await loadSavedPools(
+          resolvedLeagueId,
+          resolvedSeasonId,
+        );
 
         setPools(visiblePools);
 
@@ -1172,117 +863,20 @@ function PoolPageContent() {
         return;
       }
 
-      let targetPoolId = activePoolId;
 
-      if (!targetPoolId) {
-        if (!leagueId || !seasonId || !currentUserId) {
-          throw new Error("You must be signed in to save a draft pool.");
-        }
-        targetPoolId = await createPool(
-          leagueId,
-          seasonId,
-          currentUserId,
-          trimmedName,
-        );
-      } else {
-        const { data: poolRow, error: poolError } = await supabase
-          .from("draft_pools")
-          .select("id, name")
-          .eq("id", targetPoolId)
-          .maybeSingle();
-
-        const currentPool = poolRow as PoolSummary | null;
-
-        if (poolError || !currentPool) {
-          throw new Error(
-            poolError?.message || "The active draft pool no longer exists.",
-          );
-        }
-
-        if (currentPool.name !== trimmedName) {
-          const { error: renameError } = await supabase
-            .from("draft_pools")
-            .update({ name: trimmedName })
-            .eq("id", targetPoolId);
-
-          if (renameError) {
-            throw new Error(renameError.message || "Unable to rename the pool.");
-          }
-        }
+      if (!leagueId || !seasonId || !currentUserId) {
+        throw new Error("You must be signed in to save a draft pool.");
       }
 
-      // Merge any duplicated pokemon_id rows that may have been staged (a CSV
-      // name resolving to a slug already present), keeping the copy that
-      // carries a real DB id so existing rows are updated rather than re-inserted.
-      const dedupedBySlug = new Map<string, PoolPokemonRow>();
-      for (const row of rows) {
-        const existing = dedupedBySlug.get(row.pokemon_id);
-        if (!existing || (existing.id === null && row.id !== null)) {
-          dedupedBySlug.set(row.pokemon_id, row);
-        }
-      }
-      const dedupedRows = [...dedupedBySlug.values()];
-
-      // Rows without a DB id get an explicit UUID: the deployed table has no
-      // auto-generating default, and an omitted id inserts NULL into a NOT NULL
-      // primary key.
-      const existingRows = dedupedRows.filter((row) => row.id !== null);
-      const insertRows = dedupedRows.filter((row) => row.id === null);
-
-      if (existingRows.length > 0) {
-        const { error: updateError } = await supabase
-          .from("draft_pool_pokemon")
-          .upsert(
-            existingRows.map((row) =>
-              buildPoolRowPayload(row, targetPoolId, row.id),
-            ),
-            { onConflict: "id" },
-          );
-
-        if (updateError) {
-          throw new Error(updateError.message || "Unable to save the pool.");
-        }
-      }
-
-      if (insertRows.length > 0) {
-        // The composite natural key (draft_pool_id, pokemon_id) makes the upsert
-        // merge into an existing pool row for that Pokémon instead of raising a
-        // duplicate constraint error.
-        const { error: insertError } = await supabase
-          .from("draft_pool_pokemon")
-          .upsert(
-            insertRows.map((row) =>
-              buildPoolRowPayload(row, targetPoolId, createUuid()),
-            ),
-            { onConflict: "draft_pool_id,pokemon_id" },
-          );
-
-        if (insertError) {
-          throw new Error(insertError.message || "Unable to save the pool.");
-        }
-      }
-
-      const deletedIds = savedRows
-        .filter(
-          (saved) =>
-            saved.id &&
-            !dedupedRows.some(
-              (row) => row.pokemon_id === saved.pokemon_id,
-            ),
-        )
-        .map((saved) => saved.id)
-        .filter((id): id is string => id !== null);
-
-      if (deletedIds.length > 0) {
-        const { error: deleteError } = await supabase
-          .from("draft_pool_pokemon")
-          .delete()
-          .in("id", deletedIds);
-
-        if (deleteError) {
-          throw new Error(deleteError.message || "Unable to remove Pokémon.");
-        }
-      }
+      const targetPoolId = await savePoolRows({
+        poolId: activePoolId,
+        name: trimmedName,
+        rows,
+        savedRows,
+        leagueId,
+        seasonId,
+        userId: currentUserId,
+      });
 
       // Refresh from the database so new rows get real ids and dirty clears.
       const refreshed = await fetchPoolRows(targetPoolId);
@@ -1336,13 +930,7 @@ function PoolPageContent() {
     try {
       // The RPC clears any other active pool in the season and activates this
       // one in a single transaction, so the one-active-per-season index holds.
-      const { error: rpcError } = await supabase.rpc("set_active_draft_pool", {
-        p_pool_id: activePoolId,
-      });
-
-      if (rpcError) {
-        throw new Error(rpcError.message || "Unable to set the active pool.");
-      }
+      await setActivePool(activePoolId);
 
       setPools((current) =>
         current.map((pool) => ({ ...pool, is_active: pool.id === activePoolId })),
@@ -1394,14 +982,7 @@ function PoolPageContent() {
     setSuccessMessage(null);
 
     try {
-      const { error: deleteError } = await supabase
-        .from("draft_pools")
-        .delete()
-        .eq("id", activePoolId);
-
-      if (deleteError) {
-        throw new Error(deleteError.message || "Unable to delete the pool.");
-      }
+      await deletePool(activePoolId);
 
       const remaining = pools.filter((pool) => pool.id !== activePoolId);
       setPools(remaining);
@@ -1472,16 +1053,8 @@ function PoolPageContent() {
 
     try {
       if (row.id) {
-        const { error: updateError } = await supabase
-          .from("draft_pool_pokemon")
-          .update({ tier_value: row.tier_value })
-          .eq("id", row.id);
+        await updatePoolRowTier(row.id, row.tier_value);
 
-        if (updateError) {
-          throw new Error(
-            updateError.message || "Unable to confirm the tier change.",
-          );
-        }
         setSavedRows((current) =>
           current.map((saved) =>
             saved.key === rowId
@@ -1491,17 +1064,8 @@ function PoolPageContent() {
         );
       } else {
         const newId = createUuid();
-        const { error: upsertError } = await supabase
-          .from("draft_pool_pokemon")
-          .upsert(buildPoolRowPayload(row, activePoolId, newId), {
-            onConflict: "draft_pool_id,pokemon_id",
-          });
+        await upsertPoolRow(row, activePoolId, newId);
 
-        if (upsertError) {
-          throw new Error(
-            upsertError.message || "Unable to confirm the tier change.",
-          );
-        }
         setRows((current) =>
           current.map((candidate) =>
             candidate.key === rowId ? { ...candidate, id: newId } : candidate,

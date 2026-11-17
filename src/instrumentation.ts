@@ -6,6 +6,12 @@
  * deadlines are always advanced by the app server regardless of which routes or
  * pages get rendered.
  */
+
+/**
+ * Starts the draft and weekly-deadline heartbeats on the Node runtime.
+ *
+ * @returns A promise that resolves once the heartbeats are running.
+ */
 export async function register(): Promise<void> {
   if (process.env.NEXT_RUNTIME === "nodejs") {
     const { startDraftHeartbeat } = await import(

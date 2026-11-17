@@ -11,7 +11,6 @@ import { Avatar, SectionCard } from "./schedule-ui";
 
 /** Props for the {@link StandingsTab} component. */
 export interface StandingsTabProps {
-  /** The loaded page payload. */
   goods: SchedulePageGoods;
   /** Resolves a team to the name shown for it. */
   teamLabel: (teamId: string, fallbackName: string) => string;

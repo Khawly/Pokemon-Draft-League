@@ -13,25 +13,17 @@ import { SectionCard, sideByTeamId } from "./schedule-ui";
 
 /** Props for the {@link HistoryTab} component. */
 export interface HistoryTabProps {
-  /** The loaded page payload. */
   goods: SchedulePageGoods;
-  /** Every posted game, newest first. */
   history: (scheduleApi.ScheduleMatchResult & {
     match: scheduleApi.ScheduleMatch;
   })[];
   /** The season's first playoff week, for the round labels. */
   firstPlayoffWeek: number | null;
-  /** The reader's zone, for submission timestamps. */
   timeZone: string;
-  /** True while a delete is in flight. */
   isBusy: boolean;
-  /** Deletes a posted match after confirmation. */
   onDeleteMatch: (match: scheduleApi.ScheduleMatch) => void;
-  /** The proposal log bucketed by week. */
   proposalHistoryGroups: scheduleApi.ProposalHistoryGroup[];
-  /** Whether the proposal log is still loading. */
   proposalHistoryIsLoading: boolean;
-  /** The proposal log's error, if the read failed. */
   proposalHistoryError: string | null;
 }
 

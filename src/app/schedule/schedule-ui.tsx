@@ -15,12 +15,6 @@ import type * as scheduleApi from "@/lib/supabase/schedule";
  * Delegates to the shared avatar so a member's initials pick up the colour they
  * chose, while keeping the winner highlight a matchup card adds.
  *
- * @param props.name - Display name used for the fallback initial.
- * @param props.nameColor - The member's chosen name colour.
- * @param props.avatarUrl - Their uploaded avatar, or null.
- * @param props.initials - Stored initials, or null to derive them from the name.
- * @param props.size - Square pixel dimensions.
- * @param props.winner - Whether to highlight the ring.
  * @returns The avatar.
  */
 export function Avatar({
@@ -53,9 +47,6 @@ export function Avatar({
 /**
  * Wraps a schedule section in the app's card styling.
  *
- * @param props.title - The section heading.
- * @param props.action - An optional control aligned to the right of the heading.
- * @param props.children - The section body.
  * @returns The card.
  */
 export function SectionCard({
@@ -80,9 +71,7 @@ export function SectionCard({
 
 /**
  * A labelled form field wrapper.
- * @param props.label - The field label.
- * @param props.hint - Optional helper or validation text.
- * @param props.children - The form control.
+ *
  * @returns The labelled field.
  */
 export function Field({

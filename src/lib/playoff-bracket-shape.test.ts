@@ -1,3 +1,6 @@
+/*
+ * Tests for the bracket template helpers: byes, rounds, feeders, and slot labels.
+ */
 import { describe, expect, it } from "vitest";
 
 import {

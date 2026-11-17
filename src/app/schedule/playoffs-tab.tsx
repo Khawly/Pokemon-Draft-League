@@ -14,21 +14,16 @@ import { SectionCard } from "./schedule-ui";
 
 /** Props for the {@link PlayoffsTab} component. */
 export interface PlayoffsTabProps {
-  /** The loaded page payload. */
   goods: SchedulePageGoods;
-  /** True while a bracket mutation is in flight. */
   isBusy: boolean;
-  /** Rebuilds the bracket from scratch. */
   onResetPlayoffs: () => void;
-  /** Settles the next bracket round. */
   onAdvancePlayoffs: () => void;
-  /** The bracket template rows. */
+  /** The bracket template, which also describes rounds with no match yet. */
   rows: SchedulePlayoffTemplateRow[];
   /** Resolves a team id to its display name and colour. */
   resolveTeam: (
     teamId: string | null,
   ) => { name: string; color: string | null } | null;
-  /** The crowned team, when the final has been decided. */
   championWinner: { name: string; color: string | null } | null;
 }
 

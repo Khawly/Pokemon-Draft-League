@@ -27,15 +27,12 @@ const LOG_TIMESTAMP_FORMAT: Intl.DateTimeFormatOptions = {
 
 /** Props for the {@link ProposalHistoryPanel} component. */
 export interface ProposalHistoryPanelProps {
-  /** The log bucketed by week, newest week first. */
   groups: scheduleApi.ProposalHistoryGroup[];
   /** The owner's zone, so every offered time is shown in one wall clock. */
   timeZone: string;
   /** The season's first playoff week, so a bracket round reads as a week. */
   firstPlayoffWeek: number | null;
-  /** Whether the log is still being fetched. */
   isLoading: boolean;
-  /** Message to show in place of the log if the read failed. */
   loadError: string | null;
 }
 

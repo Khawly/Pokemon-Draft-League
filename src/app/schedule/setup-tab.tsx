@@ -21,31 +21,20 @@ export interface ScheduleFormState {
 
 /** Props for the {@link SetupTab} component. */
 export interface SetupTabProps {
-  /** The loaded page payload. */
   goods: SchedulePageGoods;
-  /** Whether the schedule is drawn automatically or entered by hand. */
   scheduleMode: "automatic" | "manual";
-  /** Switches the schedule method. */
   onScheduleModeChange: (mode: "automatic" | "manual") => void;
-  /** The setup form. */
   form: ScheduleFormState;
-  /** Updates the setup form. */
   onFormChange: (form: ScheduleFormState) => void;
-  /** Playoff-team cap for this league. */
   maxPlayoffTeams: number;
   /** First-round byes implied by the chosen playoff field. */
   byes: number;
   /** True while generating or when the form is invalid. */
   generateDisabled: boolean;
-  /** Generates the schedule. */
   onGenerateSchedule: () => void;
-  /** True while the toilet-bowl toggle is saving. */
   isSavingToilet: boolean;
-  /** Turns the consolation bracket on or off. */
   onToggleToiletBowl: (enabled: boolean) => void;
-  /** True while the manual schedule is saving. */
   isSavingManual: boolean;
-  /** Saves the hand-entered pairings. */
   onSaveManualSchedule: (games: scheduleApi.ManualScheduleGame[]) => void;
 }
 

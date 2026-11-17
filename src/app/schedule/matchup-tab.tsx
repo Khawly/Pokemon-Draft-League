@@ -30,13 +30,9 @@ import { type MatchupPanel } from "./use-matchup-panel";
 
 /** Props for the {@link MatchupTab} component. */
 export interface MatchupTabProps {
-  /** The loaded page payload. */
   goods: scheduleApi.SchedulePageGoods;
-  /** True while a write is in flight. */
   isBusy: boolean;
-  /** The reader's zone, used for every time input and display. */
   timeZone: string;
-  /** The tab's state and actions. */
   panel: MatchupPanel;
 }
 

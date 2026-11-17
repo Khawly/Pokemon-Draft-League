@@ -1,3 +1,6 @@
+/*
+ * Tests for crown matching: which members are crowned, and the honor label a member gets.
+ */
 import { describe, expect, it } from "vitest";
 
 import { crownKeys, isCrownedMember, memberHonor, NO_CROWN } from "./champion-crown";

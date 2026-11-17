@@ -1,3 +1,6 @@
+/*
+ * Tests for the refetch delay schedule and the hidden-document guard.
+ */
 import { describe, expect, it } from "vitest";
 
 import { isDocumentHidden, refetchDelayMs } from "./refetch-throttle";

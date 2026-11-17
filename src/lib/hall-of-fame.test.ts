@@ -1,3 +1,6 @@
+/*
+ * Tests for the season badge lookup used by the hall of fame.
+ */
 import { describe, expect, it } from "vitest";
 
 import { badgeForSeason } from "./hall-of-fame";

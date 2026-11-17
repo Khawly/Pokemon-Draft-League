@@ -57,12 +57,13 @@ export type MatchupWeekOption = {
  * back to an empty state until it arrives.
  */
 export interface MatchupPanelOptions {
+  /** Null while the league is still loading; derivations fall back to empty. */
   goods: scheduleApi.SchedulePageGoods | null;
   /** The league's current week, from the deadline pointer or the matches. */
   currentWeek: number | null;
   /** The season's first playoff week, for round labels. */
   firstPlayoffWeek: number | null;
-  /** The reader's zone, used for every time input and display. */
+  /** The reader's zone; schedule inputs and displays both use it. */
   timeZone: string;
   confirm: UseConfirmResult["confirm"];
   /** Runs a write, refreshes the page, and reports whether it succeeded. */

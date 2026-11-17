@@ -89,7 +89,6 @@ const STATUS_LABELS: Record<string, string> = {
 /**
  * Renders a match's status as a pill.
  *
- * @param props.status - The match status to label.
  * @returns The status pill.
  */
 export function StatusBadge({
@@ -120,8 +119,6 @@ export function StatusBadge({
  * (`text-emerald-300`, `text-slate-400`) and a specified colour on a child beats
  * one inherited from a parent, which would leave the text readable on black.
  *
- * @param props.hidden - Whether the mask is on.
- * @param props.children - The result values to cover.
  * @returns The children, masked when the filter is on.
  */
 export function Spoiler({
@@ -243,12 +240,8 @@ interface RosterSpritesProps {
   /** The team's roster to draw, richest Pokemon first. */
   roster: scheduleApi.ScheduleRosterSprite[];
   align?: "center" | "start";
-  /** Whether to print each Pokemon's name under its sprite. Off by default. */
   showNames?: boolean;
-  /**
-   * Apply the one-row/split-evenly layout even without names. Named sprites
-   * always use it; unnamed cards opt in when they want the same arrangement.
-   */
+  /** Apply the split-evenly layout even without names. */
   splitRows?: boolean;
 }
 
@@ -260,7 +253,6 @@ export interface MatchupHistoryCardProps {
   hideSpoilers: boolean;
   selected: boolean;
   onSelect: () => void;
-  /** Sprite rosters keyed by team id, so each side shows its Pokemon. */
   rostersByTeam: Record<string, scheduleApi.ScheduleRosterSprite[]>;
   /** The season's first playoff week, so a bracket round reads as "Playoffs (Week 1)". */
   firstPlayoffWeek: number | null;

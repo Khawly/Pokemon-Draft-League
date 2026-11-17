@@ -11,10 +11,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import {
-  createLeagueInvite,
-  getLatestLeagueInviteToken,
-} from "@/lib/supabase/invites";
+import { createLeagueInvite, getLatestLeagueInviteToken } from "@/lib/supabase/invites";
 import { routeFor } from "@/lib/league-routes";
 
 /** Props for the {@link PreDraftPanel} component. */

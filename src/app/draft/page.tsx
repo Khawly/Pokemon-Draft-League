@@ -29,15 +29,7 @@
 "use client";
 
 import Image from "next/image";
-import {
-  Suspense,
-  memo,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { Suspense, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useConfirm } from "@/components/confirm-dialog";
 import { useRealtimeInvalidation } from "@/lib/use-realtime-invalidation";
@@ -66,18 +58,9 @@ import {
 import { AbilityTooltip } from "@/components/ability-tooltip";
 import { MemberName } from "@/components/member-name";
 import { MemberAvatar } from "@/components/member-avatar";
-import {
-  getPokemonDetailsBySlug,
-  getPokemonEntryBySlug,
-  getSpriteUrl,
-} from "@/lib/pokeapi";
+import { getPokemonDetailsBySlug, getPokemonEntryBySlug, getSpriteUrl } from "@/lib/pokeapi";
 import { useUserTimeZone } from "@/lib/user-timezone";
-import {
-  PageShell,
-  PageShellCard,
-  PageShellError,
-  PageShellLoading,
-} from "@/components/page-shell";
+import { PageShell, PageShellCard, PageShellError, PageShellLoading } from "@/components/page-shell";
 import { TablePagination } from "@/components/table-pagination";
 import { getSelectedSeason } from "@/lib/season-selection";
 

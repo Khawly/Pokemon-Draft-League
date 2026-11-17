@@ -24,11 +24,7 @@
  */
 "use client";
 
-import {
-  useMemo,
-  useState,
-  type ReactNode,
-} from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { getSelectedSeason } from "@/lib/season-selection";
 import { useConfirm } from "@/components/confirm-dialog";
 import { MemberName } from "@/components/member-name";
@@ -42,11 +38,7 @@ import { isDeadlinePassed } from "@/lib/deadlines";
 import { useRealtimeInvalidation } from "@/lib/use-realtime-invalidation";
 import { useLeaguePageData } from "@/lib/use-league-page-data";
 import { typeStyle } from "@/lib/type-styles";
-import {
-  PageShell,
-  PageShellError,
-  PageShellLoading,
-} from "@/components/page-shell";
+import { PageShell, PageShellError, PageShellLoading } from "@/components/page-shell";
 import {
   buildTradesView,
   parseTokenAmount,

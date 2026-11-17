@@ -15,22 +15,9 @@
  */
 "use client";
 
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-  type ReactNode,
-} from "react";
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 
-import {
-  crownKeys,
-  memberHonor,
-  NO_CROWN,
-  type CrownKeys,
-  type MemberHonor,
-} from "@/lib/champion-crown";
+import { crownKeys, memberHonor, NO_CROWN, type CrownKeys, type MemberHonor } from "@/lib/champion-crown";
 import { loadEliteFinishers } from "@/lib/supabase/honors";
 import { getSelectedLeague, SELECTED_LEAGUE_CHANGED_EVENT } from "@/lib/league-selection";
 import { supabase } from "@/lib/supabase/client";

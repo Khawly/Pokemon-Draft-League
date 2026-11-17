@@ -33,11 +33,7 @@ import { getSelectedLeague } from "@/lib/league-selection";
 import { NAV_ALERTS_CHANGED_EVENT } from "@/lib/nav-alerts";
 import { getSelectedSeason, setSelectedSeason } from "@/lib/season-selection";
 import { supabase } from "@/lib/supabase/client";
-import {
-  loadMatchTimeAlerts,
-  loadTradeAlerts,
-  type MatchTimeAlerts,
-} from "@/lib/supabase/dashboard";
+import { loadMatchTimeAlerts, loadTradeAlerts, type MatchTimeAlerts } from "@/lib/supabase/dashboard";
 import { markNotificationsRead } from "@/lib/supabase/schedule";
 import { confirmDiscardUnsavedChanges } from "@/lib/unsaved-changes";
 

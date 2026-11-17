@@ -12,16 +12,9 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import { loadUserTimeZone } from "@/lib/user-timezone";
 import { useShellLeague } from "@/components/league-shell-context";
-import {
-  PageShell,
-  PageShellError,
-  PageShellLoading,
-} from "@/components/page-shell";
+import { PageShell, PageShellError, PageShellLoading } from "@/components/page-shell";
 import { getSelectedSeason } from "@/lib/season-selection";
-import {
-  isCurrentSeason as checkIsCurrentSeason,
-  loadSeason,
-} from "@/lib/supabase/seasons";
+import { isCurrentSeason as checkIsCurrentSeason, loadSeason } from "@/lib/supabase/seasons";
 
 /**
  * Draft settings page that suspends rendering until the client-only

@@ -25,15 +25,7 @@
  */
 "use client";
 
-import {
-  memo,
-  useCallback,
-  useDeferredValue,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useShellLeague } from "@/components/league-shell-context";
@@ -51,11 +43,7 @@ import {
 import { AbilityTooltip } from "@/components/ability-tooltip";
 import { useConfirm } from "@/components/confirm-dialog";
 import { LoadingGif } from "@/components/loading-gif";
-import {
-  PageShell,
-  PageShellError,
-  PageShellLoading,
-} from "@/components/page-shell";
+import { PageShell, PageShellError, PageShellLoading } from "@/components/page-shell";
 import { TablePagination } from "@/components/table-pagination";
 import { getSelectedSeason } from "@/lib/season-selection";
 import { TYPE_STYLES } from "@/lib/type-styles";

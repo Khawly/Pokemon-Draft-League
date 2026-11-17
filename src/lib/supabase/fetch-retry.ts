@@ -14,10 +14,7 @@
  * its own generic fallback.
  */
 
-import {
-  announceLeagueBusy,
-  LEAGUE_BUSY_MESSAGE,
-} from "@/lib/busy-signal";
+import { announceLeagueBusy, LEAGUE_BUSY_MESSAGE } from "@/lib/busy-signal";
 
 /** Statuses that are safe to retry for a read. */
 const RETRYABLE_STATUS = new Set([429, 502, 503, 504]);

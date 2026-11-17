@@ -13,14 +13,7 @@
  */
 "use client";
 
-import {
-  Suspense,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import { useConfirm } from "@/components/confirm-dialog";
@@ -55,19 +48,11 @@ import { loadLatestSeason, saveSeasonName } from "@/lib/supabase/seasons";
 import { deleteLeague } from "@/lib/supabase/leagues";
 import { MAX_NAME_LENGTH } from "@/lib/name-limits";
 import { useShellLeague } from "@/components/league-shell-context";
-import {
-  PageShell,
-  PageShellCard,
-  PageShellError,
-  PageShellLoading,
-} from "@/components/page-shell";
+import { PageShell, PageShellCard, PageShellError, PageShellLoading } from "@/components/page-shell";
 import { compressImageFile } from "@/lib/image-upload";
 import { clearSelectedSeason, getSelectedSeason } from "@/lib/season-selection";
 import { clearSelectedLeague } from "@/lib/league-selection";
-import {
-  isCurrentSeason as checkIsCurrentSeason,
-  loadSeason,
-} from "@/lib/supabase/seasons";
+import { isCurrentSeason as checkIsCurrentSeason, loadSeason } from "@/lib/supabase/seasons";
 
 /**
  * Picks a sensible first weekly deadline date: today when the chosen time is

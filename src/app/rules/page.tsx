@@ -18,20 +18,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { MemberName } from "@/components/member-name";
-import {
-  loadRulesPageData,
-  normalizeRulesText,
-  saveLeagueRules,
-  type LeagueRules,
-} from "@/lib/supabase/rules";
+import { loadRulesPageData, normalizeRulesText, saveLeagueRules, type LeagueRules } from "@/lib/supabase/rules";
 import { useUserTimeZone } from "@/lib/user-timezone";
 import { formatDateTimeInZone } from "@/lib/datetime";
 import { getSelectedSeason } from "@/lib/season-selection";
-import {
-  PageShell,
-  PageShellError,
-  PageShellLoading,
-} from "@/components/page-shell";
+import { PageShell, PageShellError, PageShellLoading } from "@/components/page-shell";
 import { useShellLeague } from "@/components/league-shell-context";
 
 /**

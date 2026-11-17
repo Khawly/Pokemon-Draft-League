@@ -18,19 +18,12 @@ import { CrownProvider } from "@/components/crown-provider";
 import { useConfirm } from "@/components/confirm-dialog";
 import { useLeagueShell, useShellLeague } from "@/components/league-shell-context";
 import { useLeaguePageData } from "@/lib/use-league-page-data";
-import {
-  clearAllNotifications,
-  loadDashboardData,
-  type DashboardMatch,
-} from "@/lib/supabase/dashboard";
+import { clearAllNotifications, loadDashboardData, type DashboardMatch } from "@/lib/supabase/dashboard";
 import { setMatchPrediction } from "@/lib/supabase/schedule";
 import { useRealtimeInvalidation } from "@/lib/use-realtime-invalidation";
 import { getSelectedSeason } from "@/lib/season-selection";
 import { announceNavAlertsChanged } from "@/lib/nav-alerts";
-import {
-  PageShell,
-  PageShellLoading,
-} from "@/components/page-shell";
+import { PageShell, PageShellLoading } from "@/components/page-shell";
 
 /**
  * The dashboard route.

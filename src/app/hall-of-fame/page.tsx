@@ -19,19 +19,10 @@ import { MemberAvatar } from "@/components/member-avatar";
 import { MemberName } from "@/components/member-name";
 import { SpriteTile } from "@/components/sprite-tile";
 import { badgeForSeason } from "@/lib/hall-of-fame";
-import {
-  getSelectedLeague,
-  SELECTED_LEAGUE_CHANGED_EVENT,
-} from "@/lib/league-selection";
-import {
-  loadHallOfFame,
-  type HallOfFameEntry,
-} from "@/lib/supabase/hall-of-fame";
+import { getSelectedLeague, SELECTED_LEAGUE_CHANGED_EVENT } from "@/lib/league-selection";
+import { loadHallOfFame, type HallOfFameEntry } from "@/lib/supabase/hall-of-fame";
 import { LoadingGif } from "@/components/loading-gif";
-import {
-  PageShell,
-  PageShellLoading,
-} from "@/components/page-shell";
+import { PageShell, PageShellLoading } from "@/components/page-shell";
 
 /**
  * Entry point for the Hall of Fame route.

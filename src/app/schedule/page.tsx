@@ -49,11 +49,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
-import {
-  PageShell,
-  PageShellCard,
-  PageShellLoading,
-} from "@/components/page-shell";
+import { PageShell, PageShellCard, PageShellLoading } from "@/components/page-shell";
 import { useShellLeague } from "@/components/league-shell-context";
 import { getSelectedSeason } from "@/lib/season-selection";
 import { readReplaySummary } from "@/lib/replay-summary";
@@ -65,19 +61,11 @@ import { ManualScheduleEditor } from "@/components/manual-schedule-editor";
 import { CrownProvider } from "@/components/crown-provider";
 import { MatchupPicker } from "@/components/matchup-picker";
 import { MatchPredictionButton } from "@/components/match-prediction-buttons";
-import {
-  loadWeekProgressState,
-  runWeekDeadlineSweep,
-  type WeekProgressState,
-} from "@/lib/supabase/week-deadline";
+import { loadWeekProgressState, runWeekDeadlineSweep, type WeekProgressState } from "@/lib/supabase/week-deadline";
 import { formatSeasonLabel } from "@/lib/supabase/seasons";
 import { deleteMatch } from "@/lib/supabase/teams";
 import { useUserTimeZone } from "@/lib/user-timezone";
-import {
-  predictionIsOpen,
-  predictionLockMessage,
-  predictionLockReason,
-} from "@/lib/predictions";
+import { predictionIsOpen, predictionLockMessage, predictionLockReason } from "@/lib/predictions";
 import { useRealtimeInvalidation } from "@/lib/use-realtime-invalidation";
 import { getSpriteUrl } from "@/lib/pokeapi";
 import {

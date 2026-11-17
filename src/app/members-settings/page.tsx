@@ -20,11 +20,7 @@ import { useConfirm } from "@/components/confirm-dialog";
 import { MemberName } from "@/components/member-name";
 import { MemberAvatar } from "@/components/member-avatar";
 import { useShellLeague } from "@/components/league-shell-context";
-import {
-  PageShell,
-  PageShellError,
-  PageShellLoading,
-} from "@/components/page-shell";
+import { PageShell, PageShellError, PageShellLoading } from "@/components/page-shell";
 import { getSelectedSeason } from "@/lib/season-selection";
 import { formatSeasonLabel, loadSeason } from "@/lib/supabase/seasons";
 

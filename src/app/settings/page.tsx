@@ -10,18 +10,10 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  MAX_DISPLAY_NAME_LENGTH,
-  signOut,
-  updateUserProfile,
-} from "@/lib/supabase/auth";
+import { MAX_DISPLAY_NAME_LENGTH, signOut, updateUserProfile } from "@/lib/supabase/auth";
 import { supabase } from "@/lib/supabase/client";
 import { useConfirm } from "@/components/confirm-dialog";
-import {
-  browserTimeZone,
-  listTimeZones,
-  formatTimeZoneLabel,
-} from "@/lib/datetime";
+import { browserTimeZone, listTimeZones, formatTimeZoneLabel } from "@/lib/datetime";
 import { cacheUserTimeZone } from "@/lib/user-timezone";
 import { compressImageFile } from "@/lib/image-upload";
 import {
@@ -34,11 +26,7 @@ import {
   WEEKDAY_LABELS,
   type AvailabilityWeek,
 } from "@/lib/supabase/availability";
-import {
-  NAME_COLOR_OPTIONS,
-  normalizeNameColor,
-  type NameColorId,
-} from "@/lib/name-colors";
+import { NAME_COLOR_OPTIONS, normalizeNameColor, type NameColorId } from "@/lib/name-colors";
 import {
   registerUnsavedChangesGuard,
   clearUnsavedChangesGuard,
@@ -47,10 +35,7 @@ import {
 import { MemberName } from "@/components/member-name";
 import { MemberAvatar } from "@/components/member-avatar";
 import { resolveAvatarInitials } from "@/lib/avatar-initials";
-import {
-  PageShell,
-  PageShellLoading,
-} from "@/components/page-shell";
+import { PageShell, PageShellLoading } from "@/components/page-shell";
 
 /**
  * Picks the zone to show in the settings form for a stored profile value.

@@ -24,11 +24,7 @@
 
 import { useMemo, useState } from "react";
 import { useLeaguePageData } from "@/lib/use-league-page-data";
-import {
-  PageShell,
-  PageShellError,
-  PageShellLoading,
-} from "@/components/page-shell";
+import { PageShell, PageShellError, PageShellLoading } from "@/components/page-shell";
 import { useShellLeague } from "@/components/league-shell-context";
 import { getSelectedSeason } from "@/lib/season-selection";
 import { AbilityTooltip } from "@/components/ability-tooltip";

@@ -11,10 +11,7 @@
  * with the page's own data on the free-tier connection pool.
  */
 import { supabase } from "@/lib/supabase/client";
-import {
-  computePlayoffPlacements,
-  type PlayoffPlacementMatch,
-} from "@/lib/playoff-placements";
+import { computePlayoffPlacements, type PlayoffPlacementMatch } from "@/lib/playoff-placements";
 
 /** One member who finished second through fifth in the honoured season. */
 export interface EliteFinisher {

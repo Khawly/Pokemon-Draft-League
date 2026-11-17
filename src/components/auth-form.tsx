@@ -10,12 +10,7 @@
 
 import { FormEvent, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import {
-  MAX_DISPLAY_NAME_LENGTH,
-  resetPassword,
-  signInWithEmail,
-  signUpWithEmail,
-} from "@/lib/supabase/auth";
+import { MAX_DISPLAY_NAME_LENGTH, resetPassword, signInWithEmail, signUpWithEmail } from "@/lib/supabase/auth";
 
 /** The two authentication modes the form can show. */
 export type AuthMode = "login" | "signup";

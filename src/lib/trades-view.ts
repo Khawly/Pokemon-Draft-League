@@ -7,13 +7,7 @@
  * page a layout component and lets the rules - especially the dismissal and
  * quorum copy - be unit tested without a browser.
  */
-import {
-  countOpenTrades,
-  isProposer,
-  isRecipient,
-  type Trade,
-  type TradesGoods,
-} from "@/lib/supabase/trades";
+import { countOpenTrades, isProposer, isRecipient, type Trade, type TradesGoods } from "@/lib/supabase/trades";
 
 /** The four views the trades page offers. */
 export type TradesTab = "new" | "mine" | "approvals" | "history";

@@ -25,11 +25,7 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { AbilityTooltip } from "@/components/ability-tooltip";
-import {
-  PageShell,
-  PageShellError,
-  PageShellLoading,
-} from "@/components/page-shell";
+import { PageShell, PageShellError, PageShellLoading } from "@/components/page-shell";
 import { useShellLeague } from "@/components/league-shell-context";
 import { getSelectedSeason } from "@/lib/season-selection";
 import { PokemonSprite } from "@/components/pokemon-sprite";

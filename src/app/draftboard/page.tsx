@@ -11,22 +11,13 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useShellLeague } from "@/components/league-shell-context";
 import { supabase } from "@/lib/supabase/client";
-import {
-  loadDraftboardData,
-  type DraftboardGoods,
-  type DraftboardMember,
-} from "@/lib/supabase/draftboard";
+import { loadDraftboardData, type DraftboardGoods, type DraftboardMember } from "@/lib/supabase/draftboard";
 import { createLeagueInvite } from "@/lib/supabase/invites";
 import { formatSeasonLabel } from "@/lib/supabase/seasons";
 import { useConfirm } from "@/components/confirm-dialog";
 import { MemberName } from "@/components/member-name";
 import { MemberAvatar } from "@/components/member-avatar";
-import {
-  PageShell,
-  PageShellCard,
-  PageShellError,
-  PageShellLoading,
-} from "@/components/page-shell";
+import { PageShell, PageShellCard, PageShellError, PageShellLoading } from "@/components/page-shell";
 import { getSelectedSeason } from "@/lib/season-selection";
 
 /**

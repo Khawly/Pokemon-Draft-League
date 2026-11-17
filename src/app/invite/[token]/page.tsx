@@ -10,11 +10,7 @@
 import { Suspense, use, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
-import {
-  getLeagueInviteInfo,
-  joinLeagueByInvite,
-  type LeagueInviteInfo,
-} from "@/lib/supabase/invites";
+import { getLeagueInviteInfo, joinLeagueByInvite, type LeagueInviteInfo } from "@/lib/supabase/invites";
 import { LoadingGif } from "@/components/loading-gif";
 
 /**

@@ -10,10 +10,7 @@
 
 import { useEffect, useState } from "react";
 
-import {
-  LEAGUE_BUSY_EVENT,
-  LEAGUE_BUSY_MESSAGE,
-} from "@/lib/busy-signal";
+import { LEAGUE_BUSY_EVENT, LEAGUE_BUSY_MESSAGE } from "@/lib/busy-signal";
 
 /** How long the notice stays up before dismissing itself. */
 const DISMISS_AFTER_MS = 8_000;

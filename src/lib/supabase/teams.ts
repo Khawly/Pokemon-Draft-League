@@ -286,10 +286,10 @@ export async function loadTeamPageData(
       }
     : null;
 
-  const members = ((memberResult.data ?? []) as {
+  const members = (memberResult.data ?? []) as {
     user_id: string;
     role: "owner" | "admin" | "member";
-  }[]) ?? [];
+  }[];
 
   const activeMemberIds = new Set(members.map((member) => member.user_id));
 

@@ -456,10 +456,10 @@ export async function loadTradesPageData(
       }
     : null;
 
-  const members = ((memberResult.data ?? []) as {
+  const members = (memberResult.data ?? []) as {
     user_id: string;
     role: "owner" | "admin" | "member";
-  }[]) ?? [];
+  }[];
 
   const userRole =
     members.find((member) => member.user_id === user.id)?.role ?? null;

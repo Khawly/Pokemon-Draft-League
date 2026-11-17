@@ -540,7 +540,7 @@ export async function loadDashboardData(
     throw new Error("This league's season could not be loaded.");
   }
 
-  const seasons = ((seasonsResult.data ?? []) as DashboardSeason[]) ?? [];
+  const seasons = (seasonsResult.data ?? []) as DashboardSeason[];
 
   /*
    * A stored season that no longer exists -- or belongs to a league the member has since

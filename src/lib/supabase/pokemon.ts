@@ -410,10 +410,10 @@ export async function loadPokemonPageData(
     profiles?: { display_name?: string | null; name_color?: string | null } | null;
   }[]);
 
-  const members = ((memberResult.data ?? []) as {
+  const members = (memberResult.data ?? []) as {
     user_id: string;
     role: "owner" | "admin" | "member";
-  }[]) ?? [];
+  }[];
 
   const myTeam =
     teams.find((team) => team.owner_user_id === user.id) ?? null;

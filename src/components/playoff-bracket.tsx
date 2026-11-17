@@ -35,9 +35,7 @@ import {
 export interface PlayoffBracketProps {
   /** Every game the bracket will contain, from `playoff_bracket_template`. */
   rows: SchedulePlayoffTemplateRow[];
-  /** Playoff matches created so far. */
   matches: ScheduleMatch[];
-  /** Resolves a team id to the name and colour to render it in. */
   resolveTeam: (
     teamId: string | null,
   ) => { name: string; color: string | null } | null;

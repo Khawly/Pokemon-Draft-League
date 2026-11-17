@@ -8,7 +8,6 @@
 
 /** A tab rendered in the top navigation. */
 export type LeagueTab = {
-  /** Visible label. */
   label: string;
   /** Route slug, e.g. "draftboard". */
   slug: string;

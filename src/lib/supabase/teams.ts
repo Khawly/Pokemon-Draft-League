@@ -74,7 +74,6 @@ export type TeamRosterPokemon = {
   types: string[];
   /** Dex number for species, 10001+ for alternate forms (drives the sprite). */
   dex: number;
-  /** Sprite id used to render the local sprite. */
   spriteId: number;
   bst: number | null;
   generation: string | null;

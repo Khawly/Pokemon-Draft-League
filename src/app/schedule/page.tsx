@@ -255,17 +255,11 @@ function MatchupHistoryCard({
   rostersByTeam,
   firstPlayoffWeek,
 }: {
-  /** The completed match to render. */
   match: ScheduleMatch;
-  /** The match's format, used to decide whether a mirrored third game applies. */
   matchFormat: "single" | "best_of_3" | null;
-  /** The reader's display time zone, so every time reads the same everywhere on the page. */
   timeZone: string;
-  /** Whether the spoiler filter should mask the result details. */
   hideSpoilers: boolean;
-  /** Whether this is the match currently loaded in the Matchup section. */
   selected: boolean;
-  /** Loads this match into the Matchup section. */
   onSelect: () => void;
   /** Sprite rosters keyed by team id, so each side shows its Pokemon. */
   rostersByTeam: Record<string, ScheduleRosterSprite[]>;
@@ -513,9 +507,7 @@ function Avatar({
 }: {
   /** Display name used for the fallback initial. */
   name: string;
-  /** The player's chosen name colour, used for their initials avatar. */
   nameColor?: string | null;
-  /** Optional avatar image URL. */
   avatarUrl: string | null;
   /**
    * The player's stored avatar initials, or null to derive them from their name.
@@ -523,7 +515,6 @@ function Avatar({
   initials?: string | null;
   /** Square pixel dimensions. */
   size?: number;
-  /** Highlights the avatar ring when the player won. */
   winner?: boolean;
 }) {
   /*
@@ -548,7 +539,6 @@ function Avatar({
 interface RosterSpritesProps {
   /** The team's roster to draw, richest Pokemon first. */
   roster: ScheduleRosterSprite[];
-  /** Horizontal alignment of the row, so it matches the side's name. */
   align?: "center" | "start";
   /** Whether to print each Pokemon's name under its sprite. Off by default. */
   showNames?: boolean;
@@ -682,9 +672,7 @@ function Spoiler({
   hidden,
   children,
 }: {
-  /** Whether the spoiler filter is currently masking this value. */
   hidden: boolean;
-  /** The result text to mask. */
   children: React.ReactNode;
 }) {
   if (!hidden) {
@@ -707,11 +695,8 @@ function SectionCard({
   action,
   children,
 }: {
-  /** Section heading. */
   title: string;
-  /** Optional right-aligned action element. */
   action?: React.ReactNode;
-  /** Card body. */
   children: React.ReactNode;
 }) {
   return (
@@ -937,7 +922,6 @@ function ScheduleRoute() {
 function SchedulePageContent({
   searchParams,
 }: {
-  /** Current URL search params used to select the league. */
   searchParams: URLSearchParams | null;
 }) {
   const router = useRouter();
@@ -4555,11 +4539,8 @@ function Field({
   hint,
   children,
 }: {
-  /** Field label text. */
   label: string;
-  /** Optional helper or validation text shown under the control. */
   hint?: React.ReactNode;
-  /** The form control. */
   children: React.ReactNode;
 }) {
   return (

@@ -274,9 +274,7 @@ type PriorityActions = {
 
 /** Shared arena panel props for all three panels. */
 type ArenaPanelProps = {
-  /** The complete loaded draft state. */
   goods: DraftGoods;
-  /** Current wall-clock timestamp for countdown rendering. */
   now: number;
 };
 
@@ -1353,11 +1351,8 @@ const PoolPanel = memo(function PoolPanel({
   actions,
   isTouch,
 }: {
-  /** The complete loaded draft state. */
   goods: DraftGoods;
-  /** The pick/priority actions for a table row or tier card. */
   actions: PoolActions;
-  /** True when the primary pointer is coarse, so taps replace drag-and-drop. */
   isTouch: boolean;
 }) {
   const [query, setQuery] = useState("");
@@ -1933,13 +1928,9 @@ function PickConfirm({
   onConfirm,
   onCancel,
 }: {
-  /** The pool row the user wants to draft. */
   row: DraftPoolRow;
-  /** True while the pick request is being submitted. */
   isSaving: boolean;
-  /** Confirms the pick for the row's Pokemon. */
   onConfirm: () => void;
-  /** Dismisses the dialog without picking. */
   onCancel: () => void;
 }) {
   return (
@@ -2035,17 +2026,11 @@ function RoundPicker({
   onSelect,
   onCancel,
 }: {
-  /** The pool row being pinned to the priority list. */
   row: DraftPoolRow;
-  /** The draft's total round count, used to build the round buttons. */
   totalRounds: number;
-  /** Number of priority entries already in each round (round number key). */
   roundCounts: Map<number, number>;
-  /** Rounds that already contain this Pokemon. */
   existingRounds: Set<number>;
-  /** Adds the Pokemon to the chosen round and closes the dialog. */
   onSelect: (round: number) => void;
-  /** Dismisses the dialog without adding the Pokemon. */
   onCancel: () => void;
 }) {
   const rounds = Array.from({ length: totalRounds }, (_, index) => index + 1);

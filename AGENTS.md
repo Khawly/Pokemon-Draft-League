@@ -30,7 +30,9 @@ Every source file must be documented. This applies to new files, edited files, a
 - **Exported functions/components**: JSDoc (`/** ... */`) directly above the declaration documenting what it does, parameters, and return value. Include `@returns` for functions that return a value.
 - **Types/interfaces**: a short JSDoc line above the type describing its meaning.
 - **Complex logic** (non-obvious algorithms, RPC payloads, async flows): a concise inline comment (`//`) explaining the *why*, not the *what*.
-- **Props of components**: document the props in a JSDoc block above the destructure or describe them in the component's JSDoc.
+- **Props of components**: describe the behavior in the component's JSDoc.
+  Document only props whose meaning or constraints are non-obvious; do not
+  enumerate self-explanatory props inline.
 
 ## SQL (`*.sql`, `supabase/migrations/*`)
 

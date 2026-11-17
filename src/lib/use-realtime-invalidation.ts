@@ -74,7 +74,6 @@ import { refetchDelayMs, isDocumentHidden } from "@/lib/refetch-throttle";
 
 /** One table to watch and what to do when it changes. */
 type RealtimeWatcher = {
-  /** The table to subscribe to. */
   table: RealtimeTable;
   /**
    * Called once per coalesced batch of changes to this table. A page uses this to
@@ -88,7 +87,6 @@ type RealtimeWatcher = {
 export type RealtimeInvalidationOptions = {
   /** League whose rows to watch, or null to stay unsubscribed. */
   leagueId: string | null;
-  /** The tables to watch and what to do for each. */
   watchers: RealtimeWatcher[];
   /**
    * Returns true to suspend refetching, e.g. while a form is open. A batch that

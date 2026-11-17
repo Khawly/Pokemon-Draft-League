@@ -91,7 +91,6 @@ export type PokemonPoolRow = {
   types: string[];
   /** Dex number for species, 10001+ for alternate forms (drives the sprite). */
   dex: number;
-  /** Sprite id used to render the local sprite. */
   spriteId: number;
   bst: number | null;
   generation: string | null;
@@ -142,7 +141,6 @@ export type PokemonTransaction = {
    * draw and the "?" placeholder would read as a broken record.
    */
   isTokenMovement: boolean;
-  /** The member who made the move. */
   userId: string;
   /** The mover's display name, when their profile has one set. */
   playerName: string | null;

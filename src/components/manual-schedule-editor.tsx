@@ -26,15 +26,10 @@ type DraftRow = ManualScheduleGame & { key: string };
 
 /** Props for the {@link ManualScheduleEditor} component. */
 export interface ManualScheduleEditorProps {
-  /** Every team that can be scheduled, as id and display name. */
   teams: Array<{ id: string; name: string }>;
-  /** How many weeks the regular season runs. */
   weeks: number;
-  /** The pairings already saved, used to seed the editor. */
   initialGames: ManualScheduleGame[];
-  /** True while a save is in flight. */
   saving: boolean;
-  /** Called with the finished pairings when the owner saves. */
   onSave: (games: ManualScheduleGame[]) => void;
 }
 

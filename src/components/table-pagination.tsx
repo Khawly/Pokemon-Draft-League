@@ -12,13 +12,10 @@
 export interface TablePaginationProps {
   /** One-based current page. Values outside the valid range are clamped. */
   page: number;
-  /** Rows shown per page. */
   pageSize: number;
-  /** Total rows in the current filtered dataset. */
   total: number;
   /** Called with the requested one-based page. */
   onPageChange: (page: number) => void;
-  /** Called when the member picks a different page size. */
   onPageSizeChange: (pageSize: number) => void;
   /** Page sizes offered by the selector. Defaults to 50 and 100. */
   pageSizeOptions?: number[];

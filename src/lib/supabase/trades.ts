@@ -119,7 +119,6 @@ export type TradePokemon = {
   tier_value: number;
   /** Typing as PokeAPI type names. */
   types: string[];
-  /** Sprite id used to render the local sprite. */
   spriteId: number;
   bst: number | null;
 };

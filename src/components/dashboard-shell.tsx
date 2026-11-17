@@ -38,9 +38,7 @@ import { formatDateTimeInZone } from "@/lib/datetime";
 
 /** Props for the {@link DashboardShell} component. */
 export interface DashboardShellProps {
-  /** The authenticated user's display name, shown in the header and standings. */
   displayName: string;
-  /** The signed-in member's id, so their own name can carry the champion crown. */
   userId?: string | null;
   /** Optional URL for the user's avatar image. Falls back to an initial-based placeholder. */
   avatarUrl?: string | null;
@@ -58,7 +56,6 @@ export interface DashboardShellProps {
   nameColor?: string | null;
   /** Name of the currently selected league. Defaults to "League Name". */
   leagueName?: string;
-  /** ID of the currently selected league, used to build navigation links. */
   leagueId?: string | null;
   /** Season data backing every panel; omitted panels render their empty state. */
   goods: DashboardGoods;
@@ -68,9 +65,7 @@ export interface DashboardShellProps {
    * presentational and the irreversible action is confirmed in one place.
    */
   onClearNotifications?: () => void;
-  /** Disables the clear control while a clear is in flight. */
   isClearingNotifications?: boolean;
-  /** Panel-level failure text, kept separate from the page-level error. */
   notificationError?: string | null;
   /** Panel-level confirmation text, e.g. how many notifications were removed. */
   notificationNotice?: string | null;
@@ -79,9 +74,7 @@ export interface DashboardShellProps {
    * page owns the write, so the panel stays presentational.
    */
   onPredict?: (matchId: string, teamId: string) => void;
-  /** The matchup currently saving a pick, which disables its two buttons. */
   predictingMatchId?: string | null;
-  /** Panel-level failure text for a prediction that could not be saved. */
   predictionError?: string | null;
 }
 
@@ -89,11 +82,8 @@ export interface DashboardShellProps {
 interface RulesPanelProps {
   /** The league's rules, or null when the owner has not set any. */
   rules: DashboardRules | null;
-  /** The zone the reader keeps their clock in. */
   timeZone: string;
-  /** Whether the reader owns the league, and so can edit the rules. */
   isOwner: boolean;
-  /** The selected league id, used to link to the full rules page. */
   leagueId?: string | null;
 }
 
@@ -237,7 +227,6 @@ function VsLabel() {
 
 /** Props for the {@link SideLabel} component. */
 interface SideLabelProps {
-  /** The player's display name. */
   name: string;
   /** The player's stored name colour, or null when they have not chosen one. */
   nameColor?: string | null;
@@ -247,7 +236,6 @@ interface SideLabelProps {
    * The player's stored avatar initials, or null to derive them from their name.
    */
   initials?: string | null;
-  /** The player's Pokemon Showdown handle, shown in parentheses after the name. */
   showdownUsername?: string | null;
   /** The player's season record, e.g. "5-2", shown after the name. */
   record?: string | null;

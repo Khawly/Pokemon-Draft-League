@@ -36,7 +36,6 @@ export interface PlayoffPlacementsInput {
   format: "single_elimination" | "double_elimination";
   /** Every playoff match in the season, including unfinished ones. */
   matches: readonly PlayoffPlacementMatch[];
-  /** The team the database named champion. */
   championTeamId: string;
   /**
    * Regular-season ranking, best first. Used to break ties between teams

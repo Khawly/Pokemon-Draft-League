@@ -35,7 +35,6 @@ export interface MemberNameProps {
    * Passed through so adopting the component does not restyle a name.
    */
   className?: string;
-  /** Shown when there is no name at all. */
   fallback?: string;
   /**
    * The member's user id, when the caller has it.

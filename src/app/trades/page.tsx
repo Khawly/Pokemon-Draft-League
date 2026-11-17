@@ -152,7 +152,6 @@ function BalanceText({
 }: {
   /** Tokens left, or infinite when the league has costs switched off. */
   remaining: number;
-  /** Whether the league charges for Pokémon at all. */
   costsEnabled: boolean;
 }) {
   if (!costsEnabled) {
@@ -179,13 +178,9 @@ function BalanceText({
 interface PokemonPickerProps {
   /** The label above the list, e.g. "You send". */
   title: string;
-  /** The roster to choose from. */
   roster: TradePokemon[];
-  /** Slugs currently chosen. */
   selected: string[];
-  /** Adds or removes a slug. */
   onToggle: (pokemonId: string) => void;
-  /** True when the league charges for Pokémon, which the tier column needs. */
   costsEnabled: boolean;
   /** Disables the whole picker, e.g. before a recipient is chosen. */
   disabled?: boolean;
@@ -309,19 +304,12 @@ function PokemonPicker({
  * Props for the {@link TradeCard} component.
  */
 interface TradeCardProps {
-  /** The trade to render. */
   trade: Trade;
-  /** The loaded page state, for names, approvers, and balances. */
   goods: TradesGoods;
-  /** The reader's time zone, for every timestamp on the card. */
   timeZone: string;
-  /** True while an action on this card is in flight. */
   busy: boolean;
-  /** True when the reader can vote on this trade. */
   canVote: boolean;
-  /** True when the reader is the league owner, who may override a vote. */
   isOwner: boolean;
-  /** Runs the named action, which the card gates by role. */
   onAction: (action: TradeAction, trade: Trade) => void;
   /**
    * When true, the card shows the trade but offers no controls.
@@ -697,7 +685,6 @@ function TradeCard({
 interface ValueSwingTextProps {
   /** The signed change in this side's token balance. */
   delta: number;
-  /** The member's display name, used to attribute the change. */
   name: string;
   /** The member's chosen display colour, or null when they have not picked one. */
   color?: string | null;
@@ -746,9 +733,7 @@ interface TradeSidePanelProps {
    * carry the owner's colour; the surrounding "sends" is ordinary text.
    */
   heading: ReactNode;
-  /** The Pokémon travelling from this side. */
   items: TradeItem[];
-  /** Whether to show each Pokémon's tier value. */
   costsEnabled: boolean;
   /** Tokens this side is sending. Zero for none. */
   tokenAmount: number;
@@ -810,7 +795,6 @@ function TradeSidePanel({
 
 /** Props for the {@link BalanceBreakdown} component. */
 interface BalanceBreakdownProps {
-  /** The member this column describes, shown as the heading. */
   label: string;
   /**
    * The label member's chosen display colour, or null when they have not picked
@@ -819,11 +803,9 @@ interface BalanceBreakdownProps {
   color?: string | null;
   /** Tokens the member holds before the trade settles. */
   current: number;
-  /** What the trade moves for this member: positive gains, negative costs them. */
   delta: number;
   /** Tokens the member holds once the trade settles. */
   projected: number;
-  /** Whether the league charges for Pokémon at all. */
   costsEnabled: boolean;
   /**
    * Whether anything is actually on the table. With nothing selected the delta is
@@ -911,11 +893,8 @@ function BalanceBreakdown({
  * Props for the {@link ProposalBuilder} component.
  */
 interface ProposalBuilderProps {
-  /** The loaded page state. */
   goods: TradesGoods;
-  /** True while a proposal is being submitted. */
   busy: boolean;
-  /** Submits the proposal. */
   onSubmit: (
     recipientUserId: string,
     offer: string[],
@@ -1255,21 +1234,13 @@ function TokenAmountField({
 
 /** Props for the {@link TradeList} component. */
 interface TradeListProps {
-  /** The trades this tab holds. */
   trades: Trade[];
-  /** Copy shown when the tab is empty. */
   emptyMessage: string;
-  /** The loaded page state, passed through to each card. */
   goods: TradesGoods;
-  /** The reader's time zone, for every timestamp on the cards. */
   timeZone: string;
-  /** The trade whose action is in flight, if any. */
   busyTradeId: string | null;
-  /** Runs an action on one trade. */
   onAction: (action: TradeAction, trade: Trade) => void;
-  /** True once the season's trade deadline has passed. */
   deadlinePassed: boolean;
-  /** Whether cards may offer vote and override controls. */
   allowVoting: boolean;
 }
 

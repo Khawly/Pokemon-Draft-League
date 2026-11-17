@@ -20,9 +20,7 @@ export type TradesTab = "new" | "mine" | "approvals" | "history";
 
 /** One entry on the tab strip. */
 interface TradeTabEntry {
-  /** Tab the button opens. */
   id: TradesTab;
-  /** Label shown on the button. */
   label: string;
   /** Trades still in flight, drawn as the red bubble. */
   badge: number;
@@ -36,7 +34,6 @@ interface TradeTabEntry {
 export interface TradesView {
   /** Trades the reader is party to and has not cleared. */
   myTrades: Trade[];
-  /** Every trade awaiting an approval decision. */
   pendingApprovals: Trade[];
   /** Completed trades, which are league record rather than a to-do. */
   history: Trade[];
@@ -57,11 +54,9 @@ export type TradeAction =
 
 /** Content for the confirmation dialog raised by a {@link TradeAction}. */
 export interface TradeActionPrompt {
-  /** Question the dialog asks. */
   title: string;
   /** What the action will do, in the reader's terms. */
   detail: string;
-  /** Label on the confirming button. */
   confirmLabel: string;
   /** `danger` styles actions that cannot be taken back. */
   tone: "default" | "danger";

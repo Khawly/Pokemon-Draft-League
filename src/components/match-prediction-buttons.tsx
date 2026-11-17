@@ -22,7 +22,6 @@ type MatchPredictionSide = {
 
 /** Props for {@link MatchPredictionButton}. */
 export interface MatchPredictionButtonProps {
-  /** The side this button picks. */
   side: MatchPredictionSide;
   /** The member's current pick, or null when they have not picked yet. */
   predictedTeamId: string | null;
@@ -31,9 +30,7 @@ export interface MatchPredictionButtonProps {
    * absent from the map rather than stored as zero.
    */
   predictionCounts: Record<string, number>;
-  /** Disables the button while a pick is being saved. */
   disabled?: boolean;
-  /** Called with the chosen team id. */
   onPick: (teamId: string) => void;
 }
 

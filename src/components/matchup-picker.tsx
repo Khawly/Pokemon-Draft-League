@@ -30,11 +30,8 @@ export interface MatchupPickerProps {
   options: MatchupPickerOption[];
   /** The currently selected option id, or null when nothing is selected. */
   selectedId: string | null;
-  /** Called with the chosen option id. */
   onSelect: (id: string) => void;
-  /** Shown on the trigger when nothing is selected. */
   placeholder?: string;
-  /** Hidden label text beside the trigger, for the surrounding layout. */
   caption?: string;
 }
 

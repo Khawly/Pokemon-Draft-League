@@ -43,7 +43,6 @@ const CrownContext = createContext<CrownKeys>(NO_CROWN);
 
 /** Props for the {@link CrownProvider} component. */
 export interface CrownProviderProps {
-  /** Member ids who should show the crown. */
   crownedUserIds: string[];
   /** Their display names, for surfaces that only know the name. */
   crownedNames?: string[];

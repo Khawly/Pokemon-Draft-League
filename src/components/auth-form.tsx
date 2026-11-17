@@ -22,9 +22,7 @@ export type AuthMode = "login" | "signup";
 
 /** Props for {@link AuthForm}. */
 export interface AuthFormProps {
-  /** Which form to show. */
   mode: AuthMode;
-  /** Called when the member switches between signing in and creating an account. */
   onModeChange: (mode: AuthMode) => void;
 }
 

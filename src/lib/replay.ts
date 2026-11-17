@@ -35,7 +35,6 @@ export type ReplaySummary = {
   winnerSide: string | null;
   /** The losing side, or null when the log does not name a winner. */
   loserSide: string | null;
-  /** The username Showdown credits the win to. */
   winnerName: string | null;
   /** Side -> username, as declared by the `player` lines. */
   players: Record<string, string>;
@@ -56,7 +55,6 @@ export type ReplaySummary = {
    * produce a survivor count the league can score.
    */
   conclusive: boolean;
-  /** Pokemon the losing side still had standing. */
   loserPokemonLeftAlive: number | null;
   /** The highest `turn` number seen, i.e. the game length. */
   turnCount: number | null;

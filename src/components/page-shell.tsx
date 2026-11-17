@@ -22,7 +22,6 @@ const WIDE_COLUMN = "mx-auto max-w-[96rem] space-y-6";
 
 /** Props for the {@link PageShell} component. */
 export interface PageShellProps {
-  /** The page content. */
   children: ReactNode;
   /**
    * Classes for the inner column, replacing {@link WIDE_COLUMN} entirely.
@@ -52,9 +51,7 @@ export function PageShell({
 
 /** Props for the {@link PageShellCard} component. */
 export interface PageShellCardProps {
-  /** The card's content. */
   children: ReactNode;
-  /** Red styling marks a failed load or a refused action. */
   tone?: "muted" | "error";
   /** Card width class. Defaults to the wide page column. */
   widthClassName?: string;

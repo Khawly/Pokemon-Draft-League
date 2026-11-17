@@ -119,9 +119,7 @@ const REGIONS: Region[] = [
 
 /** The badge one season's champion is awarded. */
 export type SeasonBadge = {
-  /** Which season won it. */
   season: number;
-  /** The region the badge belongs to. */
   region: string;
   /** Its position within that region, one to eight. */
   number: number;

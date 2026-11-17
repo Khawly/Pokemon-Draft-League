@@ -63,17 +63,11 @@ export type PokemonFormEntry = {
 
 /** Per-stat base stat values for a species/form, keyed by stat kind. */
 export type PokemonBaseStats = {
-  /** Hit points. */
   hp: number;
-  /** Physical attack. */
   attack: number;
-  /** Physical defense. */
   defense: number;
-  /** Special attack. */
   specialAttack: number;
-  /** Special defense. */
   specialDefense: number;
-  /** Speed. */
   speed: number;
 };
 
@@ -113,7 +107,6 @@ export type PokemonMatch = {
   types: string[];
   /** Sum of base stats (BST). */
   bst: number;
-  /** Generation label. */
   generation: string;
 };
 

@@ -19,7 +19,6 @@ import { routeFor } from "@/lib/league-routes";
 
 /** Props for the {@link PreDraftPanel} component. */
 export interface PreDraftPanelProps {
-  /** The league whose setup pages the panel links to. */
   leagueId: string;
   /**
    * The season on screen, carried into the season-scoped settings pages so they
@@ -52,11 +51,8 @@ function settingsRoute(
 
 /** Props for the {@link PreDraftTask} component. */
 interface PreDraftTaskProps {
-  /** Short name of the task. */
   title: string;
-  /** One or two sentences on what the task covers. */
   description: string;
-  /** The controls that take the owner to where the task is done. */
   children: React.ReactNode;
 }
 

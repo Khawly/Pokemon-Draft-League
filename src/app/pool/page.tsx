@@ -358,19 +358,12 @@ function SortHeader({
   center,
   left,
 }: {
-  /** Visible header label. */
   label: string;
-  /** Sort key this header controls. */
   column: SortKey;
-  /** Currently active sort key. */
   sortKey: SortKey;
-  /** Current sort direction. */
   sortDir: "asc" | "desc";
-  /** Called with the column key when the header is clicked. */
   onSort: (column: SortKey) => void;
-  /** When true, centers the header text (for numeric summary columns). */
   center?: boolean;
-  /** When true, left-aligns the header text. */
   left?: boolean;
 }) {
   const active = sortKey === column;
@@ -394,15 +387,10 @@ function SortHeader({
 type PoolTableRowProps = {
   /** The pool row to render; identity is stable until that row is edited. */
   row: PoolPokemonRow;
-  /** Whether the signed-in user owns the pool and may edit rows. */
   isOwner: boolean;
-  /** Whether this row is part of the bulk-action selection. */
   selected: boolean;
-  /** Toggles the row's bulk-action selection. */
   onToggleSelection: (rowId: string) => void;
-  /** Stages a new tier value for the row. */
   onTierChange: (rowId: string, nextTier: number) => void;
-  /** Stages whether the row counts as available for drafting. */
   onToggleInPool: (rowId: string) => void;
 };
 

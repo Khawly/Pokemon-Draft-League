@@ -23,7 +23,6 @@ export interface DateFieldWithCalendarProps {
   onChange: (value: string) => void;
   /** Extra classes for the input, appended to the default field styling. */
   className?: string;
-  /** Disables both the input and its calendar button. */
   disabled?: boolean;
   /** Accessible label for the input when no visible label is associated. */
   ariaLabel?: string;

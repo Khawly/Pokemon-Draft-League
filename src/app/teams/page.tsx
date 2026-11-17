@@ -128,15 +128,10 @@ function StatHeader({
   sortDir,
   onSort,
 }: {
-  /** Visible header label. */
   label: string;
-  /** Sort key this header controls. */
   column: StatSortKey;
-  /** Currently active sort key. */
   sortKey: StatSortKey;
-  /** Current sort direction. */
   sortDir: "asc" | "desc";
-  /** Called with the column key when the header is clicked. */
   onSort: (column: StatSortKey) => void;
 }) {
   const active = sortKey === column;
@@ -169,16 +164,13 @@ function TeamStatsTable({
    * rendered in the colour its owner picked rather than as one string.
    */
   teamName: ReactNode;
-  /** Roster Pokémon to display. */
   roster: TeamRosterPokemon[];
-  /** True when this table belongs to the signed-in user's own team. */
   isMine: boolean;
   /**
    * True when drops are allowed for this table: the signed-in member's own team,
    * or any team when the caller owns the league and the season window is open.
    */
   canDrop: boolean;
-  /** Called with a roster Pokémon when the user confirms a drop. */
   onDrop: (pokemon: TeamRosterPokemon) => void;
 }) {
   const [sortKey, setSortKey] = useState<StatSortKey>("tier");
@@ -509,7 +501,6 @@ function DefensiveTypingGrid({
    * be rendered in the colour its owner picked.
    */
   teamName: ReactNode;
-  /** Roster Pokémon to evaluate. */
   roster: TeamRosterPokemon[];
 }) {
   const summary = useMemo(() => buildDefensiveSummary(roster), [roster]);
@@ -675,9 +666,7 @@ function MatchHistory({
   teamName: ReactNode;
   /** The selected player's played or decided matches, oldest first in the payload. */
   matches: TeamMatch[];
-  /** True when the signed-in user is a league owner or admin. */
   isStaff: boolean;
-  /** Called with a match id after the user confirms a delete. */
   onDelete: (match: TeamMatch) => void;
 }) {
   const timeZone = useUserTimeZone();
@@ -814,7 +803,6 @@ function MatchHistory({
 function TeamsPageContent({
   searchParams,
 }: {
-  /** Current URL search params used to select the league. */
   searchParams: URLSearchParams | null;
 }) {
   const router = useRouter();

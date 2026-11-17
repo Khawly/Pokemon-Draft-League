@@ -11,13 +11,11 @@
 export type ReplaySummaryResult = {
   /** The replay's tier line, e.g. `[Gen 9] NatDex 6v6 Doubles Draft`. */
   format: string | null;
-  /** How many turns the game lasted. */
   turnCount: number | null;
   /** The Showdown usernames in the replay, keyed by the side they played. */
   players: Record<string, string>;
   /** The league team that won, when the replay's usernames match a participant. */
   winnerTeamId: string | null;
-  /** The Showdown username credited with the win. */
   winnerName: string | null;
   /** Unsigned surviving count for the winner; null unless the game was a knockout. */
   pokemonLeftAlive: number | null;

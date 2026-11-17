@@ -25,7 +25,6 @@ export interface NameColorOption {
   id: NameColorId;
   /** Human-readable name for the swatch's accessible label. */
   label: string;
-  /** Tailwind text colour applied to the name. */
   className: string;
   /**
    * Tailwind background colour for the swatch button in the settings picker, so a

@@ -250,7 +250,6 @@ export type DashboardGoods = {
   season: DashboardSeason | null;
   /** Every season in the league, oldest first, for the header's season choice. */
   seasons: DashboardSeason[];
-  /** Teams in the season. */
   teamsCount: number;
   /**
    * The season's teams with their owners' live display names, so the UI can label
@@ -270,7 +269,6 @@ export type DashboardGoods = {
    * the two can legitimately differ for a league with no deadline configured.
    */
   currentWeek: number | null;
-  /** Configured regular-season week count. */
   totalWeeks: number;
   /** True when the season has any playoff matches. */
   hasPlayoffs: boolean;
@@ -287,7 +285,6 @@ export type DashboardGoods = {
    * the only thing there is to show.
    */
   rules: DashboardRules | null;
-/** Full standings table, ranked. */
   standings: DashboardStanding[];
   /**
    * Every open match in the current week, soonest first, backing the Schedule
@@ -1066,7 +1063,6 @@ standings,
 export type MatchTimeAlerts = {
   /** Notification ids, for clearing exactly these when the schedule is opened. */
   ids: string[];
-  /** How many there are. */
   count: number;
 };
 

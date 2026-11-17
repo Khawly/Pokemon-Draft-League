@@ -16,9 +16,7 @@ import { useRouter } from "next/navigation";
 
 /** Props for {@link LeagueSettingsMenu}. */
 export interface LeagueSettingsMenuProps {
-  /** The league whose settings are opened. */
   leagueId: string | null;
-  /** The season on screen, carried into every season-scoped settings page. */
   seasonId: string | null;
   /** League settings are owner-only; members settings are not. */
   isOwner: boolean;

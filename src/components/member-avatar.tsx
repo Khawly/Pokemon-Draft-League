@@ -33,7 +33,6 @@ export interface MemberAvatarProps {
   initials?: string | null;
   /** Circle diameter in pixels. */
   size?: number;
-  /** Typography size for the initials, which should scale with the circle. */
   textClassName?: string;
   /**
    * Force-remount key for the image element.

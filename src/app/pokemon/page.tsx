@@ -277,17 +277,11 @@ function SortableTh({
   onSort,
   align = "center",
 }: {
-  /** Visible header label. */
   label: string;
-  /** Currently active sort key. */
   sortKey: PokemonSortKey;
-  /** Current sort direction. */
   sortDir: "asc" | "desc";
-  /** The sort key this header controls. */
   column: PokemonSortKey;
-  /** Called with the column key when the header is clicked. */
   onSort: (column: PokemonSortKey) => void;
-  /** Text alignment for this header. */
   align?: "left" | "center";
 }) {
   const active = sortKey === column;
@@ -335,17 +329,13 @@ function FreeAgentTable({
 }: {
   /** Free-agent rows to display (already filtered/sorted). */
   rows: PokemonPoolRow[];
-  /** The row whose add is currently pending, if any. */
   pendingPokemonId: string | null;
   /** When true, the pickup control is disabled entirely (no team / wrong phase). */
   disabled: boolean;
   /** When true, an RPC is running; controls are disabled. */
   busy: boolean;
-  /** Currently active sort key. */
   sortKey: PokemonSortKey;
-  /** Current sort direction. */
   sortDir: "asc" | "desc";
-  /** Called with a column key when its header is clicked. */
   onSort: (column: PokemonSortKey) => void;
   /** Called with a row when its `+` control is clicked. */
   onAdd: (row: PokemonPoolRow) => void;
@@ -496,9 +486,7 @@ function TierListView({
   onCancel,
   canAfford,
 }: {
-  /** Free-agent rows to display (already filtered). */
   rows: PokemonPoolRow[];
-  /** The row whose add is currently pending, if any. */
   pendingPokemonId: string | null;
   /** When true, the pickup control is disabled entirely. */
   disabled: boolean;
@@ -630,25 +618,16 @@ function PickupConfirmDialog({
   onConfirm,
   onCancel,
 }: {
-  /** The free-agent Pokémon being confirmed. */
   row: PokemonPoolRow;
-  /** Loaded page state used to derive current balance and costs. */
   goods: PokemonGoods;
-  /** Whether the caller may target any team and waive the transaction fee. */
   isOwner: boolean;
-  /** The team the Pokémon will be added to. */
   teamId: string | null;
-  /** Whether the enabled transaction fee is skipped for this pickup. */
   waiveTransactionCost: boolean;
   /** When true, the pickup RPC is running; controls are disabled. */
   busy: boolean;
-  /** Called with the newly selected target team id. */
   onTeamChange: (teamId: string) => void;
-  /** Called when the owner toggles the transaction-fee waiver. */
   onWaiveChange: (waive: boolean) => void;
-  /** Called when the user confirms the pickup. */
   onConfirm: () => void;
-  /** Called when the user cancels the pickup. */
   onCancel: () => void;
 }) {
   const salary = teamId ? getTeamSalary(goods, teamId) : getPokemonSalary(goods);
@@ -874,7 +853,6 @@ function teamOptionLabel(team: PokemonTeamOption): string {
 function TransactionHistory({
   goods,
 }: {
-  /** Loaded page state whose league-wide roster moves to display. */
   goods: PokemonGoods;
 }) {
   const transactions = goods.leagueActivity;

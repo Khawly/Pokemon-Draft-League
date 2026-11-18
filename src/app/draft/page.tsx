@@ -1489,7 +1489,9 @@ const PoolPanel = memo(function PoolPanel({
       setSortDir((dir) => (dir === "asc" ? "desc" : "asc"));
     } else {
       setSortKey(key);
-      setSortDir("asc");
+      // A newly selected column opens highest-first, so the best values are
+      // visible without needing a second click.
+      setSortDir("desc");
     }
   }
 

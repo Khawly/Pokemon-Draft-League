@@ -180,7 +180,9 @@ function TeamStatsTable({
       setSortDir((dir) => (dir === "asc" ? "desc" : "asc"));
     } else {
       setSortKey(column);
-      setSortDir(column === "name" ? "asc" : "desc");
+      // Every new column starts highest-first, so the first click on any
+      // sortable header orders descending.
+      setSortDir("desc");
     }
   }
 

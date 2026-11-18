@@ -175,21 +175,6 @@ type PokemonSortKey =
   | "specialDefense"
   | "speed";
 
-/** Default direction for a freshly selected column (text asc, numeric desc). */
-const DEFAULT_SORT_DIR: Record<PokemonSortKey, "asc" | "desc"> = {
-  name: "asc",
-  type: "asc",
-  abilities: "asc",
-  tier: "desc",
-  bst: "desc",
-  hp: "desc",
-  attack: "desc",
-  defense: "desc",
-  specialAttack: "desc",
-  specialDefense: "desc",
-  speed: "desc",
-};
-
 /**
  * Compares two free-agent rows for a sort key.
  *
@@ -261,7 +246,7 @@ function compareRows(
  * Renders a clickable column header that toggles the free-agent table sort.
  *
  * Clicking the active column flips its direction; clicking a new column selects
- * it with {@link DEFAULT_SORT_DIR}'s direction for that column.
+ * it and starts it highest-first.
  *
  * @param props - The label, active sort state, this column's sort key, the
  *   click handler, and a text alignment override.
@@ -1147,7 +1132,9 @@ function PokemonPageContent() {
       setSortDir((current) => (current === "asc" ? "desc" : "asc"));
     } else {
       setSortKey(column);
-      setSortDir(DEFAULT_SORT_DIR[column]);
+      // Every new column starts highest-first, so the first click on any
+      // sortable header orders descending.
+      setSortDir("desc");
     }
   }
 

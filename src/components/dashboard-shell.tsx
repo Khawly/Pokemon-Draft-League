@@ -540,7 +540,12 @@ export function DashboardShell({
       {draftFinished && (
         <>
           <section className="grid gap-6 xl:grid-cols-[1.5fr_0.9fr]">
-            <div className="xl:col-span-2 rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-lg sm:p-6 shadow-slate-950/30">
+            {/*
+             * Notifications share the wide left column with the Schedule panel
+             * below them. Without the explicit placement they would span both
+             * columns and stretch wider than the panel they sit above.
+             */}
+            <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-lg sm:p-6 shadow-slate-950/30 xl:col-start-1 xl:row-start-1">
               <div className="flex items-center justify-between gap-3">
                 <SectionLabel>
                   Notifications
@@ -632,7 +637,7 @@ export function DashboardShell({
               )}
             </div>
 
-            <Card className="p-4 shadow-lg sm:p-6 shadow-slate-950/30">
+            <Card className="p-4 shadow-lg sm:p-6 shadow-slate-950/30 xl:col-start-1 xl:row-start-2">
               <div className="flex items-center justify-between gap-4">
                 <div>
                   <SectionLabel>
@@ -787,7 +792,7 @@ export function DashboardShell({
               )}
             </Card>
 
-            <aside className="space-y-6">
+            <aside className="space-y-6 xl:col-start-2 xl:row-span-2 xl:row-start-1">
               <Card className="p-4 shadow-lg sm:p-6 shadow-slate-950/30">
                 <SectionLabel>
                   Next match

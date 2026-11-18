@@ -225,21 +225,21 @@ export default function Home() {
           <div className="flex items-center gap-3">
             <span
               aria-hidden="true"
-              className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full border border-slate-950/80 bg-white shadow-[0_10px_18px_rgba(2,6,23,0.65)]"
+              className="relative flex h-12 w-12 shrink-0 items-center justify-center"
             >
               {/*
-               * The artwork is already cropped tight to the ball. The old
-               * 1920x1920 asset had padding and needed a 2.65x zoom to fill
-               * this 48px circle; scaling the new crop would clip its edges.
+               * The artwork is cropped to the ball and carries a transparent
+               * background, so it sits directly on the header instead of inside a
+               * white disc. The drop shadow follows the ball's own outline.
                */}
               <Image
-                src="/images/pokeball_3D.jpg"
+                src="/images/pokeball_3D.png"
                 alt=""
-                width={766}
-                height={774}
+                width={710}
+                height={710}
                 sizes="48px"
                 loading="eager"
-                className="h-full w-full object-contain"
+                className="h-full w-full object-contain drop-shadow-[0_10px_18px_rgba(2,6,23,0.65)]"
               />
             </span>
             <div>

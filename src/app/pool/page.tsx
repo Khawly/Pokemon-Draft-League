@@ -1622,7 +1622,9 @@ function PoolPageContent() {
       setSortDir((current) => (current === "asc" ? "desc" : "asc"));
     } else {
       setSortKey(key);
-      setSortDir("asc");
+      // Every new column starts highest-first, including the text columns,
+      // so a header's first click always orders descending.
+      setSortDir("desc");
     }
   }
 

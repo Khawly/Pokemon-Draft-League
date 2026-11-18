@@ -2,9 +2,10 @@
  * User settings page for the Pokemon Draft League.
  *
  * Allows authenticated users to view and edit their profile (display name,
- * Showdown username, avatar initials), upload or remove a profile avatar, pick the
- * color their name is shown in, pick the time zone league dates and times are
- * shown in, declare the weekly window they are available for a match, and sign out.
+ * Showdown username, avatar initials), upload, search for a Pokemon sprite, or
+ * remove a profile avatar, pick the color their name is shown in, pick the time
+ * zone league dates and times are shown in, declare the weekly window they are
+ * available for a match, and sign out.
  */
 "use client";
 
@@ -34,6 +35,12 @@ import {
   type AvailabilityWeek,
 } from "@/lib/supabase/availability";
 import { NAME_COLOR_OPTIONS, normalizeNameColor, type NameColorId } from "@/lib/name-colors";
+import {
+  MAX_POKEMON_AVATAR_RESULTS,
+  isPokemonSpriteAvatarUrl,
+  searchPokemonAvatars,
+  type PokemonAvatarOption,
+} from "@/lib/pokemon-avatars";
 import {
   registerUnsavedChangesGuard,
   clearUnsavedChangesGuard,
@@ -71,6 +78,7 @@ export default function SettingsPage() {
   const [avatarInitials, setAvatarInitials] = useState("T");
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [avatarRefreshKey, setAvatarRefreshKey] = useState(0);
+  const [pokemonSearch, setPokemonSearch] = useState("");
   const [timeZone, setTimeZone] = useState("UTC");
   const [nameColor, setNameColor] = useState<NameColorId>("default");
   const [availability, setAvailability] = useState<AvailabilityWeek>(
@@ -106,6 +114,16 @@ export default function SettingsPage() {
    * rather than on every render of a page that re-renders on each keystroke.
    */
   const timeZoneOptions = useMemo(() => listTimeZones(), []);
+
+  /**
+   * Re-running the search on each keystroke is cheap because the sprite index is
+   * built once at module load, but the memo keeps the page from rebuilding the
+   * result array when an unrelated field re-renders the form.
+   */
+  const pokemonAvatarResults = useMemo(
+    () => searchPokemonAvatars(pokemonSearch),
+    [pokemonSearch],
+  );
 
   useEffect(() => {
     async function loadProfile() {
@@ -290,6 +308,26 @@ export default function SettingsPage() {
   }
 
   /**
+   * Stages a chosen Pokemon sprite as the avatar preview.
+   *
+   * The sprite path goes into the same avatar URL an upload produces, so saving
+   * needs no special case. Any pending upload or removal is dropped first: the
+   * member's latest choice is the sprite, and an old upload must not overwrite it
+   * when the save runs.
+   *
+   * @param option - The sprite the member picked.
+   */
+  function handlePokemonAvatarSelect(option: PokemonAvatarOption) {
+    pendingAvatarActionRef.current = "none";
+    pendingAvatarFileRef.current = null;
+    setAvatarUrl(option.url);
+    setAvatarRefreshKey((prev) => prev + 1);
+    setHasChanges(true);
+    setSuccessMessage(`${option.name} selected. Save changes to confirm.`);
+    setError(null);
+  }
+
+  /**
    * Applies an edit to one weekday of the availability section.
    *
    * @param dayOfWeek - Weekday index to change (0 = Sunday).
@@ -429,7 +467,14 @@ export default function SettingsPage() {
     setSuccessMessage(null);
 
     try {
-      pendingAvatarActionRef.current = "remove";
+      /*
+       * A sprite lives in the app bundle rather than the avatars bucket, so
+       * clearing one only has to clear the profile field. Sending the storage
+       * delete for it would be a request that can never have an object to remove.
+       */
+      pendingAvatarActionRef.current = isPokemonSpriteAvatarUrl(avatarUrl)
+        ? "none"
+        : "remove";
       pendingAvatarFileRef.current = null;
       setAvatarUrl(null);
       setAvatarRefreshKey((prev) => prev + 1);
@@ -603,6 +648,78 @@ export default function SettingsPage() {
               <p className="text-center text-xs text-slate-400">
                 Max size: 100 KB • PNG, JPG, or WebP
               </p>
+
+              <div className="border-t border-slate-800 pt-4">
+                <label
+                  htmlFor="pokemon-avatar-search"
+                  className="mb-2 block text-sm font-medium text-slate-300"
+                >
+                  Pokémon avatar
+                </label>
+                <input
+                  id="pokemon-avatar-search"
+                  type="search"
+                  value={pokemonSearch}
+                  onChange={(event) => setPokemonSearch(event.target.value)}
+                  placeholder="Search by name or Dex number"
+                  autoComplete="off"
+                  spellCheck={false}
+                  className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-slate-100 outline-none transition focus:border-amber-400"
+                />
+                <p className="mt-2 text-xs text-slate-400">
+                  Pick a Pokémon sprite to use instead of an uploaded picture.
+                </p>
+
+                <div className="mt-3 max-h-72 overflow-y-auto rounded-xl border border-slate-800 bg-slate-950/40 p-2">
+                  {pokemonAvatarResults.length === 0 ? (
+                    <p className="px-1 py-2 text-xs text-slate-400">
+                      No Pokémon match that search.
+                    </p>
+                  ) : (
+                    <div
+                      aria-label="Pokémon avatar sprites"
+                      className="grid grid-cols-4 gap-2 sm:grid-cols-6"
+                    >
+                      {pokemonAvatarResults.map((option) => {
+                        const isSelected = option.url === avatarUrl;
+
+                        return (
+                          <button
+                            key={option.spriteId}
+                            type="button"
+                            aria-pressed={isSelected}
+                            aria-label={`Use ${option.name} as your avatar`}
+                            title={option.name}
+                            onClick={() => handlePokemonAvatarSelect(option)}
+                            className={`flex aspect-square items-center justify-center rounded-xl border p-1 transition ${
+                              isSelected
+                                ? "border-amber-400 bg-amber-500/10 ring-1 ring-amber-400/60"
+                                : "border-slate-800 bg-slate-900/60 hover:border-slate-600 hover:bg-slate-800"
+                            }`}
+                          >
+                            <img
+                              src={option.url}
+                              alt=""
+                              width={40}
+                              height={40}
+                              loading="lazy"
+                              className="h-full w-full object-contain"
+                            />
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {pokemonAvatarResults.length === MAX_POKEMON_AVATAR_RESULTS && (
+                  <p className="mt-2 text-xs text-slate-500">
+                    Showing the first {MAX_POKEMON_AVATAR_RESULTS} matches. Keep
+                    typing to narrow the list.
+                  </p>
+                )}
+              </div>
+
               <button
                 type="button"
                 className="w-full rounded-xl border border-red-800 bg-red-950/60 px-4 py-2.5 text-sm font-medium text-red-200 transition hover:bg-red-900/80"

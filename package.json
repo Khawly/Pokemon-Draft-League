@@ -29,10 +29,10 @@
     "packageManager": "npm@11.11.0",
     "dependencies": {
         "@supabase/ssr": "^0.12.7",
-        "@supabase/supabase-js": "^2.116.0",
-        "next": "^16.4.5",
-        "react": "19.2.8",
-        "react-dom": "19.2.8"
+        "@supabase/supabase-js": "^2.119.0",
+        "next": "^16.4.6",
+        "react": "19.3.1",
+        "react-dom": "19.3.1"
     },
     "devDependencies": {
         "@tailwindcss/postcss": "^4",

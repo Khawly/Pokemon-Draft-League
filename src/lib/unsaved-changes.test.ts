@@ -19,8 +19,8 @@ afterEach(() => {
 });
 
 describe("confirmDiscardUnsavedChanges", () => {
-  it("allows navigation when no page has registered anything", () => {
-    expect(confirmDiscardUnsavedChanges()).resolves.toBe(true);
+  it("allows navigation when no page has registered anything", async () => {
+    await expect(confirmDiscardUnsavedChanges()).resolves.toBe(true);
   });
 
   it("defers to the registered page's own confirmation", async () => {

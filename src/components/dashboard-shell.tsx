@@ -17,6 +17,7 @@
 import { useRouter } from "next/navigation";
 import { Fragment } from "react";
 import { getSpriteUrl } from "@/lib/pokeapi";
+import { MatchStatusBadge } from "@/components/match-status-badge";
 import { MemberName } from "@/components/member-name";
 import { MemberAvatar } from "@/components/member-avatar";
 import { MatchPredictionButton } from "@/components/match-prediction-buttons";
@@ -26,7 +27,6 @@ import { predictionIsOpen } from "@/lib/predictions";
 import {
   formatMatchTime,
   formatNotificationAge,
-  matchStatusLabel,
   type DashboardGoods,
   type DashboardRosterPokemon,
   type DashboardRosterSprite,
@@ -452,8 +452,6 @@ export function DashboardShell({
     return team && !team.is_vacant ? team.owner_user_id : null;
   };
 
-  const matchFormatLabel =
-    goods.matchFormat === "single" ? "Single game" : "Best of 3";
   /*
    * A past season is read-only, so its cards never offer a winner pick even when
    * an old matchup was somehow left unscheduled. The newest season is the one
@@ -701,14 +699,8 @@ export function DashboardShell({
                               .join(", ")}
                           </p>
                         </div>
-                        <span
-                          className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${
-                            match.status === "in_progress"
-                              ? "bg-amber-500/15 text-amber-300"
-                              : "bg-emerald-500/15 text-emerald-300"
-                          }`}
-                        >
-                          {matchStatusLabel(match.status)}
+                        <span className="shrink-0">
+                          <MatchStatusBadge status={match.status} />
                         </span>
                       </div>
                       {/* Both sides' Pokemon, sprites only, as on the Next Match panel. */}
@@ -794,9 +786,12 @@ export function DashboardShell({
 
             <aside className="space-y-6 xl:col-start-2 xl:row-span-2 xl:row-start-1">
               <Card className="p-4 shadow-lg sm:p-6 shadow-slate-950/30">
-                <SectionLabel>
-                  Next match
-                </SectionLabel>
+                <div className="flex items-start justify-between gap-3">
+                  <SectionLabel>Next match</SectionLabel>
+                  {goods.nextMatch && (
+                    <MatchStatusBadge status={goods.nextMatch.status} />
+                  )}
+                </div>
                 {goods.nextMatch ? (
                   <>
                     <p className="mt-3 text-sm text-slate-300">
@@ -804,8 +799,10 @@ export function DashboardShell({
                         goods.nextMatch.is_playoff
                           ? "Postseason"
                           : `Week ${goods.nextMatch.week_number}`,
-                        formatMatchTime(goods.nextMatch.scheduled_at, timeZone),
-                        matchFormatLabel,
+                        formatMatchTime(
+                          goods.nextMatch.scheduled_at,
+                          timeZone,
+                        ),
                       ]
                         .filter(Boolean)
                         .join(", ")}

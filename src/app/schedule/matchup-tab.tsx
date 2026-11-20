@@ -1,4 +1,4 @@
-/*
+﻿/*
  * The Matchup tab of the schedule page: the selected matchup card, its
  * scheduling / reporting / editing forms, the upcoming matches list, and the
  * completed-match history for the week.
@@ -24,7 +24,8 @@ import {
 } from "@/lib/supabase/availability";
 import * as scheduleApi from "@/lib/supabase/schedule";
 
-import { MatchupHistoryCard, RosterSprites, Spoiler, StatusBadge } from "./matchup-cards";
+import { MatchStatusBadge } from "@/components/match-status-badge";
+import { MatchupHistoryCard, RosterSprites, Spoiler } from "./matchup-cards";
 import { Avatar, Field, SectionCard, sideByTeamId } from "./schedule-ui";
 import { type MatchupPanel } from "./use-matchup-panel";
 
@@ -225,7 +226,7 @@ export function MatchupTab({ goods, isBusy, timeZone, panel }: MatchupTabProps) 
                   <span className="rounded-full bg-slate-800 px-3 py-1 text-xs font-semibold text-slate-300">
                     {matchFormat === "single" ? "Single" : "Best of 3"}
                   </span>
-                  <StatusBadge status={selectedMatch.status} />
+                  <MatchStatusBadge status={selectedMatch.status} />
                 </div>
                 <div className="flex flex-1 flex-col items-center gap-1 text-center">
                   <Avatar
@@ -333,7 +334,7 @@ export function MatchupTab({ goods, isBusy, timeZone, panel }: MatchupTabProps) 
                 </p>
               ) : (
                 <p className="text-sm text-slate-500">
-                  No time agreed yet — both players have to agree before
+                  No time agreed yet â€” both players have to agree before
                   this matchup is scheduled.
                 </p>
               )}
@@ -349,7 +350,7 @@ export function MatchupTab({ goods, isBusy, timeZone, panel }: MatchupTabProps) 
                 )}
               {selectedMatch.notes && (
                 <p className="text-sm italic text-slate-400">
-                  “{selectedMatch.notes}”
+                  â€œ{selectedMatch.notes}â€
                 </p>
               )}
 
@@ -984,7 +985,7 @@ export function MatchupTab({ goods, isBusy, timeZone, panel }: MatchupTabProps) 
                           {result.pokemon_left_alive != null && (
                             <Spoiler hidden={hideSpoilers}>
                               <span className="text-slate-400">
-                                • {result.pokemon_left_alive} alive
+                                â€¢ {result.pokemon_left_alive} alive
                               </span>
                             </Spoiler>
                           )}
@@ -1083,7 +1084,7 @@ export function MatchupTab({ goods, isBusy, timeZone, panel }: MatchupTabProps) 
                     <p className="font-semibold text-slate-100">
                       {scheduleApi.matchWeekLabel(match, firstPlayoffWeek)}
                     </p>
-                    <StatusBadge status={match.status} />
+                    <MatchStatusBadge status={match.status} />
                   </div>
                   {match.scheduled_at && (
                     <p className="mt-0.5 text-sm text-slate-400">

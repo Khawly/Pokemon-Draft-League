@@ -95,6 +95,10 @@ export default function SettingsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  /** Upload-specific failure text, shown beside the avatar controls. */
+  const [avatarError, setAvatarError] = useState<string | null>(null);
+  /** Avatar-specific "save to confirm" text, shown beside the avatar controls. */
+  const [avatarNotice, setAvatarNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
@@ -238,6 +242,8 @@ export default function SettingsPage() {
     setAvailability(savedAvailability);
     setAvatarRefreshKey((prev) => prev + 1);
     setHasChanges(false);
+    setAvatarError(null);
+    setAvatarNotice(null);
     setSuccessMessage(null);
     setError(null);
   }, [savedAvailability]);
@@ -323,7 +329,9 @@ export default function SettingsPage() {
     setAvatarUrl(option.url);
     setAvatarRefreshKey((prev) => prev + 1);
     setHasChanges(true);
-    setSuccessMessage(`${option.name} selected. Save changes to confirm.`);
+    setAvatarNotice(`${option.name} selected. Save changes to confirm.`);
+    setAvatarError(null);
+    setSuccessMessage(null);
     setError(null);
   }
 
@@ -443,6 +451,7 @@ export default function SettingsPage() {
       setSavedAvailability(availability);
       setAvatarUrl(nextAvatarUrl);
       setHasChanges(false);
+      setAvatarNotice(null);
       setSuccessMessage("Your profile was saved.");
     } catch (caughtError) {
       const message =
@@ -463,6 +472,8 @@ export default function SettingsPage() {
     }
 
     setIsUploadingAvatar(true);
+    setAvatarError(null);
+    setAvatarNotice(null);
     setError(null);
     setSuccessMessage(null);
 
@@ -479,7 +490,7 @@ export default function SettingsPage() {
       setAvatarUrl(null);
       setAvatarRefreshKey((prev) => prev + 1);
       setHasChanges(true);
-      setSuccessMessage("Avatar removed. Save changes to confirm.");
+      setAvatarNotice("Avatar removed. Save changes to confirm.");
     } catch (caughtError) {
       const message =
         caughtError instanceof Error
@@ -505,7 +516,8 @@ export default function SettingsPage() {
     }
 
     setIsUploadingAvatar(true);
-    setError(null);
+    setAvatarError(null);
+    setAvatarNotice(null);
     setSuccessMessage(null);
 
     try {
@@ -518,13 +530,13 @@ export default function SettingsPage() {
       setAvatarRefreshKey((prev) => prev + 1);
       setAvatarUrl(previewUrl);
       setHasChanges(true);
-      setSuccessMessage("Avatar updated. Save changes to confirm.");
+      setAvatarNotice("Avatar updated. Save changes to confirm.");
     } catch (caughtError) {
       const message =
         caughtError instanceof Error
           ? caughtError.message
           : "Unable to upload avatar.";
-      setError(
+      setAvatarError(
         `${message} Create a public 'avatars' bucket in Supabase Storage first.`,
       );
     } finally {
@@ -645,6 +657,22 @@ export default function SettingsPage() {
                   </svg>
                 </button>
               </div>
+              {avatarError && (
+                <p
+                  role="alert"
+                  className="rounded-lg border border-red-800 bg-red-950/60 px-3 py-2 text-xs text-red-200"
+                >
+                  {avatarError}
+                </p>
+              )}
+              {avatarNotice && (
+                <p
+                  role="status"
+                  className="rounded-lg border border-emerald-800 bg-emerald-950/60 px-3 py-2 text-xs text-emerald-200"
+                >
+                  {avatarNotice}
+                </p>
+              )}
               <p className="text-center text-xs text-slate-400">
                 Max size: 100 KB • PNG, JPG, or WebP
               </p>

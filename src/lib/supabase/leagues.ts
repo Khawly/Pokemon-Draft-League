@@ -38,8 +38,12 @@ export async function createLeagueForUser({
     );
   }
 
-  if (!Number.isInteger(numberOfPlayers) || numberOfPlayers <= 0) {
-    throw new Error("Number of players must be a positive whole number.");
+  if (
+    !Number.isInteger(numberOfPlayers) ||
+    numberOfPlayers < 2 ||
+    numberOfPlayers > 50
+  ) {
+    throw new Error("Number of players must be a whole number between 2 and 50.");
   }
 
   const {

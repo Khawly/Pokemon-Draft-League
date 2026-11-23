@@ -22,6 +22,12 @@ import {
 import { predictionLockReason, type PredictionLockReason } from "@/lib/predictions";
 import { readReplaySummary } from "@/lib/replay-summary";
 import {
+  optionalHttpUrl,
+  optionalInteger,
+  optionalText,
+  requireInteger,
+} from "@/lib/validation";
+import {
   availabilityFit,
   dayOfWeekFromDate,
   loadMemberAvailability,
@@ -872,15 +878,36 @@ export function useMatchupPanel({
       return;
     }
 
-    await canRunMutation(
+    if (new Date(proposedAt).getTime() <= Date.now()) {
+      setError("Choose a match time in the future.");
+      return;
+    }
+
+    let notes: string;
+
+    try {
+      notes = optionalText(scheduleNotes, "Notes", 500) ?? "";
+    } catch (caughtError) {
+      setError(
+        caughtError instanceof Error ? caughtError.message : "Check the notes.",
+      );
+      return;
+    }
+
+    const proposed = await canRunMutation(
       () =>
         scheduleApi.proposeMatchTime(
           selectedMatch.id,
           proposedAt,
-          scheduleNotes,
+          notes,
         ),
       goods.league.id,
     );
+
+    if (!proposed) {
+      return;
+    }
+
     setSchedulingMatchId(null);
     setOpponentAvailability(null);
     setAvailabilityError(false);
@@ -998,23 +1025,60 @@ export function useMatchupPanel({
   }
 
   async function handleSubmitResult() {
-    if (!goods || !selectedMatch || !reportWinner) {
+    if (!goods || !selectedMatch) {
       return;
     }
-    const alive = reportAlive.trim() ? Number(reportAlive) : null;
-    await canRunMutation(
-      () =>
-        scheduleApi.submitGameResult(
-          selectedMatch.id,
-          Number(reportGame),
-          reportWinner,
-          reportUrl.trim(),
-          alive,
-        ),
-      goods.league.id,
-    );
-    setReportingMatchId(null);
-    setNotice("Result submitted.");
+
+    try {
+      if (!reportWinner) {
+        throw new Error("Choose the winning team.");
+      }
+
+      if (
+        reportWinner !== selectedMatch.player_1_team_id &&
+        reportWinner !== selectedMatch.player_2_team_id
+      ) {
+        throw new Error("The winning team must be one of the two teams in this match.");
+      }
+
+      const game = requireInteger(reportGame, "Game", 1, 3);
+      const alive = optionalInteger(
+        reportAlive,
+        "Winner's surviving Pokemon",
+        0,
+        6,
+      );
+      const replayUrl = optionalHttpUrl(
+        reportUrl,
+        "Replay link",
+        ["replay.pokemonshowdown.com"],
+      );
+
+      const submitted = await canRunMutation(
+        () =>
+          scheduleApi.submitGameResult(
+            selectedMatch.id,
+            game,
+            reportWinner,
+            replayUrl ?? "",
+            alive,
+          ),
+        goods.league.id,
+      );
+
+      if (!submitted) {
+        return;
+      }
+
+      setReportingMatchId(null);
+      setNotice("Result submitted.");
+    } catch (caughtError) {
+      setError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Check the result before submitting it.",
+      );
+    }
   }
 
   /**
@@ -1058,19 +1122,53 @@ export function useMatchupPanel({
     if (!goods) {
       return;
     }
-    const alive = editAlive.trim() ? Number(editAlive) : null;
-    await canRunMutation(
-      () =>
-        scheduleApi.updateGameResult(
-          result.id,
-          editWinner,
-          editUrl.trim(),
-          alive,
-        ),
-      goods.league.id,
-    );
-    setEditingResultId(null);
-    setNotice("Result updated.");
+
+    try {
+      if (
+        !editWinner ||
+        !selectedMatch ||
+        (editWinner !== selectedMatch.player_1_team_id &&
+          editWinner !== selectedMatch.player_2_team_id)
+      ) {
+        throw new Error("Choose one of the two teams in this match as the winner.");
+      }
+
+      const alive = optionalInteger(
+        editAlive,
+        "Winner's surviving Pokemon",
+        0,
+        6,
+      );
+      const replayUrl = optionalHttpUrl(
+        editUrl,
+        "Replay link",
+        ["replay.pokemonshowdown.com"],
+      );
+
+      const updated = await canRunMutation(
+        () =>
+          scheduleApi.updateGameResult(
+            result.id,
+            editWinner,
+            replayUrl ?? "",
+            alive,
+          ),
+        goods.league.id,
+      );
+
+      if (!updated) {
+        return;
+      }
+
+      setEditingResultId(null);
+      setNotice("Result updated.");
+    } catch (caughtError) {
+      setError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Check the result before saving it.",
+      );
+    }
   }
 
   async function handleForfeit() {

@@ -576,6 +576,7 @@ export function MatchupTab({ goods, isBusy, timeZone, panel }: MatchupTabProps) 
                       value={datePartOfInputValue(scheduleTime)}
                       onChange={handleScheduleDateChange}
                       onBlur={handleScheduleDateBlur}
+                      required
                       className="min-w-0 flex-1 rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-500 [&::-webkit-calendar-picker-indicator]:hidden"
                     />
                     <button
@@ -623,6 +624,7 @@ export function MatchupTab({ goods, isBusy, timeZone, panel }: MatchupTabProps) 
                         ),
                       )
                     }
+                    required
                     className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-500"
                   />
                 </Field>
@@ -635,6 +637,7 @@ export function MatchupTab({ goods, isBusy, timeZone, panel }: MatchupTabProps) 
                       onChange={(event) =>
                         setScheduleNotes(event.target.value)
                       }
+                      maxLength={500}
                       className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-500"
                     />
                   </Field>
@@ -797,6 +800,7 @@ export function MatchupTab({ goods, isBusy, timeZone, panel }: MatchupTabProps) 
                     type="url"
                     value={reportUrl}
                     placeholder="https://replay.pokemonshowdown.com/..."
+                    maxLength={500}
                     onChange={(event) => {
                       setReportUrl(event.target.value);
                       setReplayRead({ status: "idle" });
@@ -816,6 +820,7 @@ export function MatchupTab({ goods, isBusy, timeZone, panel }: MatchupTabProps) 
                     type="number"
                     min={0}
                     max={6}
+                    step={1}
                     value={reportAlive}
                     onChange={(event) =>
                       setReportAlive(
@@ -918,6 +923,7 @@ export function MatchupTab({ goods, isBusy, timeZone, panel }: MatchupTabProps) 
                             <input
                               type="url"
                               value={editUrl}
+                              maxLength={500}
                               onChange={(event) =>
                                 setEditUrl(event.target.value)
                               }
@@ -929,6 +935,7 @@ export function MatchupTab({ goods, isBusy, timeZone, panel }: MatchupTabProps) 
                               type="number"
                               min={0}
                               max={6}
+                              step={1}
                               value={editAlive}
                               onChange={(event) =>
                                 setEditAlive(

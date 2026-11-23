@@ -24,6 +24,10 @@ import { formatDateTimeInZone } from "@/lib/datetime";
 import { getSelectedSeason } from "@/lib/season-selection";
 import { PageShell, PageShellError, PageShellLoading } from "@/components/page-shell";
 import { useShellLeague } from "@/components/league-shell-context";
+import {
+  MAX_RULES_LENGTH,
+  requireImportFile,
+} from "@/lib/validation";
 
 /**
  * Entry point for the rules route.
@@ -143,6 +147,12 @@ function RulesPageContent() {
         throw new Error("Select a league before saving the rules.");
       }
 
+      if (draft.length > MAX_RULES_LENGTH) {
+        throw new Error(
+          `Rules must be ${MAX_RULES_LENGTH.toLocaleString()} characters or fewer.`,
+        );
+      }
+
       const updatedAt = await saveLeagueRules(leagueId, draft);
 
       // Re-read rather than patching locally: the RPC decides what blank content
@@ -173,12 +183,25 @@ function RulesPageContent() {
     setNotice(null);
 
     try {
-      setDraft(normalizeRulesText(await file.text()));
+      requireImportFile(file, "Rules file", [".txt", ".md"]);
+      const content = normalizeRulesText(await file.text());
+
+      if (content.length > MAX_RULES_LENGTH) {
+        throw new Error(
+          `Rules must be ${MAX_RULES_LENGTH.toLocaleString()} characters or fewer.`,
+        );
+      }
+
+      setDraft(content);
       setNotice(
         `Loaded ${file.name}. Review it, then save to publish the change.`,
       );
-    } catch {
-      setError("That file could not be read. Try a plain text file.");
+    } catch (caughtError) {
+      setError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "That file could not be read. Try a plain text file.",
+      );
     }
   }
 
@@ -245,6 +268,7 @@ function RulesPageContent() {
 
             <textarea
               value={draft}
+              maxLength={MAX_RULES_LENGTH}
               onChange={(event) => {
                 setDraft(event.target.value);
                 setNotice(null);

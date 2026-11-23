@@ -32,6 +32,7 @@ import {
 } from "@/lib/supabase/members";
 import { updateTeamSalaryForSeason } from "@/lib/supabase/teams";
 import { formatSeasonLabel } from "@/lib/supabase/seasons";
+import { requireInteger } from "@/lib/validation";
 
 
 /**
@@ -225,6 +226,23 @@ function MembersSettingsPageContent() {
   /** Saves all member salary overrides for the selected season in parallel. */
   async function saveMemberSalaryChanges() {
     if (!leagueId || !season?.id || !isOwner || !allowPerTeamSalary) {
+      return;
+    }
+
+    try {
+      for (const member of members) {
+        requireInteger(
+          member.total_token_salary ?? defaultTotalTokenSalary,
+          "Each member salary",
+          0,
+        );
+      }
+    } catch (caughtError) {
+      setError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Each member salary must be a whole number of 0 or more.",
+      );
       return;
     }
 
@@ -673,6 +691,7 @@ function MembersSettingsPageContent() {
                               <input
                                 type="number"
                                 min={0}
+                                step={1}
                                 value={
                                   typeof member.total_token_salary === "number"
                                     ? member.total_token_salary

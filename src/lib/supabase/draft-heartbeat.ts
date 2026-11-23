@@ -5,6 +5,10 @@
  * current turn is due (timer expired, or an armed Auto/Skip round flag) always
  * advances even when no browser fires the per-turn resolve — a draft can no
  * longer wedge at 0:00 because every client happens to be asleep or unloaded.
+ * The same sweep also starts a pending draft once its scheduled draft_at instant
+ * has passed and the league is ready, so a scheduled draft does not need the
+ * owner to press Start Draft.
+ *
  * Runs exactly once per Node process; the module-level guard is keyed on
  * globalThis so Next.js dev/HMR reloads restart the single interval instead of
  * stacking duplicates. Bootstrapped from next instrumentation.ts so it starts
@@ -25,9 +29,10 @@
  * Logging is deliberately throttled. The sweep runs every 15 seconds for the life
  * of the process, so logging every tick produced 5,760 lines a day per active
  * draft, and on a long draft the overwhelming majority recorded that nothing had
- * happened. It now logs a line whenever a turn actually resolves, one "still
- * alive" line every LIVENESS_LOG_INTERVAL_MS so a heartbeat that has stopped is
- * still provable, and one line per distinct RPC error rather than one per tick.
+ * happened. It now logs a line whenever a draft starts or a turn resolves, one
+ * "still alive" line every LIVENESS_LOG_INTERVAL_MS so a heartbeat that has
+ * stopped is still provable, and one line per distinct RPC error rather than one
+ * per tick.
  */
 import { createClient } from "@supabase/supabase-js";
 
@@ -80,6 +85,10 @@ type HeartbeatLogState = {
 /**
  * Runs a single overdue-draft sweep with the service-role client.
  *
+ * The sweep starts any pending draft whose scheduled time has passed and
+ * resolves any active draft turn that is due. Both are reported through the
+ * same count.
+ *
  * Guarantees one sweep-at-a-time: a promise that never settles holds the
  * single guard, later ticks skip (printing a warning) instead of stacking
  * requests. Any thrown error or supabase RPC error is logged, never swallowed
@@ -96,7 +105,7 @@ export async function runSweep(
   logState: HeartbeatLogState,
 ) {
   const result = await client.rpc("advance_overdue_drafts");
-  const advanced = Number(result.data ?? 0);
+  const handled = Number(result.data ?? 0);
 
   if (result.error) {
     /*
@@ -114,9 +123,12 @@ export async function runSweep(
 
   logState.lastErrorMessage = null;
 
-  // A sweep that resolved something is the event worth recording, always logged.
-  if (advanced > 0) {
-    console.log(`[draft-heartbeat] advanced ${String(advanced)} draft turn(s)`);
+  // A sweep that started a draft or resolved something is the event worth
+  // recording, always logged.
+  if (handled > 0) {
+    console.log(
+      `[draft-heartbeat] advanced or started ${String(handled)} draft(s)`,
+    );
     logState.lastLivenessLogAt = Date.now();
     return;
   }

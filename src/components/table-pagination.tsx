@@ -61,7 +61,13 @@ export function TablePagination({
           </span>
           <select
             value={pageSize}
-            onChange={(event) => onPageSizeChange(Number(event.target.value))}
+            onChange={(event) => {
+              const nextSize = Number(event.target.value);
+
+              if (Number.isInteger(nextSize) && nextSize > 0) {
+                onPageSizeChange(nextSize);
+              }
+            }}
             className="rounded-lg border border-slate-700 bg-slate-950 px-2 py-1.5 text-sm text-slate-100 outline-none focus:border-amber-400"
             aria-label="Rows per page"
           >

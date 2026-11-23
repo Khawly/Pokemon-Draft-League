@@ -221,9 +221,9 @@ export type DashboardRosterSprite = {
 };
 
 /** One of the signed-in member's notifications. */
-type DashboardNotification = {
+export type DashboardNotification = {
   id: string;
-  /** Notification kind, e.g. `draft_live`, used for panel actions. */
+  /** Notification kind, e.g. `trade_proposed`. */
   type: string;
   message: string;
   is_read: boolean;

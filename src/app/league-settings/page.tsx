@@ -67,6 +67,7 @@ import { MAX_NAME_LENGTH } from "@/lib/name-limits";
 import { useShellLeague } from "@/components/league-shell-context";
 import { PageShell, PageShellCard, PageShellError, PageShellLoading } from "@/components/page-shell";
 import { compressImageFile } from "@/lib/image-upload";
+import { requireInteger } from "@/lib/validation";
 import { clearSelectedSeason, getSelectedSeason } from "@/lib/season-selection";
 import { clearSelectedLeague } from "@/lib/league-selection";
 import { Card } from "@/components/card";
@@ -911,10 +912,27 @@ function LeagueSettingsPageContent() {
       return;
     }
 
-    const normalizedPlayers = Number(numberOfPlayers) || 10;
-    const normalizedTransactionCost = enableTransactionCosts
-      ? Number(transactionCost) || 0
-      : null;
+    let normalizedPlayers: number;
+    let normalizedTransactionCost: number | null;
+
+    try {
+      normalizedPlayers = requireInteger(
+        numberOfPlayers,
+        "Number of players",
+        2,
+        50,
+      );
+      normalizedTransactionCost = enableTransactionCosts
+        ? requireInteger(transactionCost, "Transaction cost", 0)
+        : null;
+    } catch (caughtError) {
+      setError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Check the league settings before saving.",
+      );
+      return;
+    }
     const normalizedOwnersAdminsVoteOnTrades =
       adminsApproveTrades && ownersAdminsVoteOnTrades;
 
@@ -933,6 +951,11 @@ function LeagueSettingsPageContent() {
 
     if (freeAgencyDeadlineEnabled && !freeAgencyDeadlineAt) {
       setError("Choose a valid date and time for the free agency deadline.");
+      return;
+    }
+
+    if (deadlineEnabled && (!deadlineDate.trim() || !deadlineTime.trim())) {
+      setError("Choose a weekly deadline date and time.");
       return;
     }
 
@@ -1384,6 +1407,7 @@ function LeagueSettingsPageContent() {
                     setLeagueName(event.target.value);
                     setHasUnsavedChanges(true);
                   }}
+                  required
                   className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-slate-100 outline-none transition focus:border-amber-400"
                 />
               </div>
@@ -1465,7 +1489,9 @@ function LeagueSettingsPageContent() {
                 </label>
                 <input
                   type="number"
-                  min={1}
+                  min={2}
+                  max={50}
+                  step={1}
                   value={numberOfPlayers}
                   onChange={(event) => {
                     setNumberOfPlayers(Number(event.target.value) || 1);
@@ -1502,6 +1528,7 @@ function LeagueSettingsPageContent() {
                   <input
                     type="number"
                     min={0}
+                    step={1}
                     value={transactionCost}
                     onChange={(event) => {
                       setTransactionCost(Number(event.target.value) || 0);
@@ -1813,6 +1840,7 @@ function LeagueSettingsPageContent() {
                         setDeadlineTime(event.target.value);
                         setHasUnsavedChanges(true);
                       }}
+                      required
                       className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-slate-100 outline-none transition focus:border-amber-400 disabled:opacity-50"
                     />
                   </div>

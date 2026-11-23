@@ -618,6 +618,15 @@ export async function updateTeamSalaryForSeason(
   userId: string,
   totalTokenSalary: number | null,
 ): Promise<void> {
+  if (
+    totalTokenSalary !== null &&
+    (!Number.isInteger(totalTokenSalary) || totalTokenSalary < 0)
+  ) {
+    throw new Error(
+      "A team's total token salary must be a whole number of 0 or more.",
+    );
+  }
+
   const { error } = await supabase.rpc("update_team_salary_for_season", {
     p_league_id: leagueId,
     p_season_id: seasonId,

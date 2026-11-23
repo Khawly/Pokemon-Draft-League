@@ -6,6 +6,7 @@
  * the same select and upsert payload.
  */
 import { supabase } from "@/lib/supabase/client";
+import { requireClock } from "@/lib/validation";
 
 /** The columns the draft settings page reads. */
 export interface LeagueSettingsRow {
@@ -20,6 +21,8 @@ export interface LeagueSettingsRow {
   quiet_hours_enabled: boolean | null;
   quiet_hours_start_est: string | null;
   quiet_hours_end_est: string | null;
+  /** Absolute instant the seasonal draft is scheduled to start, or null. */
+  draft_at: string | null;
 }
 
 /** The draft settings payload written by the settings page. */
@@ -68,6 +71,44 @@ export async function loadLeagueSettingsRow(
 export async function saveLeagueSettingsRow(
   row: LeagueSettingsWrite,
 ): Promise<void> {
+  if (
+    row.total_rounds == null ||
+    !Number.isInteger(row.total_rounds) ||
+    row.total_rounds < 1
+  ) {
+    throw new Error("Total rounds must be a whole number of at least 1.");
+  }
+
+  if (
+    row.pick_time_limit_minutes == null ||
+    !Number.isInteger(row.pick_time_limit_minutes) ||
+    row.pick_time_limit_minutes < 1
+  ) {
+    throw new Error("Pick time limit must be a whole number of at least 1.");
+  }
+
+  if (
+    row.total_token_salary != null &&
+    (!Number.isInteger(row.total_token_salary) ||
+      row.total_token_salary < 0)
+  ) {
+    throw new Error(
+      "Total token salary must be a whole number of 0 or more.",
+    );
+  }
+
+  if (row.quiet_hours_enabled) {
+    const start = requireClock(
+      row.quiet_hours_start_est ?? "",
+      "Quiet hours start",
+    );
+    const end = requireClock(row.quiet_hours_end_est ?? "", "Quiet hours end");
+
+    if (start === end) {
+      throw new Error("Quiet hours start and end must be different times.");
+    }
+  }
+
   const { error } = await supabase
     .from("league_settings")
     .upsert(row, { onConflict: "league_id, season_id" });
@@ -221,9 +262,30 @@ export async function updateLeagueRow(
     image_url?: string | null;
   },
 ): Promise<void> {
+  const trimmedName = payload.name.trim();
+
+  if (!trimmedName) {
+    throw new Error("League name is required.");
+  }
+
+  if (trimmedName.length > 32) {
+    throw new Error("League name must be 32 characters or fewer.");
+  }
+
+  if (
+    payload.number_of_players != null &&
+    (!Number.isInteger(payload.number_of_players) ||
+      payload.number_of_players < 2 ||
+      payload.number_of_players > 50)
+  ) {
+    throw new Error(
+      "Number of players must be a whole number between 2 and 50.",
+    );
+  }
+
   const { error } = await supabase
     .from("leagues")
-    .update(payload)
+    .update({ ...payload, name: trimmedName })
     .eq("id", leagueId);
 
   if (error) {

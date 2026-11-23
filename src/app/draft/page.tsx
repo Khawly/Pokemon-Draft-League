@@ -2892,7 +2892,7 @@ function DraftArena({ leagueId }: { leagueId: string }) {
     // force-releases it even if the RPC never settles, so the next tick can
     // always retry.
     resolvingTurnRef.current = slice.overallPick;
-    const run = resolveDraftTimeout(goods.league.id, false)
+    const run = resolveDraftTimeout(goods.league.id)
       .then(async (result) => {
         if (result.status === "not_due") {
           return;

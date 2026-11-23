@@ -22,11 +22,11 @@ import { MemberName } from "@/components/member-name";
 import { MemberAvatar } from "@/components/member-avatar";
 import { MatchPredictionButton } from "@/components/match-prediction-buttons";
 import { PreDraftPanel } from "@/components/pre-draft-panel";
+import { NotificationsPanel } from "@/components/notifications-panel";
 import { routeFor } from "@/lib/league-routes";
 import { predictionIsOpen } from "@/lib/predictions";
 import {
   formatMatchTime,
-  formatNotificationAge,
   type DashboardGoods,
   type DashboardRosterPokemon,
   type DashboardRosterSprite,
@@ -534,106 +534,19 @@ export function DashboardShell({
         </div>
       </header>
 
-      {/* Every panel below the header depends on a draft that has happened. */}
+      {/* The schedule and standings panels below depend on a draft that has happened. */}
       {draftFinished && (
         <>
           <section className="grid gap-6 xl:grid-cols-[1.5fr_0.9fr]">
-            {/*
-             * Notifications share the wide left column with the Schedule panel
-             * below them. Without the explicit placement they would span both
-             * columns and stretch wider than the panel they sit above.
-             */}
-            <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-lg sm:p-6 shadow-slate-950/30 xl:col-start-1 xl:row-start-1">
-              <div className="flex items-center justify-between gap-3">
-                <SectionLabel>
-                  Notifications
-                </SectionLabel>
-                {/*
-                 * Always rendered, and disabled rather than hidden on an empty
-                 * list. Hiding it meant a member whose panel was empty had no
-                 * visible way to clear anything and no way to tell the control
-                 * existed, which reads as the feature being missing. Disabled
-                 * still says there is nothing to do, while the panel keeps
-                 * offering the option the moment something arrives.
-                 */}
-                {onClearNotifications && (
-                  <button
-                    type="button"
-                    disabled={
-                      isClearingNotifications ||
-                      goods.notifications.length === 0
-                    }
-                    onClick={onClearNotifications}
-                    title={
-                      goods.notifications.length === 0
-                        ? "There are no notifications to clear"
-                        : "Clear every notification for this season"
-                    }
-                    className="rounded-lg border border-slate-700 px-2.5 py-1 text-xs font-medium text-slate-300 transition hover:border-rose-800 hover:text-rose-300 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-slate-700 disabled:hover:text-slate-300"
-                  >
-                    {isClearingNotifications ? "Clearing..." : "Clear all"}
-                  </button>
-                )}
-              </div>
-              {notificationError && (
-                <p className="mt-3 text-xs text-rose-300">
-                  {notificationError}
-                </p>
-              )}
-              {!notificationError && notificationNotice && (
-                <p className="mt-3 text-xs text-emerald-300">
-                  {notificationNotice}
-                </p>
-              )}
-              {goods.notifications.length === 0 ? (
-                <p className="mt-4 text-sm text-slate-500">
-                  You have no notifications for this season.
-                </p>
-              ) : (
-                /*
-                Capped at roughly four entries with the rest behind a scrollbar.
-                The list is unbounded -- a busy trade week fills it -- and an
-                uncapped one pushed the Schedule panel down the page, so a member
-                arriving for their next match had to scroll past everything they had
-                already seen.
-
-                The height is in rem because entries are not a fixed size: a
-                one-line message and a two-line one differ, so the cap lands on
-                "about four" rather than exactly four. scrollbar-gutter reserves the
-                gutter up front so the panel does not shift sideways when the list
-                becomes scrollable as a new notification arrives.
-              */
-                <ul className="mt-4 max-h-[18rem] space-y-3 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent [scrollbar-gutter:stable]">
-                  {goods.notifications.map((item) => (
-                    <li
-                      key={item.id}
-                      className="flex gap-3 rounded-xl bg-slate-800/70 p-3 text-sm text-slate-200"
-                    >
-                      <span
-                        className={`mt-1 h-2 w-2 shrink-0 rounded-full ${
-                          item.is_read ? "bg-slate-600" : "bg-amber-400"
-                        }`}
-                      />
-                      <div className="min-w-0 flex-1">
-                        <p>{item.message}</p>
-                        <p className="mt-1 text-xs text-slate-500">
-                          {formatNotificationAge(item.created_at, timeZone)}
-                        </p>
-                        {item.type === "draft_live" && (
-                          <button
-                            type="button"
-                            onClick={() => router.push(draftRoute)}
-                            className="mt-2 rounded-lg border border-amber-500/60 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-200 transition hover:bg-amber-500/20"
-                          >
-                            Open draft
-                          </button>
-                        )}
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
+            <NotificationsPanel
+              className="xl:col-start-1 xl:row-start-1"
+              notifications={goods.notifications}
+              timeZone={timeZone}
+              notificationError={notificationError}
+              notificationNotice={notificationNotice}
+              isClearingNotifications={isClearingNotifications}
+              onClearNotifications={onClearNotifications}
+            />
 
             <Card className="p-4 shadow-lg sm:p-6 shadow-slate-950/30 xl:col-start-1 xl:row-start-2">
               <div className="flex items-center justify-between gap-4">
@@ -968,46 +881,53 @@ export function DashboardShell({
       )}
 
       {/*
-        Owner-only setup guide, shown while the draft is still pending. It sits
-        directly above the draft preview because that preview is the only other
-        thing on the page before a draft, and these are the tasks that make the
-        preview worth opening. Once the draft starts this disappears: the
-        settings and pool remain in the nav's gear menu and on the Draft Board.
-      */}
-      {goods.isOwner &&
-        isCurrentSeason &&
-        goods.season?.status === "draft_pending" && (
-          <PreDraftPanel leagueId={goods.leagueId} seasonId={goods.season.id} />
-        )}
-
-      {/*
-        Preseason: the draft has not started, so offer a look at the board and the
-        pool rather than an empty dashboard. Preview is read-only by construction:
-        the arena renders the pick board and pool before any pick is made, and the
+        Preseason and live draft. Notifications and the draft preview share one
+        row so the panel keeps the narrower width it has after the draft. The
+        owner's preparation guide follows, since its tasks are what make the
+        preview worth opening. The preview is read-only by construction: the
+        arena renders the pick board and pool before any pick is made, and the
         server refuses picks until the season is draft_active.
-
-        Above the rules panel, not below it: during the preseason this is the one
-        call to action the page has, and burying it under the rules document meant
-        the draft could be started without ever scrolling to find it.
       */}
       {!draftFinished && (
-        <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-lg sm:p-6 shadow-slate-950/30">
-          <h2 className="text-lg font-semibold text-white">Draft preview</h2>
-          <p className="mt-1 text-sm text-slate-400">
-            {goods.season?.status === "draft_active"
-              ? "The draft is under way. Open the arena to follow the picks live."
-              : "The draft has not started. Have a look at the board and the pool before it does."}
-          </p>
-          <button
-            type="button"
-            onClick={() => router.push(draftRoute)}
-            className="mt-4 rounded-xl bg-amber-500 px-5 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-amber-400"
-          >
-            {goods.season?.status === "draft_active"
-              ? "Open draft board"
-              : "Preview Draft"}
-          </button>
-        </section>
+        <div className="space-y-6">
+          <section className="grid gap-6 xl:grid-cols-[1.5fr_0.9fr]">
+            <NotificationsPanel
+              notifications={goods.notifications}
+              timeZone={timeZone}
+              notificationError={notificationError}
+              notificationNotice={notificationNotice}
+              isClearingNotifications={isClearingNotifications}
+              onClearNotifications={onClearNotifications}
+            />
+
+            <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-lg sm:p-6 shadow-slate-950/30">
+              <h2 className="text-lg font-semibold text-white">Draft preview</h2>
+              <p className="mt-1 text-sm text-slate-400">
+                {goods.season?.status === "draft_active"
+                  ? "The draft is under way. Open the arena to follow the picks live."
+                  : "The draft has not started. Have a look at the board and the pool before it does."}
+              </p>
+              <button
+                type="button"
+                onClick={() => router.push(draftRoute)}
+                className="mt-4 rounded-xl bg-amber-500 px-5 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-amber-400"
+              >
+                {goods.season?.status === "draft_active"
+                  ? "Open draft board"
+                  : "Preview Draft"}
+              </button>
+            </section>
+          </section>
+
+          {goods.isOwner &&
+            isCurrentSeason &&
+            goods.season?.status === "draft_pending" && (
+              <PreDraftPanel
+                leagueId={goods.leagueId}
+                seasonId={goods.season.id}
+              />
+            )}
+        </div>
       )}
 
       {/*

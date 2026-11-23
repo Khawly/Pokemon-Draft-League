@@ -18,6 +18,8 @@ import { MemberName } from "@/components/member-name";
 import { MemberAvatar } from "@/components/member-avatar";
 import { PageShell, PageShellCard, PageShellError, PageShellLoading } from "@/components/page-shell";
 import { getSelectedSeason } from "@/lib/season-selection";
+import { formatDateTimeInZone, formatTimeZoneLabel } from "@/lib/datetime";
+import { useUserTimeZone } from "@/lib/user-timezone";
 
 /**
  * Entry point for the draft board route.
@@ -51,6 +53,8 @@ function DraftBoardPageContent() {
   const router = useRouter();
   const { confirm, confirmDialog } = useConfirm();
   const shellLeague = useShellLeague();
+  /** Timestamps render in the zone the member picked in user settings. */
+  const timeZone = useUserTimeZone();
   /** True when the shell resolved no league for this member. */
   const shellLeagueMissing =
     !shellLeague.isResolving && !shellLeague.signedOut && !shellLeague.leagueId;
@@ -71,6 +75,8 @@ function DraftBoardPageContent() {
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  /** Bumped to re-run the loader, e.g. just after a scheduled draft starts. */
+  const [reloadToken, setReloadToken] = useState(0);
 
   useEffect(() => {
     if (shellLeague.isResolving || shellLeague.signedOut) {
@@ -131,7 +137,33 @@ function DraftBoardPageContent() {
     shellLeague.leagueId,
     shellLeague.isResolving,
     shellLeague.signedOut,
+    reloadToken,
   ]);
+
+  /*
+   * The scheduled draft is started by the server heartbeat, which runs every 15
+   * seconds. Refresh the board shortly after the scheduled instant so a member
+   * waiting on this page sees the season move to draft_active without having to
+   * reload by hand. The delay leaves room for one heartbeat tick.
+   */
+  useEffect(() => {
+    if (!goods?.scheduledAt || goods.season?.status !== "draft_pending") {
+      return;
+    }
+
+    const startAt = new Date(goods.scheduledAt).getTime();
+
+    if (Number.isNaN(startAt)) {
+      return;
+    }
+
+    const timer = setTimeout(
+      () => setReloadToken((token) => token + 1),
+      Math.max(0, startAt - Date.now()) + 20_000,
+    );
+
+    return () => clearTimeout(timer);
+  }, [goods?.scheduledAt, goods?.season?.status]);
 
   const inviteUrl = useMemo(() => {
     if (!inviteToken || typeof window === "undefined") {
@@ -253,6 +285,15 @@ function DraftBoardPageContent() {
    */
   function handleStagePosition(userId: string, position: number) {
     if (!goods || isBusy) {
+      return;
+    }
+
+    if (
+      !Number.isInteger(position) ||
+      position < 1 ||
+      position > goods.league.number_of_players
+    ) {
+      setError("Choose a draft position between 1 and the league size.");
       return;
     }
 
@@ -472,6 +513,16 @@ function DraftBoardPageContent() {
                   ? (statusLabel[goods.season.status] ?? goods.season.status)
                   : "No season available"}
               </p>
+              {goods.scheduledAt && (
+                <p className="mt-2 inline-flex w-fit items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-medium text-amber-200">
+                  Draft scheduled for{" "}
+                  {formatDateTimeInZone(goods.scheduledAt, timeZone)} (
+                  {formatTimeZoneLabel(timeZone)})
+                  {goods.season?.status === "draft_pending"
+                    ? " · starts automatically"
+                    : ""}
+                </p>
+              )}
             </div>
 
             <div className="flex flex-wrap items-center gap-3">
@@ -947,7 +998,15 @@ function PlayerListCard({
                           { length: goods.league.number_of_players },
                           (_, positionIndex) => positionIndex + 1,
                         ).map((candidate) => (
-                          <option key={candidate} value={candidate}>
+                          <option
+                            key={candidate}
+                            value={candidate}
+                            disabled={members.some(
+                              (other) =>
+                                other.user_id !== member.user_id &&
+                                other.draft_position === candidate,
+                            )}
+                          >
                             #{candidate}
                           </option>
                         ))}

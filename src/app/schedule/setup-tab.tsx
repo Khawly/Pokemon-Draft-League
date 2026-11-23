@@ -104,10 +104,12 @@ export function SetupTab({
             type="number"
             min={1}
             max={52}
+            step={1}
             value={form.weeks}
             onChange={(event) =>
               onFormChange({ ...form, weeks: Number(event.target.value) })
             }
+            required
             className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-500"
           />
         </Field>
@@ -131,6 +133,7 @@ export function SetupTab({
             type="number"
             min={0}
             max={maxPlayoffTeams}
+            step={1}
             value={form.playoffTeams}
             onChange={(event) =>
               onFormChange({

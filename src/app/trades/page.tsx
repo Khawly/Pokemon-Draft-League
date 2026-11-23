@@ -1007,7 +1007,11 @@ function ProposalBuilder({
   const nothingSelected =
     offer.length + request.length === 0 &&
     !(tokenTradesAllowed && (proposerTokens > 0 || recipientTokens > 0));
-  const blocked = busy || nothingSelected || !goods.myTeam || !recipient;
+  const invalidTokenInput = [proposerTokensRaw, recipientTokensRaw].some(
+    (raw) => raw.trim() !== "" && !/^\d+$/.test(raw.trim()),
+  );
+  const blocked =
+    busy || nothingSelected || !goods.myTeam || !recipient || invalidTokenInput;
   const canSubmit = !blocked && (projection?.affordable ?? false);
   const hasValue =
     offer.length + request.length > 0 || proposerTokens > 0 || recipientTokens > 0;
@@ -1102,6 +1106,12 @@ function ProposalBuilder({
               onChange={setRecipientTokensRaw}
             />
           </div>
+
+          {invalidTokenInput && (
+            <p className="mt-3 text-xs text-rose-300">
+              Token amounts must be whole numbers of 0 or more.
+            </p>
+          )}
         </Card>
       )}
 

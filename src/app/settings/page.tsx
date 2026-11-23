@@ -25,6 +25,12 @@ import { browserTimeZone, listTimeZones, formatTimeZoneLabel } from "@/lib/datet
 import { cacheUserTimeZone } from "@/lib/user-timezone";
 import { compressImageFile } from "@/lib/image-upload";
 import {
+  isValidTimeZone,
+  optionalText,
+  requireClock,
+  requireText,
+} from "@/lib/validation";
+import {
   availabilityWeeksEqual,
   defaultAvailabilityWeek,
   formatClock,
@@ -399,6 +405,57 @@ export default function SettingsPage() {
       return;
     }
 
+    let validDisplayName: string;
+    let validShowdownUsername: string;
+    let validAvatarInitials: string;
+
+    try {
+      validDisplayName = requireText(
+        displayName,
+        "Display name",
+        MAX_DISPLAY_NAME_LENGTH,
+      );
+      validShowdownUsername =
+        optionalText(showdownUsername, "Showdown username", 32) ?? "";
+      validAvatarInitials = avatarInitials.trim();
+
+      if (
+        validAvatarInitials &&
+        !/^[A-Za-z0-9]{1,2}$/.test(validAvatarInitials)
+      ) {
+        throw new Error(
+          "Avatar initials must be one or two letters or numbers.",
+        );
+      }
+
+      if (!isValidTimeZone(timeZone)) {
+        throw new Error("Choose a valid time zone.");
+      }
+
+      for (const day of availability) {
+        if (day.is_unavailable) {
+          continue;
+        }
+
+        const label = WEEKDAY_LABELS[day.day_of_week];
+        requireClock(day.start_time, `${label} availability start`);
+        requireClock(day.end_time, `${label} availability end`);
+
+        if (day.start_time === day.end_time) {
+          throw new Error(
+            `${label} availability needs different start and end times.`,
+          );
+        }
+      }
+    } catch (caughtError) {
+      setError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Check the highlighted fields before saving.",
+      );
+      return;
+    }
+
     setIsSaving(true);
     setError(null);
     setSuccessMessage(null);
@@ -422,10 +479,10 @@ export default function SettingsPage() {
 
       await updateUserProfile({
         userId,
-        displayName,
-        showdownUsername,
+        displayName: validDisplayName,
+        showdownUsername: validShowdownUsername,
         avatarUrl: nextAvatarUrl,
-        avatarInitials,
+        avatarInitials: validAvatarInitials,
         timeZone,
         nameColor,
       });
@@ -441,13 +498,16 @@ export default function SettingsPage() {
       pendingAvatarActionRef.current = "none";
       pendingAvatarFileRef.current = null;
       originalProfileRef.current = {
-        displayName,
-        showdownUsername,
+        displayName: validDisplayName,
+        showdownUsername: validShowdownUsername,
         avatarUrl: nextAvatarUrl,
-        avatarInitials,
+        avatarInitials: validAvatarInitials,
         timeZone,
         nameColor,
       };
+      setDisplayName(validDisplayName);
+      setShowdownUsername(validShowdownUsername);
+      setAvatarInitials(validAvatarInitials);
       setSavedAvailability(availability);
       setAvatarUrl(nextAvatarUrl);
       setHasChanges(false);
@@ -625,7 +685,7 @@ export default function SettingsPage() {
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="image/*"
+                accept="image/png,image/jpeg,image/webp"
                 className="hidden"
                 onChange={handleAvatarUpload}
               />
@@ -775,7 +835,9 @@ export default function SettingsPage() {
                     handleFieldChange(setDisplayName, event.target.value)
                   }
                   maxLength={MAX_DISPLAY_NAME_LENGTH}
+                  autoComplete="nickname"
                   className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-slate-100 outline-none transition focus:border-amber-400 focus:bg-slate-950"
+                  required
                 />
               </div>
 
@@ -828,6 +890,8 @@ export default function SettingsPage() {
                   onChange={(event) =>
                     handleFieldChange(setShowdownUsername, event.target.value)
                   }
+                  maxLength={32}
+                  autoComplete="username"
                   className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-slate-100 outline-none transition focus:border-amber-400 focus:bg-slate-950"
                 />
               </div>
@@ -843,6 +907,8 @@ export default function SettingsPage() {
                     handleFieldChange(setAvatarInitials, event.target.value)
                   }
                   maxLength={2}
+                  pattern="[A-Za-z0-9]{1,2}"
+                  title="One or two letters or numbers"
                   className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-slate-100 outline-none transition focus:border-amber-400 focus:bg-slate-950"
                 />
               </div>
@@ -921,6 +987,7 @@ export default function SettingsPage() {
                               })
                             }
                             aria-label={`${WEEKDAY_LABELS[day.day_of_week]} availability start`}
+                            required
                             className="rounded-xl border border-slate-700 bg-slate-950 px-2.5 py-1.5 text-sm text-slate-100 outline-none focus:border-amber-400"
                           />
                           <span className="text-sm text-slate-500">to</span>
@@ -933,6 +1000,7 @@ export default function SettingsPage() {
                               })
                             }
                             aria-label={`${WEEKDAY_LABELS[day.day_of_week]} availability end`}
+                            required
                             className="rounded-xl border border-slate-700 bg-slate-950 px-2.5 py-1.5 text-sm text-slate-100 outline-none focus:border-amber-400"
                           />
                           <span className="text-xs text-slate-500">

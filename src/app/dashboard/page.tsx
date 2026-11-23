@@ -252,12 +252,17 @@ function DashboardPageContent() {
 
   /*
    * Live updates. A match changing status, time, or result changes the schedule,
-   * the week, and the standings, so it reloads the page's data. The nav badges
-   * belong to the global top navigation and refresh there.
+   * the week, and the standings, so it reloads the page's data. A notification
+   * arriving (a league announcement, a trade or match-time alert) reloads so the
+   * panel shows it without a manual refresh. The nav badges belong to the global
+   * top navigation and refresh there.
    */
   useRealtimeInvalidation({
     leagueId: goods?.leagueId ?? null,
-    watchers: [{ table: "matches", onChange: () => void reloadLeague() }],
+    watchers: [
+      { table: "matches", onChange: () => void reloadLeague() },
+      { table: "notifications", onChange: () => void reloadLeague() },
+    ],
   });
 
   if (!shell.isReady || shellLeague.signedOut || !sessionUser) {

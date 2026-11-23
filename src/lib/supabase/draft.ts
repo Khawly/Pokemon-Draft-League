@@ -644,20 +644,20 @@ export async function submitDraftPick(
 
 /**
  * Asks the database to advance the draft when the on-turn player's timer has
- * expired (or is forced), auto-picking or passing per the league settings.
+ * expired, auto-picking or passing per the league settings.
+ *
+ * The browser is not allowed to force a turn: that path is reserved for the bot
+ * chain and the server sweep. This calls the force-free wrapper.
  *
  * @param leagueId - The league whose draft should resolve.
- * @param force - When true, advance immediately regardless of the deadline.
  * @returns A Promise resolving to the resulting status ("not_due" or a season
  *   status), or throwing when the draft is not active.
  */
 export async function resolveDraftTimeout(
   leagueId: string,
-  force = false,
 ): Promise<{ season_id: string; status: string }> {
-  const { data, error } = await supabase.rpc("resolve_draft_timeout", {
+  const { data, error } = await supabase.rpc("resolve_draft_turn", {
     p_league_id: leagueId,
-    p_force: force,
   });
 
   if (error) {

@@ -52,6 +52,8 @@ export type DraftboardGoods = {
   inviteToken: string | null;
   userRole: string | null;
   isOwner: boolean;
+  /** Instant the draft is scheduled to start, or null when none is set. */
+  scheduledAt: string | null;
 };
 
 type MemberRow = {
@@ -125,6 +127,7 @@ export async function loadDraftboardData(
     memberResult,
     membershipResult,
     inviteResult,
+    settingsResult,
   ] = await Promise.all([
     season
       ? supabase
@@ -150,6 +153,14 @@ export async function loadDraftboardData(
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
+    season
+      ? supabase
+          .from("league_settings")
+          .select("draft_at")
+          .eq("league_id", leagueId)
+          .eq("season_id", season.id)
+          .maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
   ]);
 
   if (memberResult.error) {
@@ -213,6 +224,16 @@ avatar_url: row.profiles?.avatar_url ?? null,
   const membershipRole = (
     membershipResult.data as { role: string } | null
   )?.role ?? null;
+  /*
+   * A failed settings read leaves the board without a scheduled time rather
+   * than failing the whole page: the rest of the board is still usable, and a
+   * league that has never saved settings has no row to read.
+   */
+  const scheduledAt =
+    !settingsResult.error
+      ? ((settingsResult.data as { draft_at: string | null } | null)?.draft_at ??
+        null)
+      : null;
 
   return {
     league: {
@@ -228,6 +249,7 @@ avatar_url: row.profiles?.avatar_url ?? null,
     inviteToken,
     userRole: membershipRole,
     isOwner: league.owner_id === user.id,
+    scheduledAt,
   };
 }
 /**

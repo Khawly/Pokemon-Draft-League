@@ -11,6 +11,7 @@
 import { FormEvent, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { MAX_DISPLAY_NAME_LENGTH, resetPassword, signInWithEmail, signUpWithEmail } from "@/lib/supabase/auth";
+import { requireEmail, requireText } from "@/lib/validation";
 
 /** The two authentication modes the form can show. */
 export type AuthMode = "login" | "signup";
@@ -46,27 +47,48 @@ export function AuthForm({ mode, onModeChange }: AuthFormProps) {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    if (isSubmitting) {
+      return;
+    }
+
     setMessage(null);
     setError(null);
     setIsSubmitting(true);
 
     try {
+      const validEmail = requireEmail(email);
+
+      if (!password) {
+        throw new Error("Password is required.");
+      }
+
+      if (mode === "signup" && password.length < 6) {
+        throw new Error("Password must be at least 6 characters.");
+      }
+
       if (mode === "signup") {
-        await signUpWithEmail({
-          email,
-          password,
+        const validDisplayName = requireText(
           displayName,
+          "Display name",
+          MAX_DISPLAY_NAME_LENGTH,
+        );
+
+        await signUpWithEmail({
+          email: validEmail,
+          password,
+          displayName: validDisplayName,
         });
         setMessage(
           "Account created. Check your inbox for the email verification link before continuing.",
         );
       } else {
-        await signInWithEmail({ email, password });
+        await signInWithEmail({ email: validEmail, password });
         setMessage("Signed in successfully. Redirecting...");
         router.replace("/dashboard");
       }
     } catch (caughtError) {
-      // Surface Supabase error messages to the user.
+      // Surface Supabase and validation error messages to the user.
       const resultMessage =
         caughtError instanceof Error
           ? caughtError.message
@@ -78,16 +100,11 @@ export function AuthForm({ mode, onModeChange }: AuthFormProps) {
   }
 
   async function handleResetPassword() {
-    if (!email) {
-      setError("Enter your email before requesting a reset link.");
-      return;
-    }
-
     setMessage(null);
     setError(null);
 
     try {
-      await resetPassword(email);
+      await resetPassword(requireEmail(email));
       setMessage("Password reset email sent.");
     } catch (caughtError) {
       const resultMessage =
@@ -150,6 +167,7 @@ export function AuthForm({ mode, onModeChange }: AuthFormProps) {
               value={displayName}
               onChange={(event) => setDisplayName(event.target.value)}
               maxLength={MAX_DISPLAY_NAME_LENGTH}
+              autoComplete="nickname"
               className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-slate-100 outline-none transition placeholder:text-slate-600 focus:border-amber-400"
               placeholder="Ash Ketchum"
               required
@@ -165,6 +183,8 @@ export function AuthForm({ mode, onModeChange }: AuthFormProps) {
             type="email"
             value={email}
             onChange={(event) => setEmail(event.target.value)}
+            maxLength={254}
+            autoComplete="email"
             className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-slate-100 outline-none transition placeholder:text-slate-600 focus:border-amber-400"
             placeholder="trainer@example.com"
             required
@@ -181,7 +201,9 @@ export function AuthForm({ mode, onModeChange }: AuthFormProps) {
             onChange={(event) => setPassword(event.target.value)}
             className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-slate-100 outline-none transition placeholder:text-slate-600 focus:border-amber-400"
             placeholder="••••••••"
-            minLength={6}
+            minLength={mode === "signup" ? 6 : undefined}
+            maxLength={128}
+            autoComplete={mode === "signup" ? "new-password" : "current-password"}
             required
           />
         </label>

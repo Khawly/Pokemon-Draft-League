@@ -478,6 +478,10 @@ Required fields:
 - Quiet hours:
   - if enabled, start/end times are required
   - times are locked to EST timezone
+- Draft date and time:
+  - optional date and time the draft starts, with a calendar button beside the date field
+  - saving it notifies every other member and the Draft Board shows it in each member's own time zone
+  - when the scheduled time arrives, the server starts the draft automatically if every player slot, draft position, and the pool are ready
 - Draft order configuration:
   - manual arrangement or randomize
 - Save Changes button, disabled until changes exist

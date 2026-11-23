@@ -1206,6 +1206,12 @@ function PokemonPageContent() {
 
     const targetTeam =
       goods.teams.find((team) => team.id === pickupTeamId) ?? null;
+
+    if (!targetTeam) {
+      setError("Choose a team for this pickup.");
+      return;
+    }
+
     const targetLabel = targetTeam ? teamOptionLabel(targetTeam) : "the team";
     const waiving =
       isOwner &&

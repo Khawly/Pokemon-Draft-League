@@ -1,16 +1,17 @@
 /*
  * Create League page for the Pokemon Draft League.
  *
- * Captures the league name and player count, creates the league through
- * Supabase, then navigates to the dashboard scoped to the new league.
+ * Captures the league name and player count, validates both, creates the league
+ * through Supabase, then navigates to the dashboard scoped to the new league.
  */
 
 "use client";
 
+import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
 import { createLeagueForUser } from "@/lib/supabase/leagues";
 import { MAX_NAME_LENGTH } from "@/lib/name-limits";
+import { requireInteger, requireText } from "@/lib/validation";
 
 /**
  * Renders the create-league form and submits it to createLeagueForUser on
@@ -21,17 +22,28 @@ import { MAX_NAME_LENGTH } from "@/lib/name-limits";
 export default function CreateLeaguePage() {
   const router = useRouter();
   const [leagueName, setLeagueName] = useState("");
-  const [numberOfPlayers, setNumberOfPlayers] = useState(8);
+  const [numberOfPlayers, setNumberOfPlayers] = useState("8");
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function handleCreateLeague() {
+  async function handleCreateLeague(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
     try {
       setIsCreating(true);
       setError(null);
-      const result = await createLeagueForUser({
-        name: leagueName,
+
+      const validName = requireText(leagueName, "League name", MAX_NAME_LENGTH);
+      const validPlayerCount = requireInteger(
         numberOfPlayers,
+        "Number of players",
+        2,
+        50,
+      );
+
+      const result = await createLeagueForUser({
+        name: validName,
+        numberOfPlayers: validPlayerCount,
       });
 
       // The dashboard reloads the new league from the scoped URL parameter.
@@ -57,7 +69,7 @@ export default function CreateLeaguePage() {
           Start a new league
         </h1>
 
-        <div className="mt-8 space-y-6">
+        <form onSubmit={handleCreateLeague} className="mt-8 space-y-6">
           <div>
             <label className="mb-2 block text-sm font-medium text-slate-300">
               League name
@@ -69,6 +81,7 @@ export default function CreateLeaguePage() {
               onChange={(event) => setLeagueName(event.target.value)}
               placeholder="Indigo City Championship"
               className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-slate-100 outline-none transition focus:border-amber-400 focus:bg-slate-950"
+              required
             />
           </div>
 
@@ -80,11 +93,11 @@ export default function CreateLeaguePage() {
               type="number"
               min={2}
               max={50}
+              step={1}
               value={numberOfPlayers}
-              onChange={(event) =>
-                setNumberOfPlayers(Math.max(2, Number(event.target.value) || 2))
-              }
+              onChange={(event) => setNumberOfPlayers(event.target.value)}
               className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-slate-100 outline-none transition focus:border-amber-400 focus:bg-slate-950"
+              required
             />
           </div>
 
@@ -104,15 +117,14 @@ export default function CreateLeaguePage() {
             </button>
 
             <button
-              type="button"
-              disabled={isCreating || !leagueName.trim()}
-              onClick={handleCreateLeague}
+              type="submit"
+              disabled={isCreating}
               className="rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isCreating ? "Creating..." : "Create League"}
             </button>
           </div>
-        </div>
+        </form>
       </div>
     </main>
   );

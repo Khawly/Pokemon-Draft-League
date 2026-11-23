@@ -162,6 +162,10 @@ export function TopNav() {
       return;
     }
 
+    if (!leagueOptions.some((league) => league.id === nextValue)) {
+      return;
+    }
+
     const target = `/dashboard?leagueId=${nextValue}`;
     const targetPath = target.split("?")[0];
 
@@ -185,7 +189,7 @@ export function TopNav() {
    * @param slug - The tab's route slug.
    */
   async function handleTabClick(slug: string) {
-    if (!hasLeague) {
+    if (!hasLeague || !LEAGUE_TABS.some((tab) => tab.slug === slug)) {
       return;
     }
 
@@ -272,7 +276,13 @@ export function TopNav() {
           <label className="shrink-0">
             <select
               value={selectedSeasonId ?? ""}
-              onChange={(event) => void selectSeason(event.target.value)}
+              onChange={(event) => {
+                const nextSeasonId = event.target.value;
+
+                if (seasons.some((season) => season.id === nextSeasonId)) {
+                  void selectSeason(nextSeasonId);
+                }
+              }}
               className="rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-500"
               aria-label="Season"
             >

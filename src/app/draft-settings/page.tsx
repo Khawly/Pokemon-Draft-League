@@ -19,6 +19,18 @@ import { PageShell, PageShellError, PageShellLoading } from "@/components/page-s
 import { getSelectedSeason } from "@/lib/season-selection";
 import { isCurrentSeason as checkIsCurrentSeason, loadSeason } from "@/lib/supabase/seasons";
 import { Card } from "@/components/card";
+import { DateFieldWithCalendar } from "@/components/date-field-with-calendar";
+import {
+  browserTimeZone,
+  datePartOfInputValue,
+  formatTimeZoneLabel,
+  fromZonedInputValue,
+  timePartOfInputValue,
+  toZonedInputValue,
+  withInputValueDate,
+  withInputValueTime,
+} from "@/lib/datetime";
+import { requireClock, requireInteger } from "@/lib/validation";
 
 /**
  * Draft settings page that suspends rendering until the client-only
@@ -72,12 +84,19 @@ function DraftSettingsPageContent() {
   const [quietHoursStart, setQuietHoursStart] = useState("20:00");
   const [quietHoursEnd, setQuietHoursEnd] = useState("09:00");
   /*
-   * The zone the two quiet hours clocks are read in. Left null until the league's
-   * saved value is known, and defaulted to the owner's own profile zone when there
-   * isn't one, so the window means what the person configuring it expects without
-   * them having to know the window is stored as bare wall clocks.
+   * The scheduled draft start, held as one `datetime-local`-shaped string so the
+   * date and time inputs cannot disagree. It is read and written in the member's
+   * profile zone, the same zone the quiet hours clocks use.
    */
-  const [quietHoursTimeZone, setQuietHoursTimeZone] = useState<string | null>(null);
+  const [draftAtInput, setDraftAtInput] = useState("");
+  /*
+   * The zone the quiet hours clocks and the draft date are read in. Left null
+   * until the league's saved value is known, and defaulted to the owner's own
+   * profile zone when there isn't one, so the values mean what the person
+   * configuring them expects without them having to know they are stored as
+   * bare wall clocks and an absolute instant.
+   */
+  const [userTimeZone, setUserTimeZone] = useState<string | null>(null);
   const [leagueId, setLeagueId] = useState<string | null>(null);
   const [seasonId, setSeasonId] = useState<string | null>(null);
   /** False when the page is showing a finished season, which cannot be saved. */
@@ -99,6 +118,7 @@ function DraftSettingsPageContent() {
     quietHoursEnabled: false,
     quietHoursStart: "20:00",
     quietHoursEnd: "09:00",
+    draftAtInput: "",
   });
 
   useEffect(() => {
@@ -147,6 +167,7 @@ function DraftSettingsPageContent() {
           return;
         }
 
+        const userTimeZone = await loadUserTimeZone();
         const nextSettings = {
           draftFormat: settingsData.draft_format || "snake",
           totalRounds: String(settingsData.total_rounds || 1),
@@ -159,6 +180,7 @@ function DraftSettingsPageContent() {
           quietHoursEnabled: Boolean(settingsData.quiet_hours_enabled),
           quietHoursStart: settingsData.quiet_hours_start_est || "20:00",
           quietHoursEnd: settingsData.quiet_hours_end_est || "09:00",
+          draftAtInput: toZonedInputValue(settingsData.draft_at, userTimeZone),
           /*
            * Always the owner's live profile zone, never the value cached on the
            * settings row. draft_quiet_hours resolves the zone the same way on every
@@ -166,7 +188,7 @@ function DraftSettingsPageContent() {
            * disagreeing about the window, and a zone changed in user settings would
            * look like it had done nothing until draft settings were re-saved.
            */
-          quietHoursTimeZone: await loadUserTimeZone(),
+          userTimeZone,
         };
 
         originalSettingsRef.current = nextSettings;
@@ -181,7 +203,8 @@ function DraftSettingsPageContent() {
         setQuietHoursEnabled(nextSettings.quietHoursEnabled);
         setQuietHoursStart(nextSettings.quietHoursStart);
         setQuietHoursEnd(nextSettings.quietHoursEnd);
-        setQuietHoursTimeZone(nextSettings.quietHoursTimeZone);
+        setDraftAtInput(nextSettings.draftAtInput);
+        setUserTimeZone(nextSettings.userTimeZone);
         setHasUnsavedChanges(false);
       } finally {
         setIsLoading(false);
@@ -212,14 +235,65 @@ function DraftSettingsPageContent() {
       return;
     }
 
-    const parsedTotalRounds = Number(totalRounds);
+    let parsedTotalRounds: number;
+    let parsedTotalTokenSalary: number | null = null;
+    let parsedPickTimeLimit: number;
+    let parsedQuietHoursStart: string | null = null;
+    let parsedQuietHoursEnd: string | null = null;
 
-    if (
-      totalRounds.trim() === "" ||
-      !Number.isInteger(parsedTotalRounds) ||
-      parsedTotalRounds < 1
-    ) {
-      setError("Total rounds must be a whole number of at least 1.");
+    try {
+      if (draftFormat !== "snake" && draftFormat !== "set") {
+        throw new Error("Choose a valid draft format.");
+      }
+
+      parsedTotalRounds = requireInteger(totalRounds, "Total rounds", 1);
+      parsedTotalTokenSalary = enableCosts
+        ? requireInteger(totalTokenSalary, "Total token salary", 0)
+        : null;
+      parsedPickTimeLimit = requireInteger(
+        pickTimeLimit,
+        "Pick time limit",
+        1,
+      );
+
+      if (quietHoursEnabled) {
+        parsedQuietHoursStart = requireClock(
+          quietHoursStart,
+          "Quiet hours start",
+        );
+        parsedQuietHoursEnd = requireClock(quietHoursEnd, "Quiet hours end");
+
+        if (parsedQuietHoursStart === parsedQuietHoursEnd) {
+          throw new Error(
+            "Quiet hours start and end must be different times.",
+          );
+        }
+      }
+    } catch (caughtError) {
+      setError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Check the draft settings before saving.",
+      );
+      return;
+    }
+
+    const draftDate = datePartOfInputValue(draftAtInput);
+    const draftTime = timePartOfInputValue(draftAtInput);
+
+    if ((draftDate && !draftTime) || (!draftDate && draftTime)) {
+      setError("Choose both a date and a time for the draft, or clear both.");
+      return;
+    }
+
+    const draftAt = draftAtInput
+      ? fromZonedInputValue(draftAtInput, userTimeZone ?? browserTimeZone())
+      : null;
+
+    if (draftAtInput && !draftAt) {
+      setError(
+        "That draft date and time does not exist in your time zone. Pick another time.",
+      );
       return;
     }
 
@@ -234,14 +308,15 @@ function DraftSettingsPageContent() {
         draft_format: draftFormat,
         total_rounds: parsedTotalRounds,
         enable_pokemon_costs: enableCosts,
-        total_token_salary: enableCosts ? Number(totalTokenSalary) || 0 : null,
+        total_token_salary: enableCosts ? parsedTotalTokenSalary : null,
         allow_per_team_salary: allowPerTeamSalary,
-        pick_time_limit_minutes: Number(pickTimeLimit) || 5,
+        pick_time_limit_minutes: parsedPickTimeLimit,
         auto_pick_on_timeout: autoPickOnTimeout,
         skip_player_on_timeout: skipPlayerOnTimeout,
         quiet_hours_enabled: quietHoursEnabled,
-        quiet_hours_start_est: quietHoursEnabled ? quietHoursStart : null,
-        quiet_hours_end_est: quietHoursEnabled ? quietHoursEnd : null,
+        quiet_hours_start_est: quietHoursEnabled ? parsedQuietHoursStart : null,
+        quiet_hours_end_est: quietHoursEnabled ? parsedQuietHoursEnd : null,
+        draft_at: draftAt,
         /*
          * quiet_hours_timezone is deliberately not written from here.
          *
@@ -267,6 +342,7 @@ function DraftSettingsPageContent() {
         quietHoursEnabled,
         quietHoursStart,
         quietHoursEnd,
+        draftAtInput,
       };
 
       setHasUnsavedChanges(false);
@@ -363,7 +439,75 @@ function DraftSettingsPageContent() {
           disabled={!isCurrentSeason}
           className="min-w-0 border-0 p-0"
         >
-          <section className="grid gap-6 lg:grid-cols-2">
+          <Card className="p-4 shadow-lg sm:p-6 shadow-slate-950/30">
+            <div>
+              <h2 className="text-lg font-semibold text-white">
+                Draft date and time
+              </h2>
+              <p className="mt-1 text-sm text-slate-400">
+                When the draft is scheduled to start. Every other member is
+                notified when you set this, and the Draft Board shows it in their
+                own time zone. The draft starts automatically at this time once
+                all player slots, draft positions, and the pool are ready.
+              </p>
+            </div>
+
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <div>
+                <label
+                  htmlFor="draft-date"
+                  className="mb-2 block text-sm font-medium text-slate-300"
+                >
+                  Draft date
+                </label>
+                <DateFieldWithCalendar
+                  id="draft-date"
+                  type="date"
+                  value={datePartOfInputValue(draftAtInput)}
+                  onChange={(value) => {
+                    setDraftAtInput((current) =>
+                      withInputValueDate(current, value),
+                    );
+                    setHasUnsavedChanges(true);
+                  }}
+                  disabled={isSaving}
+                  ariaLabel="Draft date"
+                />
+              </div>
+
+              <div>
+                <label
+                  htmlFor="draft-time"
+                  className="mb-2 block text-sm font-medium text-slate-300"
+                >
+                  Draft time
+                </label>
+                <input
+                  id="draft-time"
+                  type="time"
+                  value={timePartOfInputValue(draftAtInput)}
+                  onChange={(event) => {
+                    setDraftAtInput((current) =>
+                      withInputValueTime(current, event.target.value),
+                    );
+                    setHasUnsavedChanges(true);
+                  }}
+                  className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-slate-100 outline-none transition focus:border-amber-400"
+                />
+              </div>
+            </div>
+
+            <p className="mt-3 text-xs text-slate-500">
+              Times are entered in{" "}
+              <span className="font-medium text-slate-400">
+                {formatTimeZoneLabel(userTimeZone ?? browserTimeZone())}
+              </span>
+              , from your user settings. Leave both fields empty to clear the
+              scheduled date.
+            </p>
+          </Card>
+
+          <section className="mt-6 grid gap-6 lg:grid-cols-2">
           <Card className="p-4 shadow-lg sm:p-6 shadow-slate-950/30">
             <div className="space-y-5">
               <div>
@@ -390,6 +534,7 @@ function DraftSettingsPageContent() {
                 <input
                   type="number"
                   min={1}
+                  step={1}
                   value={totalRounds}
                   onChange={(event) => {
                     setTotalRounds(event.target.value);
@@ -420,6 +565,7 @@ function DraftSettingsPageContent() {
                   <input
                     type="number"
                     min={0}
+                    step={1}
                     value={totalTokenSalary}
                     onChange={(event) => {
                       setTotalTokenSalary(event.target.value);
@@ -454,6 +600,7 @@ function DraftSettingsPageContent() {
                 <input
                   type="number"
                   min={1}
+                  step={1}
                   value={pickTimeLimit}
                   onChange={(event) => {
                     setPickTimeLimit(event.target.value);
@@ -519,6 +666,7 @@ function DraftSettingsPageContent() {
                         setQuietHoursStart(event.target.value);
                         setHasUnsavedChanges(true);
                       }}
+                      required
                       className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-slate-100 outline-none transition focus:border-amber-400"
                     />
                   </div>
@@ -533,6 +681,7 @@ function DraftSettingsPageContent() {
                         setQuietHoursEnd(event.target.value);
                         setHasUnsavedChanges(true);
                       }}
+                      required
                       className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-slate-100 outline-none transition focus:border-amber-400"
                     />
                   </div>
@@ -549,7 +698,7 @@ function DraftSettingsPageContent() {
                 <p className="mt-3 text-xs text-slate-500">
                   Times are in{" "}
                   <span className="font-medium text-slate-400">
-                    {quietHoursTimeZone ?? "UTC"}
+                    {userTimeZone ?? "UTC"}
                   </span>
                   , from your user settings. The draft is held for the whole window,
                   and anyone looking at the board sees it converted to their own zone.

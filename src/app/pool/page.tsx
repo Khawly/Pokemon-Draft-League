@@ -59,6 +59,7 @@ import { getSelectedSeason } from "@/lib/season-selection";
 import { TYPE_STYLES } from "@/lib/type-styles";
 import { isCurrentSeason as checkIsCurrentSeason, loadSeason } from "@/lib/supabase/seasons";
 import { createUuid } from "@/lib/uuid";
+import { requireImportFile, requireInteger } from "@/lib/validation";
 import { Card } from "@/components/card";
 
 /** Sortable table columns, including the national-dex default ordering. */
@@ -824,8 +825,14 @@ function PoolPageContent() {
       return;
     }
     const nextPool = pools.find((pool) => pool.id === nextPoolId);
-    setPoolName(nextPool?.name ?? "");
-    setSavedPoolName(nextPool?.name ?? "");
+
+    if (!nextPool) {
+      setError("Choose a saved draft pool.");
+      return;
+    }
+
+    setPoolName(nextPool.name);
+    setSavedPoolName(nextPool.name);
     setIsPoolLoading(true);
     setRows([]);
     setSavedRows([]);
@@ -1153,9 +1160,16 @@ function PoolPageContent() {
     setError(null);
     setSuccessMessage(null);
 
-    const requested = Number(randomizeCount);
-    if (!Number.isFinite(requested) || requested < 1) {
-      setError("Enter how many Pokémon to randomly select.");
+    let requested: number;
+
+    try {
+      requested = requireInteger(randomizeCount, "Pokémon count", 1);
+    } catch (caughtError) {
+      setError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Enter how many Pokémon to randomly select.",
+      );
       return;
     }
 
@@ -1281,6 +1295,7 @@ function PoolPageContent() {
     setSuccessMessage(null);
 
     try {
+      requireImportFile(file, "CSV file", [".csv"]);
       const text = await file.text();
       const lines = text
         .split(/\r?\n/)
@@ -1714,6 +1729,7 @@ function PoolPageContent() {
                       onChange={(event) => setPoolName(event.target.value)}
                       placeholder="Pool name"
                       maxLength={60}
+                      required
                       className="rounded-xl border border-slate-700 bg-slate-900 px-3 py-2.5 text-sm text-slate-100 outline-none focus:border-amber-400"
                     />
                     {selectedPoolIsActive && (
@@ -1799,6 +1815,7 @@ function PoolPageContent() {
                         type="number"
                         min={1}
                         max={rows.length}
+                        step={1}
                         value={randomizeCount}
                         onChange={(event) =>
                           setRandomizeCount(event.target.value)

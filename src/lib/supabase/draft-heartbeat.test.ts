@@ -95,7 +95,7 @@ describe("draft heartbeat logging", () => {
     expect(log.mock.calls[0]?.[0]).toContain("alive");
   });
 
-  it("always logs a sweep that resolved something, mid-window", async () => {
+  it("always logs a sweep that advanced or started something, mid-window", async () => {
     const s = state();
     await runSweep(makeClient({ data: 0 }), s);
     log.mockClear();
@@ -105,7 +105,7 @@ describe("draft heartbeat logging", () => {
     await runSweep(makeClient({ data: 3 }), s);
 
     expect(log).toHaveBeenCalledTimes(1);
-    expect(log.mock.calls[0]?.[0]).toContain("advanced 3");
+    expect(log.mock.calls[0]?.[0]).toContain("advanced or started 3");
   });
 
   it("a resolution resets the liveness clock rather than stacking on it", async () => {

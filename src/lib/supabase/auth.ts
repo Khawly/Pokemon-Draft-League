@@ -13,6 +13,7 @@ import { supabase } from "@/lib/supabase/client";
 import { normalizeNameColor } from "@/lib/name-colors";
 import { normalizeAvatarInitials } from "@/lib/avatar-initials";
 import { MAX_NAME_LENGTH } from "@/lib/name-limits";
+import { requireEmail, requireText } from "@/lib/validation";
 
 /** Longest display name the UI and database accept, in characters. */
 export const MAX_DISPLAY_NAME_LENGTH = MAX_NAME_LENGTH;
@@ -68,11 +69,19 @@ export async function signUpWithEmail({
   password: string;
   displayName: string;
 }) {
-  const normalizedDisplayName = displayName
-    .trim()
-    .slice(0, MAX_DISPLAY_NAME_LENGTH);
+  const normalizedDisplayName = requireText(
+    displayName,
+    "Display name",
+    MAX_DISPLAY_NAME_LENGTH,
+  );
+  const normalizedEmail = requireEmail(email);
+
+  if (password.length < 6) {
+    throw new Error("Password must be at least 6 characters.");
+  }
+
   const { data, error } = await supabase.auth.signUp({
-    email,
+    email: normalizedEmail,
     password,
     options: {
       data: {
@@ -109,7 +118,7 @@ export async function signInWithEmail({
   password: string;
 }) {
   const { data, error } = await supabase.auth.signInWithPassword({
-    email,
+    email: requireEmail(email),
     password,
   });
 
@@ -127,9 +136,12 @@ export async function signInWithEmail({
  * @returns A Promise resolving to the Supabase reset result data.
  */
 export async function resetPassword(email: string) {
-  const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${window.location.origin}/auth/reset`,
-  });
+  const { data, error } = await supabase.auth.resetPasswordForEmail(
+    requireEmail(email),
+    {
+      redirectTo: `${window.location.origin}/auth/reset`,
+    },
+  );
 
   if (error) {
     throw new Error(error.message);

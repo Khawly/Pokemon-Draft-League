@@ -8,6 +8,7 @@
  * change the row and which refuses anyone who is not the league's owner.
  */
 import { supabase } from "@/lib/supabase/client";
+import { MAX_RULES_LENGTH } from "@/lib/validation";
 import { isCurrentSeason, loadSeason } from "@/lib/supabase/seasons";
 
 /** The league's rules for the current season. */
@@ -153,6 +154,12 @@ export async function saveLeagueRules(
   leagueId: string,
   content: string,
 ): Promise<string> {
+  if (content.length > MAX_RULES_LENGTH) {
+    throw new Error(
+      `Rules must be ${MAX_RULES_LENGTH.toLocaleString()} characters or fewer.`,
+    );
+  }
+
   const { data, error } = await supabase.rpc("save_league_rules", {
     p_league_id: leagueId,
     p_content: content,

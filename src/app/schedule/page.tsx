@@ -60,6 +60,7 @@ import { useUserTimeZone } from "@/lib/user-timezone";
 import { useRealtimeInvalidation } from "@/lib/use-realtime-invalidation";
 import { formatInTimeZone, formatTimeZoneLabel } from "@/lib/datetime";
 import * as scheduleApi from "@/lib/supabase/schedule";
+import { requireInteger } from "@/lib/validation";
 import { StandingsTab } from "./standings-tab";
 import { PlayoffsTab } from "./playoffs-tab";
 import { SetupTab } from "./setup-tab";
@@ -755,7 +756,32 @@ function SchedulePageContent({
     if (!goods) {
       return;
     }
-    const matchCount = form.weeks;
+
+    let weeks: number;
+    let playoffTeams: number;
+
+    try {
+      weeks = requireInteger(form.weeks, "Regular season weeks", 1, 52);
+      playoffTeams = requireInteger(
+        form.playoffTeams,
+        "Playoff teams",
+        0,
+        maxPlayoffTeams,
+      );
+
+      if (playoffTeams === 1) {
+        throw new Error("Playoff teams must be 0 or at least 2.");
+      }
+    } catch (caughtError) {
+      setError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Check the schedule settings before generating.",
+      );
+      return;
+    }
+
+    const matchCount = weeks;
     const shouldGenerate = await confirm({
       title: "Regenerate the season schedule?",
       detail:
@@ -770,18 +796,21 @@ function SchedulePageContent({
     if (!shouldGenerate) {
       return;
     }
-    await canRunMutation(
+    const generated = await canRunMutation(
       () =>
         scheduleApi.generateSchedule(goods.league.id, {
-          regular_season_weeks: form.weeks,
+          regular_season_weeks: weeks,
           match_format: form.matchFormat,
-          playoff_team_count: form.playoffTeams,
+          playoff_team_count: playoffTeams,
           playoff_match_format: form.playoffMatchFormat,
           playoff_format: form.playoffFormat,
         }),
       goods.league.id,
     );
-    setNotice("Schedule generated.");
+
+    if (generated) {
+      setNotice("Schedule generated.");
+    }
   }
 
   /**
@@ -796,12 +825,41 @@ function SchedulePageContent({
       return;
     }
 
+    let weeks: number;
+    let playoffTeams: number;
+
+    try {
+      weeks = requireInteger(form.weeks, "Regular season weeks", 1, 52);
+      playoffTeams = requireInteger(
+        form.playoffTeams,
+        "Playoff teams",
+        0,
+        maxPlayoffTeams,
+      );
+
+      if (playoffTeams === 1) {
+        throw new Error("Playoff teams must be 0 or at least 2.");
+      }
+    } catch (caughtError) {
+      setError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Check the schedule settings before saving.",
+      );
+      return;
+    }
+
+    if (games.length === 0) {
+      setError("Add at least one matchup before saving the schedule.");
+      return;
+    }
+
     const confirmed = await confirm({
       title: "Save this schedule?",
       detail: `${games.length} matchup${
         games.length === 1 ? "" : "s"
-      } across ${form.weeks} week${
-        form.weeks === 1 ? "" : "s"
+      } across ${weeks} week${
+        weeks === 1 ? "" : "s"
       }. Every existing match and result this season is removed and replaced.`,
       confirmLabel: "Save schedule",
       tone: "danger",
@@ -814,14 +872,14 @@ function SchedulePageContent({
     setIsSavingManual(true);
 
     try {
-      await canRunMutation(
+      const saved = await canRunMutation(
         () =>
           scheduleApi.saveManualSchedule(
             goods.league.id,
             {
-              regular_season_weeks: form.weeks,
+              regular_season_weeks: weeks,
               match_format: form.matchFormat,
-              playoff_team_count: form.playoffTeams,
+              playoff_team_count: playoffTeams,
               playoff_match_format: form.playoffMatchFormat,
               playoff_format: form.playoffFormat,
             },
@@ -829,9 +887,12 @@ function SchedulePageContent({
           ),
         goods.league.id,
       );
-      setNotice(
-        `Schedule saved: ${games.length} matchup${games.length === 1 ? "" : "s"}.`,
-      );
+
+      if (saved) {
+        setNotice(
+          `Schedule saved: ${games.length} matchup${games.length === 1 ? "" : "s"}.`,
+        );
+      }
     } finally {
       setIsSavingManual(false);
     }
@@ -963,7 +1024,13 @@ function SchedulePageContent({
     ? TABS.filter((tab) => goods.isCurrentSeason || tab !== "Setup")
     : TABS.filter((tab) => tab !== "Setup");
   const generateDisabled =
-    isBusy || !Number.isInteger(form.weeks) || form.weeks < 1;
+    isBusy ||
+    !Number.isInteger(form.weeks) ||
+    form.weeks < 1 ||
+    form.weeks > 52 ||
+    !Number.isInteger(form.playoffTeams) ||
+    (form.playoffTeams !== 0 &&
+      (form.playoffTeams < 2 || form.playoffTeams > maxPlayoffTeams));
 
   /*
    * The next weekly deadline, in the reader's zone. The league configures the
